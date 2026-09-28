@@ -379,6 +379,7 @@ public final class KernelBoot {
 		// One mod's mixin config plugin must not be able to abort config preparation for every other mod. Mixin
 		// guards plugin construction but not the calls, and a throw there escapes select(). See GuestMixinPluginGuard.
 		chain.register(TransformPhase.COREMOD, new GuestMixinPluginGuard());
+		chain.register(TransformPhase.COREMOD, new net.forbric.kernel.transform.IrisEarlyGamePathTransformer());
 		chain.register(TransformPhase.COREMOD, new net.forbric.kernel.transform.CorpseNameTagAdapter(name -> {
 			try {
 				String binary = name.replace('/', '.');
