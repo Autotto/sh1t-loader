@@ -1,5 +1,7 @@
 package net.forbric.kernel.transform;
 
+import net.forbric.kernel.TestFixtures;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.nio.file.Files;
@@ -94,6 +96,7 @@ class NativeCoremodParityTest {
 	}
 
 	@Test void theTargetListIsNeoForgesAndMinecraftForgesLessTheTrialSpawner() throws Exception {
+		TestFixtures.requireFiles("staged MinecraftForge carrier", FORGE);
 		try (ZipFile zip = new ZipFile(FORGE.toFile())) {
 			Set<String> forge = new TreeSet<>();
 			String json = new String(zip.getInputStream(zip.getEntry("coremods/finalize_spawn_targets.json")).readAllBytes());

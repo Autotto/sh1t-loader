@@ -1,4 +1,6 @@
 package net.forbric.kernel.mixin;
+
+import net.forbric.kernel.TestFixtures;
 import static org.junit.jupiter.api.Assertions.*;
 import java.util.*;
 import java.nio.file.*;
@@ -61,6 +63,7 @@ class InsertedLambdaArgumentShimTest {
   assertArrayEquals(new Object[]{42L,first,second,0.5d,callback},((Object[][])defined.getField("SEEN").get(null))[0]);assertTrue(callback.isCancelled());
  }
  @Test void actualLitematicaOpaqueAndTranslucentHandlersFollowThePrunedLiveLambda()throws Exception{
+  TestFixtures.requireDirectory("local merged mod pack",Path.of("run/client-merged-pack/mods"));
   Path jar;try(var files=Files.list(Path.of("run/client-merged-pack/mods"))){jar=files.filter(p->p.getFileName().toString().contains("litematica")&&p.toString().endsWith(".jar")).findFirst().orElseThrow();}
   ClassNode mixin;try(ZipFile z=new ZipFile(jar.toFile())){mixin=MixinFit.parse(z.getInputStream(z.getEntry("fi/dy/masa/litematica/mixin/render/MixinLevelRenderer.class")).readAllBytes());}
   String owner="net/minecraft/client/renderer/LevelRenderer";ClassNode target=StagedFabricMixinFixture.game(owner,false);target=MixinFit.parse(new DuplicateLambdaPruneInjector().transform(owner.replace('/','.'),StagedFabricMixinFixture.bytes(target),null));ClassNode finalTarget=target;

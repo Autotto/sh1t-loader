@@ -1,6 +1,8 @@
 /* Copyright 2026 The Forbric Project. Licensed under the Apache License, Version 2.0. */
 package net.forbric.kernel.runtime;
 
+import net.forbric.kernel.TestFixtures;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.io.ByteArrayOutputStream;
@@ -53,8 +55,8 @@ final class PortalSpawnFixture implements AutoCloseable {
 			copyCarrierHook(classes, "neoforge-runtime/neoforge-runtime.jar", "net.neoforged.neoforge.event.EventHooks");
 		}
 		Path runtime = Path.of(System.getProperty("forbric.test.runtimeClasses", "build/classes/java/runtime"));
-		assertTrue(Files.isRegularFile(runtime.resolve("net/forbric/kernel/runtime/KernelPortalSpawn.class")),
-				"this behavioral probe requires the compiled GAME runtime");
+		TestFixtures.requireFiles("this behavioral probe requires the compiled GAME runtime",
+				runtime.resolve("net/forbric/kernel/runtime/KernelPortalSpawn.class"));
 		loader = new URLClassLoader(new URL[] {classes.toUri().toURL(), runtime.toUri().toURL()}, ClassLoader.getPlatformClassLoader());
 		probe = type("fixture.PortalProbe"); wrapper = type("net.forbric.kernel.runtime.KernelPortalSpawn");
 		level = type("net.minecraft.world.level.Level").getConstructor().newInstance();

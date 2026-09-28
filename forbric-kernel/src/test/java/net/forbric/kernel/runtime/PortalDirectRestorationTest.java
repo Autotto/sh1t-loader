@@ -1,6 +1,8 @@
 /* Copyright 2026 The Forbric Project. Licensed under the Apache License, Version 2.0. */
 package net.forbric.kernel.runtime;
 
+import net.forbric.kernel.TestFixtures;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.nio.file.Path;
@@ -38,6 +40,7 @@ class PortalDirectRestorationTest {
 		// KernelRuntimeClasses.Call is the reflective, parent-typed boot seam. These injected signatures
 		// instead name game types, so resolve their exact emitted descriptors directly against runtime bytes.
 		Path runtime = Path.of(System.getProperty("forbric.test.runtimeClasses", "build/classes/java/runtime"));
+		TestFixtures.requireFiles("compiled game side", runtime.resolve(binary.replace('.', '/') + ".class"));
 		byte[] compiled = Files.readAllBytes(runtime.resolve(binary.replace('.', '/') + ".class"));
 		byte[] nativeCaller = ForgeSpawnFixture.staged("merged-base/patched-mc-merged-26.2.jar", TARGET);
 		for (byte[] caller : List.of(adapt(nativeCaller), adapt(write(restoredCaller())))) {

@@ -1,5 +1,7 @@
 package net.forbric.kernel.boot;
 
+import net.forbric.kernel.TestFixtures;
+
 import static org.junit.jupiter.api.Assertions.*;
 import java.io.IOException;
 import java.lang.reflect.Method;
@@ -32,6 +34,8 @@ class EventChainAuditTest {
 		System.setProperty(EventChainAudit.PROPERTY, "unused-in-tests.json");
 		EventChainAudit.reset();
 		Path staged = Path.of(System.getProperty("forbric.stagedRoot"));
+		TestFixtures.requireFiles("staged carriers", staged.resolve("neoforge-runtime/neoforge-runtime.jar"),
+				staged.resolve("forge-runtime/forge-runtime.jar"));
 		String log4j = System.getProperty("forbric.log4jApiForTests", "");
 		assertFalse(log4j.isBlank(), "the build passes the log4j-api jar the real buses need");
 		var loader = new AuditedBuses(List.of(staged.resolve("neoforge-runtime/neoforge-runtime.jar"), staged.resolve("forge-runtime/forge-runtime.jar"), Path.of(log4j)));

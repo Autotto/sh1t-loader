@@ -16,6 +16,8 @@
 
 package net.forbric.api;
 
+import net.forbric.kernel.TestFixtures;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
@@ -263,6 +265,8 @@ class GameEventBridgeInventoryTest {
 		// is the honest place for it when the install can still fail after the redirect is in the bytecode.
 		// HudElementBridgeInjector appends the call; KernelForgeOverlayLayers is what knows whether the stack
 		// actually went on.
+		// Only a checkout with the staged game jars compiles the game side; without it half the recorders are missing.
+		TestFixtures.requireFiles("compiled game side", runtimeCompiled("KernelForgeOverlayLayers"), runtimeCompiled("KernelItemTooltips"));
 		recorded.addAll(bridgesRecordedBy(runtimeCompiled("KernelForgeOverlayLayers")));
 		// The tooltip seam is the same shape: the transformer writes the call, and the game-side class is the only
 		// place that knows a tooltip was really built and the event really posted.

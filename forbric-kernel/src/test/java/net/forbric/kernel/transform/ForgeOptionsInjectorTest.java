@@ -1,5 +1,7 @@
 package net.forbric.kernel.transform;
 
+import net.forbric.kernel.TestFixtures;
+
 import static org.junit.jupiter.api.Assertions.*;
 import java.net.URLClassLoader;
 import java.nio.file.Files;
@@ -60,6 +62,7 @@ class ForgeOptionsInjectorTest {
 	}
 
 	@Test void anEarlySaveRetainsUnknownF6WithoutOverwritingAnAlreadyRegisteredKey() throws Exception {
+		TestFixtures.requireFiles("compiled game side",Path.of("build/classes/java/runtime/net/forbric/kernel/runtime/KernelForgeOptions.class"));
 		Path source=temporary.resolve("net/minecraft/client");Files.createDirectories(source);
 		Files.writeString(source.resolve("KeyMapping.java"),"""
 			package net.minecraft.client;
@@ -112,6 +115,7 @@ class ForgeOptionsInjectorTest {
 
 	private static byte[] real() throws Exception {
 		Path jar=Path.of(System.getenv().getOrDefault("FORBRIC_OLD","../forbric-loader"),"run/merged-base/patched-mc-merged-26.2.jar");
+		TestFixtures.requireFiles("staged merged base",jar);
 		try(ZipFile zip=new ZipFile(jar.toFile())) {return zip.getInputStream(zip.getEntry("net/minecraft/client/Options.class")).readAllBytes();}
 	}
 	private static ClassNode read(byte[] bytes){ClassNode node=new ClassNode();new ClassReader(bytes).accept(node,0);return node;}

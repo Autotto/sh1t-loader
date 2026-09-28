@@ -1,5 +1,7 @@
 package net.forbric.kernel.mixin;
 
+import net.forbric.kernel.TestFixtures;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.nio.file.Files;
@@ -77,6 +79,7 @@ class MixinStubRebindTest {
 	}
 
 	@Test void aPairVanillaAlreadyHasStaysWhereTheModPutIt() throws Exception {
+		TestFixtures.requireDirectory("local merged mod pack", MERGED_PACK);
 		Path xaero;
 		try (var files = Files.list(MERGED_PACK)) {
 			xaero = files.filter(p -> p.getFileName().toString().contains("xaerominimap-fabric")).findFirst().orElse(null);

@@ -1,5 +1,7 @@
 package net.forbric.kernel.runtime;
 
+import net.forbric.kernel.TestFixtures;
+
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -25,7 +27,7 @@ import org.objectweb.asm.tree.MethodNode;
 class KernelModListScreenPointersTest {
 	private static List<String> strings() throws Exception {
 		Path screen = Path.of("build/classes/java/runtime/net/forbric/kernel/runtime/KernelModListScreen.class");
-		assertTrue(Files.isRegularFile(screen), "the GAME-side classes are compiled before the tests: " + screen);
+		TestFixtures.requireFiles("the GAME-side classes are compiled before the tests", screen);
 		ClassNode node = new ClassNode();
 		new ClassReader(Files.readAllBytes(screen)).accept(node, 0);
 		List<String> out = new ArrayList<>();
