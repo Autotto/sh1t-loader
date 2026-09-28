@@ -2,7 +2,7 @@
 
 **One Minecraft instance that runs Fabric mods, Forge mods and NeoForge mods at the same time.**
 
-Version 0.2.0 · Minecraft 26.2
+Version 0.3.0 · Minecraft 26.2
 
 ## What it does
 
@@ -45,9 +45,9 @@ You do **not** need to install Minecraft 26.2 first. If you do not have it, the 
 
    | You are on | Download |
    | --- | --- |
-   | Windows | `forbric-kernel-installer-0.2.0.jar` **and** `Forbric-Installer.bat` |
-   | macOS | `forbric-kernel-installer-0.2.0.jar` **and** `Forbric-Installer.command` |
-   | Linux | `forbric-kernel-installer-0.2.0.jar` (run it with `java -jar`) |
+   | Windows | `forbric-kernel-installer-0.3.0.jar` **and** `Forbric-Installer.bat` |
+   | macOS | `forbric-kernel-installer-0.3.0.jar` **and** `Forbric-Installer.command` |
+   | Linux | `forbric-kernel-installer-0.3.0.jar` (run it with `java -jar`) |
 
 3. **Double-click the `.bat` or `.command` — not the jar.** On Windows, double-clicking the jar often
    just flashes a black window and does nothing, because Windows tends to remember a broken setting for
@@ -77,7 +77,7 @@ You do **not** need to install Minecraft 26.2 first. If you do not have it, the 
 > Want to check your computer first? Run this — it looks only, and writes nothing:
 >
 > ```bash
-> java -jar forbric-kernel-installer-0.2.0.jar --doctor
+> java -jar forbric-kernel-installer-0.3.0.jar --doctor
 > ```
 
 ### Where to put mods
@@ -112,17 +112,59 @@ the one that lists all three kinds.
 
 | What you see | What to do |
 | --- | --- |
-| **The game crashes when it starts** | Open `logs/latest.log`. Remove half your mods and try again — repeat, and you will find the one at fault in a few rounds. |
-| **A mod is installed but does nothing** | Usually it was built for a different Minecraft version, or you have two builds of the same mod installed. Search `logs/latest.log` for its name. |
-| **A mod is missing something it needs** | Forbric shows you a window before the game starts, naming the mod and what it needs. You can launch anyway. |
+| **A window says a mod is missing something it needs** | It names the mod and what to install. Install it, or press **Launch anyway**. |
+| **A window says required mod features are unavailable** | Some part of a mod could not start. You can continue playing, or quit and remove that mod. |
+| **The game crashes** | Look in `crash-reports/`. Next to the crash report there is a `crash-analysis.txt` that names the mods most likely to blame. Remove those and try again. |
+| **A mod is installed but does nothing** | Open the Forbric mods list — a mod that did not finish loading is marked there. The same list is in `.forbric-kernel/load-report.txt` in your game folder. Often the mod was built for a different Minecraft version, or you have two builds of it. |
+| **A dedicated server will not start** and the log says the compatibility policy stopped it | A server has no screen to ask you on, so it stops instead. Remove the mod it names, or add `-Dforbric.compatibilityPolicy=continue` to the server's start command to run anyway. |
 | **The install seems stuck** | Usually a proxy or VPN sitting between you and Mojang's servers. Run `--doctor`, then try with it off. |
 
 ### Updating and uninstalling
 
-**To update**, run the installer again with the same settings. Your mods folder is left alone.
+**To update**, run the new installer with the same settings. Your mods folder and worlds are left alone.
+The first install after updating from 0.2.0 builds Forbric's game files again, so it takes several minutes
+once more.
 
 **To uninstall**, delete `.minecraft/versions/26.2-forbric/`. To get the disk space back as well, also
 delete `.minecraft/.forbric-build/` and `.minecraft/libraries/net/forbric/`.
+
+## What's new in 0.3.0
+
+**More mods work.** We picked three batches of about 100 random mods from Modrinth (popular ones and
+random ones, all three kinds) and started the game with each mod on its own. **80.5% loaded cleanly on
+0.2.0, 89.0% on 0.3.0.**
+
+New:
+
+- **Mods from different loaders can pass items, fluids and energy to each other** — for example a Fabric
+  pipe or hopper can feed a NeoForge or Forge machine.
+- **A window before you play when part of a mod cannot work**, so you can choose to continue or quit
+  instead of finding out later.
+- **The Forbric mods list marks mods that did not finish loading**, and says why.
+- **After a crash, a `crash-analysis.txt`** names the mods most likely responsible.
+- **The warning windows speak 10 languages**, including Chinese, and suggest what to install.
+- Forbric now uses the full NeoForge release instead of a beta, so NeoForge mods that need a newer NeoForge
+  can load, and the title screen no longer says "beta".
+
+Fixed:
+
+- Crashes when smelting in a furnace, crafting or brewing with Fabric API installed, fighting the Ender
+  Dragon, using a flower pot, or placing a fluid from a Fabric or Forge mod.
+- Some mod sets left the game on a black screen at startup.
+- Dungeons did not generate, and a seed did not give the same terrain as vanilla Minecraft.
+- Item tooltips were missing enchantments, lore, attributes and durability.
+- Many Forge mods loaded but did nothing — their commands, key bindings, on-screen displays, settings files,
+  mobs and world changes now work.
+- Xaero's Minimap and World Map (Forge builds) crashed at startup.
+- Mods that crashed or failed on 0.2.0 and work now include Farmer's Delight Refabricated, Better End,
+  Better Nether, Entity Culling, More Culling, Friends & Foes, Repurposed Structures, Traveler's Backpack,
+  Shoulder Surfing and YetAnotherConfigLib.
+
+Worse than 0.2.0: in the same test, **Alex's Mobs Continued**, **Drippy Loading Screen**, **FancyMenu** and
+**Easy Magic** (NeoForge builds) worked on 0.2.0 and do not on 0.3.0.
+
+Changed for server owners: a dedicated server now stops at startup if a mod is missing a part it needs,
+because there is no screen to ask you on (see *If something goes wrong* above).
 
 ## What we promise
 
@@ -138,11 +180,12 @@ assembled on your machine when you install.
 
 And what we do **not** promise:
 
-**We cannot promise any particular mod works.** Three kinds of mods is an enormous range, and only a
-small part of it has ever been tried. Expect some trial and error, and do not plan a big modpack around
-Forbric yet.
+**We cannot promise any particular mod works.** In our own test about one mod in ten still fails on its
+own, and mods that each work alone can still clash when put together. Expect some trial and error, and do
+not plan a big modpack around Forbric yet. Popular performance and shader mods — Sodium, Iris, Sodium Extra
+(NeoForge builds) — still crash.
 
-**This is a research project at version 0.2.0.** There is no support, no roadmap, and things will change.
+**This is a research project at version 0.3.0.** There is no support, no roadmap, and things will change.
 
 Forbric is not affiliated with Mojang, FabricMC, MinecraftForge or NeoForged.
 
@@ -153,11 +196,10 @@ Forbric is not affiliated with Mojang, FabricMC, MinecraftForge or NeoForged.
 **Your mod does not need to change.** Forbric loads it in its own ecosystem's real runtime — nothing is
 re-implemented, so there is no compatibility layer to code against.
 
-- [forbric-kernel/README.md](forbric-kernel/README.md) — the kernel, which is what the installer
-  installs.
-- [introduction.md](introduction.md) — the architecture of `forbric-loader`, the previous-generation
-  "weld" the kernel replaced. It is still in the tree and still builds the shared game artifacts; it
-  does **not** describe the kernel.
+- [introduction.md](introduction.md) — how Forbric works inside, for developers: boot order, how the
+  three kinds of mods are loaded together, what the installer builds, and how it is tested.
+- [forbric-kernel/README.md](forbric-kernel/README.md) — a shorter summary of the kernel, which is what
+  the installer installs.
 
 To build from source you need `git` and a JDK 21 or newer:
 
