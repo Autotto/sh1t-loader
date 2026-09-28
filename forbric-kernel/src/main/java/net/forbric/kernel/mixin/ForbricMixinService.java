@@ -283,6 +283,9 @@ public final class ForbricMixinService
 		// …and a single-point injector compiled with an array-valued `at` (another Mixin fork's shape) is given the
 		// shape this Mixin declares, before MixinExtras' pre-apply transformer casts it.
 		MixinAtShape.normalise(node);
+		FabricRegistryLoaderMixinAdapter.adapt(node, this::mergedBaseNodeWithCode);
+		FabricRegistryInitializationMixinAdapter.adapt(node);
+		FabricCreativePagerMixinAdapter.adapt(node);
 		// …and a locals capture that would throw an Error no handler sees is made to skip and warn instead.
 		MixinLocalsCapture.soften(node);
 		// …and an injection point naming a call the surviving carrier gave extra parameters is pointed at the
@@ -322,6 +325,7 @@ public final class ForbricMixinService
 		FabricClientMixinAnchors.adapt(node, this::mergedBaseNodeWithCode);
 		FabricSoundMixinAdapter.adapt(node, this::mergedBaseNodeWithCode);
 		ContinuitySpriteMixinAdapter.adapt(node, this::mergedBaseNodeWithCode);
+		FabricFluidFlowMixinAdapter.adapt(node, this::mergedBaseNodeWithCode);
 		// …and an @Inject anchored on a call the merged body makes through a subtype of the same method
 		// (Decoder.parse → Codec.parse: lithostitched's Fabric load predicates) moves to that one call.
 		MixinSubtypeOwnerRetarget.adapt(node, this::mergedBaseNodeWithCode);
@@ -567,6 +571,16 @@ public final class ForbricMixinService
 
 		if (MergedBaseMixinCompat.enabled()) {
 			collectSuppressed(MergedBaseMixinCompat.SUPPRESSED_MIXINS, configName, out);
+			if (FabricRegistryLoaderMixinAdapter.enabled() && configName.equals("fabric-registry-sync-v0.mixins.json")) {
+				out.remove("RegistryDataLoaderMixin");
+			}
+			if (FabricRegistryInitializationMixinAdapter.enabled()) {
+				if (configName.equals("fabric-registry-sync-v0.mixins.json")) out.removeAll(List.of("BootstrapMixin","MainMixin"));
+				if (configName.equals("fabric-registry-sync-v0.client.mixins.json")) out.remove("MinecraftMixin");
+			}
+			if (FabricCreativePagerMixinAdapter.enabled() && configName.equals("fabric-creative-tab-api-v1.client.mixins.json")) {
+				out.remove("CreativeModeInventoryScreenMixin");
+			}
 			// The pruner trims these to the injectors that fit; switched off, the whole-mixin pin comes back so the
 			// kill switch reproduces the OLD behaviour and never the half-applied one.
 			if (!net.forbric.kernel.transform.GuestInjectorPruner.enabled()) {

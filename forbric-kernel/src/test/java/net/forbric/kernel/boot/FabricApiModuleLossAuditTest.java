@@ -236,12 +236,18 @@ class FabricApiModuleLossAuditTest {
 	}
 
 	@Test void separatelyInstalledDefiningModuleIsNotItsOwnThirdPartyConsumer() {
+		String before = System.setProperty(net.forbric.kernel.mixin.FabricRegistryLoaderMixinAdapter.PROPERTY, "off");
+		try {
 		publish(entry("fabric-registry-sync-v0", "module.jar", ""), entry("consumer", "consumer.jar", ""));
 		FabricApiModuleLossAudit.note("module.jar", classNaming(SETUP_CALLBACK));
 		FabricApiModuleLossAudit.note("consumer.jar", classNaming(SETUP_CALLBACK));
 		FabricApiModuleLossAudit.report(Side.DEDICATED_SERVER);
 		assertTrue(degraded("fabric-registry-sync-v0") == null);
 		assertTrue(degraded("consumer") != null);
+		} finally {
+			if (before == null) System.clearProperty(net.forbric.kernel.mixin.FabricRegistryLoaderMixinAdapter.PROPERTY);
+			else System.setProperty(net.forbric.kernel.mixin.FabricRegistryLoaderMixinAdapter.PROPERTY, before);
+		}
 	}
 
 	@Test

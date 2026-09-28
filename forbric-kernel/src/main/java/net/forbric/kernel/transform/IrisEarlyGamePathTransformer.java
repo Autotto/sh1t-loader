@@ -14,6 +14,11 @@ public final class IrisEarlyGamePathTransformer implements ClassTransformer {
 	private static final String PLATFORM = "net/irisshaders/iris/platform/IrisPlatformHelpers";
 	private static final String FABRIC = "net/fabricmc/loader/api/FabricLoader";
 
+	@Override public AnchorSet anchors() {
+		return AnchorSet.scanned("reads reviewed directory access in a guest Iris config plugin; the class "
+				+ "and its bytecode are supplied by the installed mod, not by the staged game");
+	}
+
 	@Override public byte[] transform(String name, byte[] bytes, TransformContext context) {
 		if (!PLUGIN.equals(name) || "off".equalsIgnoreCase(System.getProperty(PROPERTY, "on"))) return bytes;
 		ClassNode node = new ClassNode();

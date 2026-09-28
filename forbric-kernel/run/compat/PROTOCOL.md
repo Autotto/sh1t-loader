@@ -6,6 +6,13 @@ alone does not prove that a mod's features ran.
 
 ## Inputs and transport
 
+`../patch-dynamic-torches.py <original.jar> --output <fixed.jar>` repairs Dynamic Torches 5.4's legacy
+`type` entity-predicate key to `entity_type` for Minecraft 26.2. It writes a separate jar and preserves every
+other entry; keep the original outside the active mods directory when installing the repaired copy. Run
+`python3 -m unittest discover -s run/compat -p test_dynamic_torches_patch.py` for archive preservation,
+idempotence and refusal checks. World validation must also prove `dt:tag` loads and a torch item receives
+the `dt.lit` tag; a JSON rewrite alone is not functional acceptance.
+
 Use Python 3 (standard library only), Bash, and the staged game/carrier jars. Configure
 `WINSH` and `WINFILE` as the executable commands for the existing Windows shell/file
 transports. Shell aliases are not inherited by scripts. `lib-compat.sh` parses these

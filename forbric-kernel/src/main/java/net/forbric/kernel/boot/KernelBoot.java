@@ -618,8 +618,9 @@ public final class KernelBoot {
 				try (var in = loader.getGameResourceAsStream(name + ".class")) { return in == null ? null : in.readAllBytes(); }
 				catch (java.io.IOException unavailable) { return null; }
 			};
-			java.util.function.BooleanSupplier pinned = () -> net.forbric.kernel.mixin.MergedBaseMixinCompat.pinInForce(
-					net.forbric.kernel.mixin.MergedBaseMixinCompat.CREATIVE_PAGER_PIN);
+			java.util.function.BooleanSupplier pinned = () -> net.forbric.kernel.mixin.FabricCreativePagerMixinAdapter.enabled()
+					|| net.forbric.kernel.mixin.MergedBaseMixinCompat.pinInForce(
+							net.forbric.kernel.mixin.MergedBaseMixinCompat.CREATIVE_PAGER_PIN);
 			if (net.forbric.kernel.transform.CreativePagerBridgeInjector.enabled()) {
 				chain.register(TransformPhase.COREMOD, new net.forbric.kernel.transform.CreativePagerBridgeInjector(gameClass, pinned));
 			} else if (pinned.getAsBoolean() && gameClass.apply(net.forbric.kernel.transform.CreativePagerBridgeInjector.API) != null) {
