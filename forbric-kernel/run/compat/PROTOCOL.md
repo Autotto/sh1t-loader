@@ -53,6 +53,16 @@ FORBRIC-ONLY, BOTH, NATIVE-ONLY or NEITHER, and INCONCLUSIVE when an arm did not
 Run each with `--help` for its argument list. API usage must be proved from the downloaded candidate
 jar before treating the selection as final; metadata resolution alone cannot prove it.
 
+## Carpet rule and event verification
+
+`carpet-gate.py --carpet <fabric-carpet-26.2+v260616.jar> --staged-root <forbric-loader/run>`
+compiles the Carpet probe and runs 22 behavior checks in isolated dedicated-server worlds. The baseline
+runs with `forbric.carpetMixins=off` and must expose the repaired failures; the fixed run uses strict
+compatibility policy and must pass every behavior check with no confirmed Carpet losses. Both runs
+must save and shut down normally. Reports, logs, test worlds and input hashes stay under the printed
+output directory; `--output` selects a new directory explicitly. See
+[the Carpet probe instructions](../../canary/carpet/README.md) for prerequisites and coverage.
+
 ## Run and collect
 
 1. Build the four staged artifacts and canaries. Do not run a gate while a Windows

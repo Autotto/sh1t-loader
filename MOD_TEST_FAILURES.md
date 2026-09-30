@@ -2,7 +2,16 @@
 
 测试日期：2026-09-26 至 2026-09-27
 加载器：Forbric main `11ca1ffa`，用 `forbric-kernel-installer` 装进 Mac 官方目录 `~/Library/Application Support/minecraft`（版本 `26.2-forbric`）
-本文件只记录测试结果，没有查原因，也没有修复。
+下面的历史测试保留当时结果；后续修复及验证单独记录，不回写原始统计。
+
+## 后续修复：Carpet（2026-09-30）
+
+针对 `fabric-carpet-26.2+v260616.jar`，已接回 `fillUpdates` 的两处注入、黑石/深板岩再生，以及 Scarpet 换手与挖方块事件。保留原始 Carpet 回调与取消结果；原生换手、挖方块事件的否决仍然有效。
+
+独立服务器行为测试共 22 项：关闭修复时 7 项通过，启用修复后严格兼容模式下 22 项全部通过，且 Carpet 的已确认兼容损失为零。另有 7 项真实字节码专项测试全部通过。覆盖规则开关、放置和邻居更新、原版流体产物、创造/生存模式的事件次数及取消效果；不代表已验证所有 Carpet 规则或扩展模组。
+
+复现方法见 [Carpet 行为测试](forbric-kernel/canary/carpet/README.md)。
+
 
 ## 最新测试：3 批随机 mod，main 对比 release v0.2.0（2026-09-27）
 
