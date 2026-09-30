@@ -29,7 +29,7 @@ Connector. Forbric is for the cases it cannot reach.
 
 ### Before you start
 
-- A launcher that can start custom versions — **PCL2** or **HMCL**.
+- A Minecraft launcher.
 - **Java.** If you can already play Minecraft, you have it. The installer finds the copy your launcher
   downloaded, even if you never installed Java yourself.
 - **An internet connection**, and about 730 MB of free disk while it works (about 190 MB is kept
