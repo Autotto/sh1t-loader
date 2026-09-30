@@ -90,7 +90,7 @@ public final class FabricFluidFlowMixinAdapter {
 		method.maxStack=6;method.maxLocals=callback+1;return method;
 	}
 
-	private static MethodNode wrapper(ClassNode mixin, MethodNode original, MethodNode host, MethodInsnNode nativeCall) {
+	static MethodNode wrapper(ClassNode mixin, MethodNode original, MethodNode host, MethodInsnNode nativeCall) {
 		MethodNode method = new MethodNode(Opcodes.ASM9,Opcodes.ACC_PRIVATE,"forbric$fluidFlow$"+host.name,
 				"("+LEVEL+POS+"L"+OPERATION+";)Z",null,null);
 		AnnotationNode wrap = new AnnotationNode("Lcom/llamalad7/mixinextras/injector/wrapoperation/WrapOperation;");

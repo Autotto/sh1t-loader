@@ -526,6 +526,9 @@ public final class KernelBoot {
 		// …and the ids in that data only resolve if the Forge registry wrappers honour aliases, which their overrides
 		// of fabric-api's mixin targets silently stopped them doing.
 		chain.register(TransformPhase.COREMOD, new RegistryAliasParityInjector());
+		chain.register(TransformPhase.COREMOD, new net.forbric.kernel.transform.SoundRegistryIdentityInjector());
+		chain.register(TransformPhase.COREMOD, new net.forbric.kernel.transform.ServerReloadListenerNamesInjector());
+		chain.register(TransformPhase.COREMOD, new net.forbric.kernel.transform.CreateWorkerWaitInjector());
 
 		// …and NeoForge's configuration-phase registry sync remaps a registry through MappedRegistry fields those same
 		// wrappers never fill, so the first real client to connect was dropped with "Failed to sync registries from the

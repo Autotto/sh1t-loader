@@ -264,6 +264,11 @@ tasks.named('compileRuntimeJava') { dependsOn verifyRebornEnergy }
 
 test {
 	useJUnitPlatform()
+	// These integration fixtures read the released Create Fly jar, so replacing it must invalidate the tests.
+	def createFlyFixture = file(project.findProperty('forbric.createFlyJar')
+			?: 'build/compat-inputs/create-fly/create-fly.jar')
+	inputs.file(createFlyFixture).withPropertyName('createFlyFixture').optional()
+	systemProperty 'forbric.createFlyJar', createFlyFixture.absolutePath
 	// Only EventChainAuditTest's own loader gets log4j (the real buses need it); the test classpath keeps none,
 	// because several tests assert ForbricLog's fallback when log4j is absent.
 	doFirst { systemProperty 'forbric.log4jApiForTests', configurations.compileClasspath.files.find { it.name.startsWith('log4j-api-') }?.absolutePath ?: '' }

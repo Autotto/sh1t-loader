@@ -326,6 +326,9 @@ public final class ForbricMixinService
 		FabricSoundMixinAdapter.adapt(node, this::mergedBaseNodeWithCode);
 		ContinuitySpriteMixinAdapter.adapt(node, this::mergedBaseNodeWithCode);
 		FabricFluidFlowMixinAdapter.adapt(node, this::mergedBaseNodeWithCode);
+		CreateFluidMixinAdapter.adapt(node, this::mergedBaseNodeWithCode);
+		CreateKeyboardMixinAdapter.adapt(node, this::mergedBaseNodeWithCode);
+		CreateStructureMixinAdapter.adapt(node, this::mergedBaseNodeWithCode);
 		FabricSectionCompilerMixinAdapter.adapt(node, this::mergedBaseNodeWithCode);
 		CarpetMixinAdapter.adapt(node, this::mergedBaseNodeWithCode);
 		CarpetFluidMixinAdapter.adapt(node, this::mergedBaseNodeWithCode);
