@@ -49,16 +49,13 @@ You do **not** need to install Minecraft 26.2 first. If you do not have it, the 
    | macOS | `forbric-kernel-installer-0.3.0.jar` **and** `Forbric-Installer.command` |
    | Linux | `forbric-kernel-installer-0.3.0.jar` (run it with `java -jar`) |
 
-3. **Double-click the `.bat` or `.command` — not the jar.** On Windows, double-clicking the jar often
-   just flashes a black window and does nothing, because Windows tends to remember a broken setting for
-   `.jar` files. The script starts Java itself and does not depend on that setting. (Installing Java
-   does not fix it; the bad setting keeps winning.)
+3. **Double-click the `.bat` or `.command` — not the jar.** On Windows, double-clicking the jar sometimes
+   just flashes a black window and does nothing, because maybe Windows tends to remember a broken setting for `.jar` files. The script starts Java itself and does not depend on that setting. If you Double-click the `.jar` file and it ran successfully with GUI, you don't need to use `.command` and `.bat` files. But it the problem on my PC :(
 
    On macOS the first time, you may need to right-click the file and choose **Open**, then confirm. That
    is macOS being careful about downloads, not an error.
 
-4. **A window opens.** The only field that matters is **Game directory** — your `.minecraft` folder. It
-   is usually filled in correctly. If not:
+4. **A window opens.** The only field that matters is **Game directory** — This is the directory where you will install the game, the default is:
 
    - Windows — `C:\Users\<your name>\AppData\Roaming\.minecraft`
    - macOS — `~/Library/Application Support/minecraft`
@@ -71,8 +68,7 @@ You do **not** need to install Minecraft 26.2 first. If you do not have it, the 
    cannot legally be handed out ready-made. Stay connected while it runs. Installing again later reuses
    what is already on disk and is quick.
 
-6. **Open PCL2 or HMCL.** A new version called **`26.2-forbric`** is in the list. Start it like any
-   other version.
+6. **Open your Minecraft luncher.** A new version called **`26.2-forbric`** its in the list. It might be identified as fabric, start it like any other version.
 
 > Want to check your computer first? Run this — it looks only, and writes nothing:
 >
@@ -82,31 +78,17 @@ You do **not** need to install Minecraft 26.2 first. If you do not have it, the 
 
 ### Where to put mods
 
-The installer prints the folder when it finishes.
+The directory you selected during installation, The `/mods` folder in this directory.
 
-- If your launcher keeps each version separate (PCL2 and HMCL both can):
-  `.minecraft/versions/26.2-forbric/mods/`
-- Otherwise the shared `.minecraft/mods/`.
+**Fabric, Forge and NeoForge mods all go in the same folder.**
 
-**Fabric, Forge and NeoForge mods all go in the same folder.** You never have to tell Forbric which is
-which.
-
-One thing to watch: a popular mod is usually published as a Fabric build, a Forge build *and* a NeoForge
-build. Download **one** of them, not several. Forbric will notice and pick one, but it is better that
-you choose.
-
-If you download mods through your launcher's own mod browser, it will offer you Fabric builds by
-default. A launcher can only be told about one kind, so Forbric tells it Fabric. Any of the three still
-work — this only changes what the browser suggests first.
+One thing to watch: If mods for two different loaders depend on the same prerequisite mod, it is best to download the versions of that prerequisite mod for both loaders.
 
 ### Did it work?
 
 Open the pause menu. There is a button with **three overlapping squares**, and the tooltip says
 *Mods (Forbric)*. It opens one list of every mod you installed, each row labelled with the kind it is.
 Select a mod and press **Config**, or double-click the row, to open that mod's own settings.
-
-If you have Mod Menu installed, there will be **two** mods buttons. The one that says *Mods (Forbric)* is
-the one that lists all three kinds.
 
 ### If something goes wrong
 
@@ -118,6 +100,8 @@ the one that lists all three kinds.
 | **A mod is installed but does nothing** | Open the Forbric mods list — a mod that did not finish loading is marked there. The same list is in `.forbric-kernel/load-report.txt` in your game folder. Often the mod was built for a different Minecraft version, or you have two builds of it. |
 | **A dedicated server will not start** and the log says the compatibility policy stopped it | A server has no screen to ask you on, so it stops instead. Remove the mod it names, or add `-Dforbric.compatibilityPolicy=continue` to the server's start command to run anyway. |
 | **The install seems stuck** | Usually a proxy or VPN sitting between you and Mojang's servers. Run `--doctor`, then try with it off. |
+
+Of course, you can report issues to me [here](https://github.com/Ray-T-r/Minecraft-Forbric-mod-loader/issues/new).
 
 ### Updating and uninstalling
 
@@ -181,9 +165,7 @@ assembled on your machine when you install.
 And what we do **not** promise:
 
 **We cannot promise any particular mod works.** In our own test about one mod in ten still fails on its
-own, and mods that each work alone can still clash when put together. Expect some trial and error, and do
-not plan a big modpack around Forbric yet. Popular performance and shader mods — Sodium, Iris, Sodium Extra
-(NeoForge builds) — still crash.
+own, and mods that each work alone can still clash when put together.
 
 **This is a research project at version 0.3.0.** There is no support, no roadmap, and things will change.
 
