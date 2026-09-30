@@ -2,7 +2,7 @@
 
 **One Minecraft instance that runs Fabric mods, Forge mods and NeoForge mods at the same time.**
 
-Version 0.3.0 · Minecraft 26.2
+Version 0.3.1-beta · Minecraft 26.2
 
 ## What it does
 
@@ -45,9 +45,9 @@ You do **not** need to install Minecraft 26.2 first. If you do not have it, the 
 
    | You are on | Download |
    | --- | --- |
-   | Windows | `forbric-kernel-installer-0.3.0.jar` **and** `Forbric-Installer.bat` |
-   | macOS | `forbric-kernel-installer-0.3.0.jar` **and** `Forbric-Installer.command` |
-   | Linux | `forbric-kernel-installer-0.3.0.jar` (run it with `java -jar`) |
+   | Windows | `forbric-kernel-installer-0.3.1-beta.jar` **and** `Forbric-Installer.bat` |
+   | macOS | `forbric-kernel-installer-0.3.1-beta.jar` **and** `Forbric-Installer.command` |
+   | Linux | `forbric-kernel-installer-0.3.1-beta.jar` (run it with `java -jar`) |
 
 3. **Double-click the `.bat` or `.command` — not the jar.** On Windows, double-clicking the jar often
    just flashes a black window and does nothing, because Windows tends to remember a broken setting for
@@ -77,7 +77,7 @@ You do **not** need to install Minecraft 26.2 first. If you do not have it, the 
 > Want to check your computer first? Run this — it looks only, and writes nothing:
 >
 > ```bash
-> java -jar forbric-kernel-installer-0.3.0.jar --doctor
+> java -jar forbric-kernel-installer-0.3.1-beta.jar --doctor
 > ```
 
 ### Where to put mods
@@ -128,6 +128,13 @@ once more.
 
 **To uninstall**, delete `.minecraft/versions/26.2-forbric/`. To get the disk space back as well, also
 delete `.minecraft/.forbric-build/` and `.minecraft/libraries/net/forbric/`.
+
+## What's new in 0.3.1-beta
+
+- The installer bundles the current kernel, including the fixes below.
+- Restored Fabric chunk rendering used by Continuity's connected textures.
+- Restored Carpet rule and Scarpet event injections on the merged game.
+- Fabric fluid flow now uses the shared fluid type mapping.
 
 ## What's new in 0.3.0
 
@@ -186,7 +193,7 @@ own, and mods that each work alone can still clash when put together. Expect som
 not plan a big modpack around Forbric yet. Popular performance and shader mods — Sodium, Iris, Sodium Extra
 (NeoForge builds) — still crash.
 
-**This is a research project at version 0.3.0.** There is no support, no roadmap, and things will change.
+**This is a research project at version 0.3.1-beta.** There is no support, no roadmap, and things will change.
 
 Forbric is not affiliated with Mojang, FabricMC, MinecraftForge or NeoForged.
 
