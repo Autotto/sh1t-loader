@@ -286,6 +286,18 @@ public final class GameEventMultiplexer {
 						() -> clientBridge(cl, "installChatSend").invoke(null, neoBus));
 				install(GameEventBridge.KEY_INPUT,
 						() -> clientBridge(cl, "installKey").invoke(null, neoBus));
+				install(GameEventBridge.SCREEN_INIT_PRE,
+						() -> clientBridge(cl, "installScreenInitPre").invoke(null, neoBus));
+				install(GameEventBridge.SCREEN_INIT_POST,
+						() -> clientBridge(cl, "installScreenInitPost").invoke(null, neoBus));
+				install(GameEventBridge.SCREEN_KEY_PRESSED_PRE,
+						() -> clientBridge(cl, "installScreenKeyPressedPre").invoke(null, neoBus));
+				install(GameEventBridge.SCREEN_KEY_PRESSED_POST,
+						() -> clientBridge(cl, "installScreenKeyPressedPost").invoke(null, neoBus));
+				install(GameEventBridge.SCREEN_KEY_RELEASED_PRE,
+						() -> clientBridge(cl, "installScreenKeyReleasedPre").invoke(null, neoBus));
+				install(GameEventBridge.SCREEN_KEY_RELEASED_POST,
+						() -> clientBridge(cl, "installScreenKeyReleasedPost").invoke(null, neoBus));
 				install(GameEventBridge.MOUSE_BUTTON_PRE,
 						() -> clientBridge(cl, "installMouseButtonPre").invoke(null, neoBus));
 				install(GameEventBridge.INTERACTION_KEY,
