@@ -101,7 +101,7 @@ Select a mod and press **Config**, or double-click the row, to open that mod's o
 | **A dedicated server will not start** and the log says the compatibility policy stopped it | A server has no screen to ask you on, so it stops instead. Remove the mod it names, or add `-Dforbric.compatibilityPolicy=continue` to the server's start command to run anyway. |
 | **The install seems stuck** | Usually a proxy or VPN sitting between you and Mojang's servers. Run `--doctor`, then try with it off. |
 
-Of course, you can report issues to me [here](https://github.com/Ray-T-r/Minecraft-Forbric-mod-loader/issues/new).
+Of course, you can report issues to me [here](https://github.com/Ray-T-r/Minecraft-Forbric-mod-loader/issues/new?template=bug_report.yml).
 
 ### Updating and uninstalling
 
