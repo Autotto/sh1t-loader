@@ -8,6 +8,8 @@ import java.util.function.Function;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
 import org.objectweb.asm.tree.*;
+import net.forbric.api.Ecosystem;
+import net.forbric.api.ForeignType;
 import net.forbric.kernel.util.ForbricLog;
 
 /** Restores Carpet fluid callbacks without running vanilla's dead interaction loop beside the native registry. */
@@ -18,7 +20,9 @@ public final class CarpetFluidMixinAdapter {
 	static final String OPERATION = "com/llamalad7/mixinextras/injector/wrapoperation/Operation";
 	static final String HANDLER = "(L" + LEVEL + ";" + POS + STATE + CIR + ")V";
 	static final String INTERACT = "(L" + LEVEL + ";" + POS + ")Z";
-	static final List<String> REGISTRIES = List.of("net/neoforged/neoforge/fluids/FluidInteractionRegistry", "net/minecraftforge/fluids/FluidInteractionRegistry");
+	static final List<String> REGISTRIES = List.of(
+			ForeignType.FLUID_INTERACTION_REGISTRY.internal(Ecosystem.NEOFORGE),
+			ForeignType.FLUID_INTERACTION_REGISTRY.internal(Ecosystem.FORGE));
 	private CarpetFluidMixinAdapter() { }
 
 	public static int adapt(ClassNode mixin, Function<String, ClassNode> targets) {
