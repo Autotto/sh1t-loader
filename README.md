@@ -117,6 +117,7 @@ the one that lists all three kinds.
 | **The game crashes** | Look in `crash-reports/`. Next to the crash report there is a `crash-analysis.txt` that names the mods most likely to blame. Remove those and try again. |
 | **A mod is installed but does nothing** | Open the Forbric mods list — a mod that did not finish loading is marked there. The same list is in `.forbric-kernel/load-report.txt` in your game folder. Often the mod was built for a different Minecraft version, or you have two builds of it. |
 | **A dedicated server will not start** and the log says the compatibility policy stopped it | A server has no screen to ask you on, so it stops instead. Remove the mod it names, or add `-Dforbric.compatibilityPolicy=continue` to the server's start command to run anyway. |
+| **Continuity loads, but glass still has borders between blocks** | In **Options → Resource Packs**, enable **Default Connected Textures** (included with Continuity). Its built-in packs are optional and are not enabled just by installing the mod. Use the Fabric build with Fabric API, or a native NeoForge build matching your Minecraft version. |
 | **The install seems stuck** | Usually a proxy or VPN sitting between you and Mojang's servers. Run `--doctor`, then try with it off. |
 
 ### Updating and uninstalling

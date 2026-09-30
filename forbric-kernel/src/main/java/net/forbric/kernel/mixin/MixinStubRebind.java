@@ -474,7 +474,8 @@ public final class MixinStubRebind {
 				// elsewhere in the method, and on the merged body that call can be a carrier's own pipeline.
 				// fabric-renderer-api's SectionCompilerMixin hands every block of a chunk section to the FRAPI renderer
 				// that way, and on NeoForge's compile overload the call it replaces is NeoForge's per-block renderer.
-				// Moving it would switch chunk meshing for every client without Sodium: a separate, measured decision.
+				// FabricSectionCompilerMixinAdapter handles that reviewed pair atomically, together with the
+				// native-model context bridge. This generic pass must not move arbitrary renderer takeovers.
 				if (REDIRECT.equals(injector.desc)) return null;
 				shares.add(key);
 				continue;
