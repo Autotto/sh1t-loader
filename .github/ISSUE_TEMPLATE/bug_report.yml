@@ -31,7 +31,7 @@ body:
     id: logs
     attributes:
       label: 日志
-      description: 请拖拽或点击上传日志文件（.log、.txt）或压缩包（.zip、.gz、.tar.gz）；没有日志可留空。
+      description: 请拖拽或点击上传日志文件（.log、.txt）或压缩包（.zip、.gz）；没有日志可留空。
     validations:
       required: false
-      accept: ".log,.txt,.zip,.gz,.tar.gz"
+      accept: ".log,.txt,.zip,.gz"
