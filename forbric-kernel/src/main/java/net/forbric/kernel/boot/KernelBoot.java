@@ -441,6 +441,10 @@ public final class KernelBoot {
 					+ "root types and ForgeCapabilities cannot initialise; storage, pipe and machine mods stay inert",
 					net.forbric.kernel.transform.ForgeCapabilityCompositionTransformer.PROPERTY);
 		}
+		chain.register(TransformPhase.COREMOD, new net.forbric.kernel.transform.FabricModelContextTransformer(path -> {
+			try (var in = loader.getGameResourceAsStream(path)) { return in == null ? null : in.readAllBytes(); }
+			catch (java.io.IOException unavailable) { return null; }
+		}));
 		chain.register(TransformPhase.COREMOD, new ForbricMergedBaseCompatTransformer(path -> {
 			try (java.io.InputStream in = loader.getGameResourceAsStream(path)) {
 				return in == null ? null : in.readAllBytes();
