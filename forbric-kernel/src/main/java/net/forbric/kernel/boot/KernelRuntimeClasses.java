@@ -460,6 +460,9 @@ public final class KernelRuntimeClasses {
 		// Asked by the merged Fluid.getFluidType() (ForeignFluidTypeInjector) before NeoForge's throwing lookup, and by
 		// EntityFluidInteraction.getFluidTypeByTag before its throw (FabricFluidBehaviorInjector).
 		CLASSES.put("net.forbric.kernel.runtime.KernelFluidTypes", new Entry(Origin.COMPILED, List.of()));
+		// Asked at the end of NeoForge's FluidInteractionRegistry.canInteract, and told by MinecraftForge's addInteraction
+		// that its registry is in use (FluidInteractionsInjector). Inserted calls with game-typed descriptors.
+		CLASSES.put("net.forbric.kernel.runtime.KernelFluidInteractions", new Entry(Origin.COMPILED, List.of()));
 		// Called from NeoForge's ParticleEngine constructor after its group event (ParticleGroupsInjector).
 		CLASSES.put("net.forbric.kernel.runtime.KernelParticleGroups", new Entry(Origin.COMPILED, List.of()));
 		// MinecraftForge's Hurt, Damage and player Attack, from the seams ForgeDamageSeamsInjector writes into the merged

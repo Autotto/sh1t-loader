@@ -70,6 +70,23 @@ class CarpetMixinAdapterTest {
 		assertEquals(1,MixinFit.atNodes(MixinFit.injectorOf(outer)).size());assertNotNull(method(c,"forbric$carpetFizz").desc);
 		verify(c);assertEquals(0,adapt(c));
 	}
+	/** What Mixin is handed in the game: LiquidBlock and NeoForge's registry as FluidInteractionsInjector leaves them. */
+	@Test void fluidAdaptersBindToTheHostsTheFluidRepairLeaves()throws Exception {
+		java.util.function.Function<String,ClassNode> repaired=name->{ClassNode t=target(name);
+			if(!name.equals(CarpetFluidMixinAdapter.LIQUID)&&!name.equals(CarpetFluidMixinAdapter.REGISTRIES.getFirst()))return t;
+			byte[] out=new net.forbric.kernel.transform.FluidInteractionsInjector().transform(name.replace('/','.'),bytes(t),null);
+			ClassNode c=new ClassNode();new ClassReader(out).accept(c,0);return c;};
+		ClassNode liquid=repaired.apply(CarpetFluidMixinAdapter.LIQUID);
+		for(String host:List.of("onPlace","neighborChanged"))assertEquals(1,CarpetMixinAdapter.count(method(liquid,host),
+				"L"+CarpetFluidMixinAdapter.REGISTRIES.getFirst()+";canInteract"+CarpetFluidMixinAdapter.INTERACT),"premise: "+host+" asks NeoForge's registry");
+		ClassNode blackstone=mixin(NAMES.get(3));assertEquals(2,CarpetFluidMixinAdapter.adapt(blackstone,repaired));
+		for(String host:List.of("onPlace","neighborChanged")){MethodNode m=method(blackstone,"forbric$carpetBlackstone$"+host);
+			assertEquals("L"+CarpetFluidMixinAdapter.REGISTRIES.getFirst()+";canInteract"+CarpetFluidMixinAdapter.INTERACT,
+					MixinFit.value(MixinFit.atNodes(MixinFit.injectorOf(m)).getFirst(),"target"));
+			for(var i:m.instructions)assertFalse(i instanceof MethodInsnNode c&&c.name.equals("canInteract"),"no MinecraftForge fallback is generated");}
+		ClassNode deepslate=mixin(NAMES.get(4));assertEquals(1,CarpetFluidMixinAdapter.adapt(deepslate,repaired));
+		verify(blackstone);verify(deepslate);
+	}
 	@Test void reshapedNativeFluidLocalRefusesTheWholeRetarget()throws Exception {
 		ClassNode c=mixin(NAMES.get(4));byte[] before=bytes(c);
 		assertEquals(0,CarpetFluidMixinAdapter.adapt(c,name->{ClassNode t=target(name);if(CarpetFluidMixinAdapter.REGISTRIES.contains(name))for(var m:t.methods)for(var i:m.instructions)if(i instanceof VarInsnNode v&&v.getOpcode()==Opcodes.ASTORE&&v.var==5)v.var=9;return t;}));

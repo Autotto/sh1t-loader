@@ -62,8 +62,9 @@ public final class CarpetFluidMixinAdapter {
 			code.add(new MethodInsnNode(Opcodes.INVOKEINTERFACE,OPERATION,"call","([Ljava/lang/Object;)Ljava/lang/Object;",true));
 			code.add(new TypeInsnNode(Opcodes.CHECKCAST,"java/lang/Boolean"));code.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL,"java/lang/Boolean","booleanValue","()Z",false));
 			LabelNode handled=new LabelNode();code.add(new JumpInsnNode(Opcodes.IFNE,handled));
-			// The Forge entry point is deliberately stubbed in the merged runtime because its FluidType
-			// ABI differs. Give NeoForge the unhandled reaction before applying Carpet's tail rule.
+			// Only with -Dforbric.fluidInteractions=off: onPlace then still asks MinecraftForge's registry, which is
+			// neutered. Give NeoForge the unhandled reaction before applying Carpet's tail rule. With the repair on,
+			// both hosts ask NeoForge's registry (FluidInteractionsInjector) and this branch is not generated.
 			if(call.owner.equals(REGISTRIES.get(1))) {
 				code.add(new VarInsnNode(Opcodes.ALOAD,1));code.add(new VarInsnNode(Opcodes.ALOAD,2));
 				code.add(new MethodInsnNode(Opcodes.INVOKESTATIC,REGISTRIES.getFirst(),"canInteract",INTERACT,false));
