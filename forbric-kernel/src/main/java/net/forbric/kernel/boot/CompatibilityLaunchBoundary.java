@@ -70,7 +70,8 @@ final class CompatibilityLaunchBoundary {
 	 * not show stderr; they show {@code logs/latest.log}, which is log4j's file, and that is the one a player attaches
 	 * to a report. Issue #13's was five INFO lines for exactly this reason: the {@code NoClassDefFoundError} that ended
 	 * the boot never reached it. The game's own crash handling does not cover this either -- this is the kernel's boot,
-	 * before or around {@code Main.main}, not inside it.
+	 * before or around {@code Main.main}, not inside it. The one handler inside it that prints to stderr only, the
+	 * client {@code Main}'s {@code logEarlyException}, reaches here through {@link KernelLifecycle#onEarlyStartupFailure}.
 	 *
 	 * <p>Logging must not replace the failure: whatever happens here, the caller rethrows the original.
 	 */

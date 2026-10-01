@@ -188,6 +188,32 @@ class LaunchInputCheckTest {
 	}
 
 	/**
+	 * A carrier with everything but FMLEnvironment. The merged base's {@code SharedConstants.<clinit>} is the first
+	 * game code that runs and calls NeoForge's; vanilla's {@code Main} catches what it throws, prints it to stderr and
+	 * exits 249, so without the marker this launch passed the check and ended with nothing in latest.log.
+	 */
+	@Test
+	void aCarrierWithoutFmlEnvironmentIsIncompleteForEitherFamily(@TempDir Path dir) throws IOException {
+		assertTrue(LaunchInputCheck.markers(Ecosystem.NEOFORGE).contains("net/neoforged/fml/loading/FMLEnvironment.class"));
+		assertTrue(LaunchInputCheck.markers(Ecosystem.FORGE).contains("net/minecraftforge/fml/loading/FMLEnvironment.class"));
+
+		for (Ecosystem family : LaunchInputCheck.FAMILIES) {
+			String environment = LaunchInputCheck.markers(family).stream().filter(m -> m.endsWith("/FMLEnvironment.class"))
+					.findFirst().orElseThrow();
+			Path stripped = entries(dir.resolve(family.name() + "-runtime-26.2.jar"), LaunchInputCheck.markers(family)
+					.stream().filter(m -> !m.equals(environment)).toArray(String[]::new));
+			Ecosystem other = family == Ecosystem.NEOFORGE ? Ecosystem.FORGE : Ecosystem.NEOFORGE;
+			Path complete = carrier(dir.resolve(other.name() + "-runtime-26.2.jar"), other);
+
+			List<String> problems = LaunchInputCheck.problems(List.of(merged(dir)), List.of(complete, stripped));
+
+			assertEquals(2, problems.size(), all(problems));
+			assertTrue(problems.get(0).startsWith("runtime jar " + stripped.getFileName() + " is an incomplete "
+					+ family.displayName() + " runtime: it is missing " + environment + " ("), problems.get(0));
+		}
+	}
+
+	/**
 	 * A NeoForge or MinecraftForge mod under a runtime's name has the family's manifest -- one of the markers -- and
 	 * nothing else of it. Called an incomplete runtime, it read as a carrier missing its classes, which no mod has.
 	 */

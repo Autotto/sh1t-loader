@@ -166,11 +166,13 @@ server rejects `--gameDir`, so `KernelBoot` strips it on that side. The game ver
 
 0. **Launch inputs** — `LaunchInputCheck.require(gameJars, runtimeJars)`, by content and before anything is read
    out of them: the base's `Block` must implement an extension interface from both Forge families (the merged base),
-   every `--runtimeJar` must carry one family completely (loader SPI, `ModContainer`, `FMLLoader`, its own
-   `mods.toml`), and both families must be carried by something the launch owns. A failure logs each problem and the
-   fix (rerun the installer with *Built artifacts* empty) and stops with exit code `2`; `-Dforbric.launchInputCheck=off`
-   only warns. Issue #13: empty "runtime" jars used to pass every later step with an empty answer and die in
-   `KernelRuntimeClasses.verify` on stderr, leaving five INFO lines in `latest.log`.
+   every `--runtimeJar` must carry one family completely (loader SPI, `ModContainer`, `FMLLoader`, `FMLEnvironment`,
+   its own `mods.toml`; a jar with only the `mods.toml` is reported as one of that family's mods), and both families
+   must be carried by something the launch owns. A failure logs each problem and the fix (rerun the installer with
+   *Built artifacts* empty) and stops with exit code `2`; `-Dforbric.launchInputCheck=off` only warns. Issue #13:
+   empty "runtime" jars used to pass every later step with an empty answer and die in `KernelRuntimeClasses.verify`
+   on stderr, leaving five INFO lines in `latest.log`. The check reads names, not every class; the class javadoc lists
+   what it leaves to later steps.
 1. **Cross-jar arbitration pre-scan** — `DuplicateModArbiter.arbitrate(mods/, envType)` inventories every root and
    nested candidate and fixes one selection before either ecosystem's discovery runs (§4.3).
 2. **Carrier versions** — `EcosystemVersions.record(runtimeJars)`, so a mod whose `versionRange` the carriers
@@ -230,6 +232,11 @@ descriptor) one `invokestatic` in each:
 The client's later calls into both families' `ClientModLoader` (`finish`, `completeModLoading`) are stubbed by
 `MethodBodyNeuter`; `setupModResourcePacks` is redirected to `KernelLifecycle.onClientResourcePacks` instead
 (§9.2).
+
+On the client the same injector also makes `Main.logEarlyException` call `KernelLifecycle.onEarlyStartupFailure`
+first. That is vanilla's handler for the first three steps of `Main.main` (detecting the version, building and
+running the argument parser): it prints to stderr and `main` exits (249, 252, 251) without throwing, so without the
+hook the error that ended the game never reached `latest.log`.
 
 ### 3.4 The native registration window — `KernelLifecycle.driveNativeRegistration`
 

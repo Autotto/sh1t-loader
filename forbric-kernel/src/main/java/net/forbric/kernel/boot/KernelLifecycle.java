@@ -116,6 +116,17 @@ public final class KernelLifecycle {
 		driveNativeRegistration(Side.CLIENT);
 	}
 
+	/**
+	 * Invoked first thing in the client's {@code Main.logEarlyException}, vanilla's handler for the three steps
+	 * {@code Main.main} opens with. Vanilla prints the throwable to stderr and exits (status 249, 252, 251) without it
+	 * leaving {@code main}, so this is the one chance to put the error that ended the game into {@code latest.log}.
+	 * Never throws; vanilla's print and exit follow. Inserted by
+	 * {@link net.forbric.kernel.transform.LifecycleHookInjector}.
+	 */
+	public static void onEarlyStartupFailure(Throwable failure) {
+		CompatibilityLaunchBoundary.reportEscaping(failure);
+	}
+
 	private static void driveNativeRegistration(Side side) {
 		ClassLoader cl = gameLoader != null ? gameLoader : Thread.currentThread().getContextClassLoader();
 		ForbricLog.info("[Forbric/Lifecycle] kernel %s mod-loading window (native, no FancyModLoader) — "

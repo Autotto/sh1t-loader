@@ -58,9 +58,9 @@ import net.forbric.kernel.util.ForbricLog;
  *       Vanilla's implements neither, a NeoForge- or MinecraftForge-patched game one, and a jar that is not
  *       Minecraft has no {@code Block}.</li>
  *   <li>Every {@code --runtimeJar} carries at least one family completely: the loader SPI, {@code ModContainer},
- *       {@code FMLLoader} and the family's own manifest. A jar with some of that is a broken carrier; a jar with only
- *       the manifest is one of that family's mods, which carry the same manifest; a jar with none of it is something
- *       else wearing a carrier's name.</li>
+ *       {@code FMLLoader}, {@code FMLEnvironment} and the family's own manifest. A jar with some of that is a broken
+ *       carrier; a jar with only the manifest is one of that family's mods, which carry the same manifest; a jar
+ *       with none of it is something else wearing a carrier's name.</li>
  *   <li>Both families are carried by something this launch owns. The merged base and the kernel's own game side
  *       name both, so a launch missing either cannot start -- that includes no {@code --runtimeJar} at all, and a
  *       launcher that kept only the last of two repeated flags.</li>
@@ -70,6 +70,30 @@ import net.forbric.kernel.util.ForbricLog;
  * {@code merged-base/forge-runtime-interop.jar}, and the names in the broken install were exactly right. Nor is it a
  * version or link check -- the installer's link gate is that. It asks only whether each jar is the kind of thing its
  * flag says it is, which is cheap enough to ask on every launch: one central directory per jar and one class read.
+ *
+ * <h2>What it does not catch</h2>
+ *
+ * <p>Five names per family are evidence of a carrier, not proof of a whole one. A jar that has them and lacks some
+ * other class passes, and so does an entry whose bytes are damaged, a carrier from a different build than the
+ * merged base, a base whose {@code Block} is intact and whose other classes are not, and anything wrong with the
+ * libraries or the mods folder. Each of those fails where the missing piece is first used:
+ *
+ * <ul>
+ *   <li>In the kernel's own boot -- {@link KernelRuntimeClasses#verify} reports a class it cannot resolve, and
+ *       {@link CompatibilityLaunchBoundary} logs anything else that leaves the boot, both into {@code latest.log}.
+ *       The game crashes; it is not reported as a broken install.</li>
+ *   <li>In the first three steps of the client's own {@code Main.main} (detecting the version, building and running
+ *       the argument parser). Vanilla catches what they throw, prints it to stderr and exits with status 249, 252 or
+ *       251, so nothing that ends the game there leaves {@code main}.
+ *       {@code FMLEnvironment} is a marker for that reason: the merged base's {@code SharedConstants.<clinit>} --
+ *       the first game code that runs -- calls NeoForge's, and a carrier without it ended the launch there with a
+ *       {@code NoClassDefFoundError} on stderr and nothing in {@code latest.log}. MinecraftForge's is the one
+ *       {@code PassiveSeeder} decides, which takes its absence for "no MinecraftForge" and says so only at debug.
+ *       Any other failure on that path is put in the log by {@code LifecycleHookInjector}'s hook in
+ *       {@code Main.logEarlyException} ({@link KernelLifecycle#onEarlyStartupFailure}), again as a crash.</li>
+ *   <li>Anywhere after that: what leaves {@code main} is logged by the boundary, what the game catches by the game's
+ *       own crash handling.</li>
+ * </ul>
  *
  * <p>{@code -Dforbric.launchInputCheck=off} reports the same problems as warnings and launches anyway.
  */
@@ -93,11 +117,15 @@ final class LaunchInputCheck {
 		return !"off".equalsIgnoreCase(System.getProperty(SWITCH, "on"));
 	}
 
-	/** What a complete carrier of {@code family} holds: its loader SPI, its ModContainer, its FMLLoader, its manifest. */
+	/**
+	 * What a complete carrier of {@code family} holds: its loader SPI, its ModContainer, its FMLLoader, its
+	 * FMLEnvironment (the class the game's own first statement needs; see above), and its manifest.
+	 */
 	static List<String> markers(Ecosystem family) {
 		return List.of(ForeignType.MOD_INFO_SPI.internal(family) + ".class",
 				ForeignType.MOD_CONTAINER.internal(family) + ".class",
 				ForeignType.FML_LOADER.internal(family) + ".class",
+				ForeignType.FML_ENVIRONMENT.internal(family) + ".class",
 				manifest(family));
 	}
 
