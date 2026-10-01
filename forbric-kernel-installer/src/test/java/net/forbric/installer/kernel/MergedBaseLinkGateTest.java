@@ -49,6 +49,8 @@ public final class MergedBaseLinkGateTest {
 		// The content check that runs before this link check on a supplied set; here so every runner of this gate
 		// (gradle linkGateTest, run/test-link-gate.py, CI) exercises it too.
 		SuppliedArtifactContentTest.main(new String[] { work.resolve("content").toString() });
+		// And the window's way into the same install: what a player pastes into its path fields.
+		InstallerWindowInputTest.main(new String[] { work.resolve("window").toString() });
 	}
 
 	/**

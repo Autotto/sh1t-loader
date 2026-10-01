@@ -23,7 +23,10 @@ import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
 import java.io.File;
+import java.io.IOException;
+import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
+import java.util.function.Consumer;
 
 import javax.swing.BorderFactory;
 import javax.swing.Box;
@@ -196,7 +199,7 @@ final class InstallerGui {
 		JFileChooser chooser = new JFileChooser();
 		chooser.setDialogTitle(title);
 		chooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
-		String current = field.getText().trim();
+		String current = Util.unquote(field.getText().trim());
 		if (!current.isEmpty()) chooser.setCurrentDirectory(new File(current));
 		if (chooser.showOpenDialog(frame) == JFileChooser.APPROVE_OPTION) {
 			field.setText(chooser.getSelectedFile().getAbsolutePath());
@@ -207,24 +210,69 @@ final class InstallerGui {
 		install.setEnabled(false);
 		log.setText("");
 		transientStart = -1;   // the cleared document has no live line in it any more
+		// Only the text is read here. Turning it into paths can fail, and that has to happen on the install thread,
+		// where a failure reaches the log (see installFromFields).
 		String mcVersion = String.valueOf(gameVersion.getSelectedItem());
-		Path dir = Util.path(directory.getText().trim());
-		String artifactText = artifacts.getText().trim();
-		Path artifactDir = artifactText.isEmpty() ? null : Util.path(artifactText);
+		String dirText = directory.getText();
+		String artifactText = artifacts.getText();
 
 		new Thread(() -> {
 			try {
-				// The window needs the release for exactly the reason the CLI does: a slim installer carries no
-				// jars, and without a source for them the only thing the button can do is fail.
-				RemoteSource remote = RemoteSource.create(new Http(this::append), this::append, null, null, false);
-				new Installer(this::append).install(dir, mcVersion, artifactDir, null, remote);
-			} catch (Exception e) {
-				append("");
-				append("Install failed: " + (e.getMessage() == null ? e.toString() : e.getMessage()));
+				installFromFields(mcVersion, dirText, artifactText, this::append);
 			} finally {
 				SwingUtilities.invokeLater(() -> install.setEnabled(true));
 			}
 		}, "forbric-install").start();
+	}
+
+	/**
+	 * What Install does, given the text of the window's fields: every way it can fail ends as a line in
+	 * {@code log}.
+	 *
+	 * <p>The two path fields used to be read on the event thread, before the install thread started and outside
+	 * its try. {@link java.nio.file.Paths#get} refuses some text outright — on Windows, any path pasted from
+	 * Explorer's "Copy as path", which wraps it in quotes — and that exception went to the event thread's
+	 * handler, which prints to stderr, which the .bat's javaw throws away. The log stayed empty and the button
+	 * stayed grey: Install looked like it did nothing at all.
+	 */
+	static void installFromFields(String mcVersion, String dirText, String artifactText, Consumer<String> log) {
+		try {
+			Path dir = fieldPath("Game directory", dirText);
+			if (dir == null) {
+				throw new IOException("Game directory is empty. Choose the folder your launcher keeps the game in"
+						+ " (usually called .minecraft), then press Install again.");
+			}
+			Path artifactDir = fieldPath("Built artifacts", artifactText);
+			// The window needs the release for exactly the reason the CLI does: a slim installer carries no
+			// jars, and without a source for them the only thing the button can do is fail.
+			RemoteSource remote = RemoteSource.create(new Http(log), log, null, null, false);
+			new Installer(log).install(dir, mcVersion, artifactDir, null, remote);
+		} catch (Exception e) {
+			log.accept("");
+			log.accept("Install failed: " + (e.getMessage() == null ? e.toString() : e.getMessage()));
+		} catch (Error e) {
+			// Not left to the thread's default handler either: that is stderr too.
+			log.accept("");
+			log.accept("Install failed: " + e);
+		}
+	}
+
+	/**
+	 * The path in one of the window's path fields, or null when the field is empty.
+	 *
+	 * <p>Taken the way it was pasted: blanks around it and the quotes "Copy as path" adds are dropped. A relative
+	 * path is resolved here, so the log says where the install actually went rather than echoing it back. Text
+	 * that still is not a path this computer accepts is refused with a sentence naming the field.
+	 */
+	static Path fieldPath(String field, String text) throws IOException {
+		String raw = text.trim();
+		if (Util.unquote(raw).isBlank()) return null;
+		try {
+			return Util.path(raw).toAbsolutePath();
+		} catch (InvalidPathException e) {
+			throw new IOException(field + ": \"" + raw + "\" is not a folder path this computer accepts ("
+					+ e.getReason() + "). Choose the folder with Browse… instead of typing it.");
+		}
 	}
 
 	/**

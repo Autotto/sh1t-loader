@@ -60,14 +60,28 @@ final class Util {
 		return group + "/" + artifact + "/" + version + "/" + artifact + "-" + version + classifier + ".jar";
 	}
 
-	/** Expand a leading {@code ~/} to the user's home dir (Java does not do this for us). */
+	/**
+	 * A path as someone typed or pasted it: one pair of surrounding double quotes dropped, then a leading
+	 * {@code ~/} expanded to the user's home dir. Java does neither for us.
+	 *
+	 * <p>The quotes are what Windows Explorer's "Copy as path" wraps every path in. {@code "} is a character no
+	 * Windows path may contain, so a pasted path was refused outright there; anywhere else it named a different
+	 * directory, one called {@code "}, under wherever the installer happened to be started.
+	 */
 	static Path path(String raw) {
+		raw = unquote(raw);
 		if (raw.startsWith("~" + java.io.File.separator) || raw.equals("~")) {
 			raw = System.getProperty("user.home") + raw.substring(1);
 		} else if (raw.startsWith("~/")) {
 			raw = System.getProperty("user.home") + raw.substring(1);
 		}
 		return Paths.get(raw);
+	}
+
+	/** {@code raw} without one pair of surrounding double quotes, when it has them. */
+	static String unquote(String raw) {
+		return raw.length() >= 2 && raw.startsWith("\"") && raw.endsWith("\"") ? raw.substring(1, raw.length() - 1)
+				: raw;
 	}
 
 	/** Default Minecraft directory per OS (the same location the official launcher and PCL/HMCL use by default). */
