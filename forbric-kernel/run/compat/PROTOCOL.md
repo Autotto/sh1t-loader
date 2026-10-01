@@ -78,6 +78,18 @@ every tick for 600 ticks. The scores the console prints and the blocks in the sa
 both sides, and vanilla itself must show every reaction (so a scenario that measured nothing cannot pass). `--unfixed`
 runs the kernel with `-Dforbric.fluidInteractions=off` and must go RED. Needs Java 25 on `PATH`, like gate M31.
 
+`fluid-parity-gate.py --mods [--native-controls DIR]` is the same comparison for mods' fluid rules, against the loaders
+themselves: native NeoForge 26.2.0.88 with a NeoForge canary mod and native MinecraftForge 26.2-65.0.1 with a
+MinecraftForge canary mod (`canary/fluid-interactions`, each compiled against its own loader's installed jars only), and
+the kernel with both jars. The native images are the ones `native-controls.py prepare` installs (default
+`build/native-controls`); each run copies them and never writes into them. On NeoForge a mod's rule runs when a block
+next to the liquid changes and never when the liquid is placed; on MinecraftForge it runs on both, and every rule is
+tried at one neighbour before the next, so a mod's rule above beats vanilla's water to the east. Every case cell must
+match the server of the loader whose entry point the merged game uses there (placement: MinecraftForge's; a neighbour
+change: NeoForge's, then MinecraftForge mods' rules at the same neighbour), immediately and 100 ticks later, and the
+canaries must report the same firings there; where both rules match one block, exactly one runs. `--mods --unfixed`
+must go RED.
+
 ## Fabric menu codec verification
 
 `menu-codec-gate.py --farmers-delight <FarmersDelight-26.2-3.6.26+refabricated.jar>`

@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
-"""With no mods, lava and water must react on Forbric exactly as they do on vanilla 26.2.
+"""With no mods, lava and water must react on Forbric exactly as they do on vanilla 26.2; with a NeoForge and a
+MinecraftForge mod's fluid rules, each rule must run where its own loader runs it.
 
     fluid-parity-gate.py [--output DIR] [--unfixed]
+    fluid-parity-gate.py --mods [--native-controls DIR] [--output DIR] [--unfixed]
 
 Runs one datapack, unchanged, on two dedicated servers in turn: pure vanilla (launch-vanilla-server.sh, the player's own
 26.2 jar, as gate-m31 runs it) and the kernel with zero mods (launch-kernel-server.sh). The datapack builds every case
@@ -20,6 +22,26 @@ TEETH (recorded 2026-10-02, kernel jar 67aede69): --unfixed runs the kernel with
 back the neuter of MinecraftForge's FluidInteractionRegistry.canInteract that the merged onPlace asks. Then A and B stay
 lava and are washed over by water, D and E stay lava, both generators make nothing — 14 scores and 6 cells differ from
 vanilla, and this gate is RED. Only C, F and I (paths that never asked that registry) still match.
+
+--mods compares against the loaders themselves: native NeoForge 26.2.0.88 with a NeoForge canary mod (lava next to an
+iron or emerald block -> glowstone) and native MinecraftForge 26.2-65.0.1 with a MinecraftForge canary mod (lava next to
+a lapis or emerald block -> shroomlight; water next to lapis -> sponge), both compiled from canary/fluid-interactions
+against that loader's own jars, and the kernel with both jars, unchanged. The native images are the ones
+native-controls.py prepare installs (--native-controls, default build/native-controls); they are copied per run, never
+written. On NeoForge a mod's rule runs when a block next to the liquid changes and never when the liquid is placed (its
+onPlace runs vanilla's rules alone); on MinecraftForge it runs on both, and at each neighbour every rule is tried before
+the next neighbour, so a mod's rule above beats vanilla's water to the east. Each case is decided by the loader whose
+LiquidBlock entry point the merged game uses there (placement: MinecraftForge's; a neighbour change: NeoForge's, then
+MinecraftForge mods' rules at the same neighbour): the cell must match that loader's server, immediately and 100 ticks
+later, and the canaries must report the same firings at that cell -- so a rule that ran twice, or ran where its loader
+would not, is RED. X_* has both rules match one emerald block: placement must run the MinecraftForge rule once, a
+neighbour change the NeoForge rule once. The canaries register at common setup, as mods do.
+
+TEETH of --mods (recorded 2026-10-02): the kernel before this mode existed (jar e0aa078c) ran the NeoForge rule on
+placement (N_place glowstone, native lava), let vanilla's water to the east beat a MinecraftForge rule above on
+placement and on a neighbour change (M_first, M_firstNeighbour obsidian, native shroomlight), and ran the NeoForge rule
+on X_place: RED on those four. --mods --unfixed (jar b8e09a2b) runs no MinecraftForge rule at all and no placement
+reaction: RED on every M_* case, X_place and V_place.
 """
 import argparse
 from datetime import datetime
@@ -29,10 +51,13 @@ import json
 import os
 from pathlib import Path
 import re
+import shutil
 import subprocess
 import sys
+import tempfile
 import threading
 import time
+import zipfile
 
 Y, Z = 80, 8
 CODES = ['air', 'lava', 'water', 'obsidian', 'cobblestone', 'stone', 'basalt', 'blue_ice', 'soul_soil', 'stone_slab']
@@ -47,6 +72,66 @@ BOX = ((0, 76, 0), (127, 86, 15))
 PROPERTIES = ('server-ip=127.0.0.1\nserver-port={port}\nlevel-name=world\nlevel-type=minecraft:flat\nlevel-seed=fluidparity\n'
               'generate-structures=false\nonline-mode=false\nmax-tick-time=-1\npause-when-empty-seconds=0\n'
               'view-distance=2\nsimulation-distance=2\nspawn-protection=0\nsync-chunk-writes=true\n')
+
+# --mods. Each case is one cell (x, 80, 8) in a 5x5x5 stone block; "{xp}" is east of it, "{yp}" above, "{zm}" north.
+# Above is the first neighbour both registries walk and east the last. `strict` sets the liquid without running its
+# onPlace, so the andesite set north of it next is the neighbour change that decides the cell.
+MOD_CODES = ['air', 'lava', 'water', 'obsidian', 'cobblestone', 'stone', 'glowstone', 'shroomlight', 'sponge',
+             'iron_block', 'lapis_block', 'emerald_block', 'andesite']
+MOD_CASES = [  # name, the loader whose server decides it, commands
+    ('N_place', 'neoforge', ['setblock {xp} {y} {z} iron_block', 'setblock {x} {y} {z} lava']),
+    ('N_neighbour', 'neoforge', ['setblock {x} {y} {z} lava', 'setblock {xp} {y} {z} iron_block']),
+    ('N_first', 'neoforge', ['setblock {x} {yp} {z} iron_block', 'setblock {xp} {y} {z} water',
+                             'setblock {x} {y} {z} lava strict', 'setblock {x} {y} {zm} andesite']),
+    ('M_place', 'minecraftforge', ['setblock {xp} {y} {z} lapis_block', 'setblock {x} {y} {z} lava']),
+    ('M_neighbour', 'minecraftforge', ['setblock {x} {y} {z} lava', 'setblock {xp} {y} {z} lapis_block']),
+    ('M_water', 'minecraftforge', ['setblock {xp} {y} {z} lapis_block', 'setblock {x} {y} {z} water']),
+    ('M_flowing', 'minecraftforge', ['setblock {xp} {y} {z} lapis_block', 'setblock {x} {y} {z} lava[level=1]']),
+    ('M_first', 'minecraftforge', ['setblock {x} {yp} {z} lapis_block', 'setblock {xp} {y} {z} water',
+                                   'setblock {x} {y} {z} lava']),
+    ('M_firstNeighbour', 'minecraftforge', ['setblock {x} {yp} {z} lapis_block', 'setblock {xp} {y} {z} water',
+                                            'setblock {x} {y} {z} lava strict', 'setblock {x} {y} {zm} andesite']),
+    ('X_place', 'minecraftforge', ['setblock {xp} {y} {z} emerald_block', 'setblock {x} {y} {z} lava']),
+    ('X_neighbour', 'neoforge', ['setblock {x} {y} {z} lava', 'setblock {xp} {y} {z} emerald_block']),
+    ('V_place', 'both', ['setblock {xp} {y} {z} water', 'setblock {x} {y} {z} lava']),
+    ('V_neighbour', 'both', ['setblock {x} {y} {z} lava', 'setblock {xp} {y} {z} water']),
+]
+NATIVE = {'neoforge': ('neo', 'net/neoforged/neoforge/26.2.0.88',
+                       'libraries/net/neoforged/minecraft-server-patched/26.2.0.88/minecraft-server-patched-26.2.0.88.jar'),
+          'minecraftforge': ('forge', 'net/minecraftforge/forge/26.2-65.0.1',
+                             'libraries/net/minecraftforge/forge/26.2-65.0.1/forge-26.2-65.0.1-server.jar')}
+FIRED = re.compile(r'\[FluidCanary\] (neoforge|minecraftforge) \w+ rule fired at (-?\d+), (-?\d+), (-?\d+)')
+
+
+def mod_cell(index):
+    return 4 + 6 * index, Y, Z
+
+
+def mod_classify(score, x, y, z):
+    return ([f'scoreboard players set #{score} fp -1']
+            + [f'execute if block {x} {y} {z} minecraft:{block} run scoreboard players set #{score} fp {code}'
+               for code, block in enumerate(MOD_CODES)])
+
+
+def mod_functions():
+    build = ['say [fluidparity] building']
+    end = ['say [fluidparity] final state']
+    for index, (name, _, commands) in enumerate(MOD_CASES):
+        x, y, z = mod_cell(index)
+        build += [f'fill {x - 2} {y - 2} {z - 2} {x + 2} {y + 2} {z + 2} minecraft:stone', f'setblock {x} {y} {z} air']
+        build += [c.format(x=x, y=y, z=z, xp=x + 1, yp=y + 1, zm=z - 1) for c in commands]
+        build += mod_classify(name, x, y, z)
+        end += mod_classify(name + '_end', x, y, z)
+    end.append('say FLUIDPARITY DONE')
+    tick = ['execute if loaded 0 80 0 if loaded 127 80 15 run scoreboard players add #t fp 1',
+            'execute if score #t fp matches 20 run function fluidparity:build',
+            'execute if score #t fp matches 120 run function fluidparity:end']
+    load = ['scoreboard objectives add fp dummy', 'scoreboard players set #t fp 0', 'forceload add 0 0 127 15']
+    return dict(load=load, tick=tick, build=build, end=end)
+
+
+def mod_scores():
+    return [name for name, _, _ in MOD_CASES] + [name + '_end' for name, _, _ in MOD_CASES]
 
 
 def shell(x0, x1, top):
@@ -101,26 +186,29 @@ def scores():
     return ['A', 'B', 'C', 'D', 'E', 'F', 'I'] + [case + '_end' for case in CELLS] + GENERATORS
 
 
-def stage(run, port):
-    run.mkdir(parents=True)
-    (run / 'mods').mkdir()                      # genuinely zero-mod on the Forbric side
+def stage(run, port, pack_functions=None, mods=()):
+    run.mkdir(parents=True, exist_ok=True)
+    (run / 'mods').mkdir(exist_ok=True)         # genuinely zero-mod on the Forbric side, unless mods are given
+    for jar in mods:
+        shutil.copy2(jar, run / 'mods' / jar.name)
     (run / 'eula.txt').write_text('eula=true\n')
     (run / 'server.properties').write_text(PROPERTIES.format(port=port))
     pack = run / 'world/datapacks/fluidparity'
     (pack / 'data/fluidparity/function').mkdir(parents=True)
     (pack / 'data/minecraft/tags/function').mkdir(parents=True)
     (pack / 'pack.mcmeta').write_text(json.dumps({'pack': {'description': 'Forbric fluid parity', 'min_format': [107, 0], 'max_format': 107}}))
-    for name, body in functions().items():
+    for name, body in (pack_functions or functions()).items():
         (pack / f'data/fluidparity/function/{name}.mcfunction').write_text('\n'.join(body) + '\n')
     (pack / 'data/minecraft/tags/function/load.json').write_text(json.dumps({'values': ['fluidparity:load']}))
     (pack / 'data/minecraft/tags/function/tick.json').write_text(json.dumps({'values': ['fluidparity:tick']}))
 
 
-def boot(launcher, run, env):
+def boot(launcher, run, env, names=None, cwd=None):
     """Start a server, wait for the datapack's last line, ask for every score, save, stop. The console's lines."""
     lines, done = [], threading.Event()
     with (run / 'console.log').open('w') as console:
-        process = subprocess.Popen([str(launcher)], env=env, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+        command = launcher if isinstance(launcher, list) else [str(launcher)]
+        process = subprocess.Popen(command, env=env, cwd=cwd, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                    stderr=subprocess.STDOUT, text=True, bufsize=1, start_new_session=True)
 
         def pump():
@@ -136,7 +224,7 @@ def boot(launcher, run, env):
         while not done.is_set() and process.poll() is None and time.time() < deadline:
             done.wait(1)
         if process.poll() is None:
-            for score in scores():
+            for score in names or scores():
                 process.stdin.write(f'scoreboard players get #{score} fp\n')
             process.stdin.write('save-all flush\n')
             process.stdin.flush()
@@ -200,10 +288,14 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('--output', type=Path, help='A new directory for logs, worlds and the report')
     parser.add_argument('--unfixed', action='store_true', help='Run the kernel with -Dforbric.fluidInteractions=off (must go RED)')
+    parser.add_argument('--mods', action='store_true', help="Compare mods' fluid rules against native NeoForge and MinecraftForge")
+    parser.add_argument('--native-controls', type=Path, help="native-controls.py's directory (default build/native-controls)")
     args = parser.parse_args()
     kernel = Path(__file__).resolve().parents[2]
     output = (args.output or kernel / 'build/verification' / ('fluid-parity-' + datetime.now().strftime('%Y%m%d-%H%M%S'))).resolve()
     output.mkdir(parents=True, exist_ok=False)
+    if args.mods:
+        sys.exit(mods_main(args, kernel, output))
     port = 25540 + os.getpid() % 200
     arms = {}
     for arm, launcher, extra in (('vanilla', kernel / 'run/launch-vanilla-server.sh', {}),
@@ -259,5 +351,122 @@ def main():
     sys.exit(0 if not failures else 1)
 
 
+def compile_canary(kernel, family, image, output):
+    """canary/fluid-interactions/<family>, compiled against that loader's own installed jars only; deterministic bytes."""
+    short, _, game = NATIVE[family]
+    source = kernel / 'canary/fluid-interactions' / short
+    classpath = [image / game] + sorted((image / 'libraries').rglob('*.jar'))
+    toml = 'META-INF/' + ('neoforge.mods.toml' if family == 'neoforge' else 'mods.toml')
+    jar = output / f'forbricfluid{short}-1.0.0.jar'
+    with tempfile.TemporaryDirectory(prefix=f'canary-{short}-', dir=output) as temp:
+        subprocess.run(['javac', '-proc:none', '--release', '21', '-cp', os.pathsep.join(map(str, classpath)), '-d', temp,
+                        *map(str, sorted((source / 'src').rglob('*.java')))], check=True)
+        entries = [(p.relative_to(temp).as_posix(), p.read_bytes()) for p in sorted(Path(temp).rglob('*.class'))]
+    entries.append((toml, (source / toml).read_bytes()))
+    other = b'net/minecraftforge' if family == 'neoforge' else b'net/neoforged'
+    if any(other in data for name, data in entries if name.endswith('.class')):
+        raise RuntimeError(f'{jar.name} names the other loader')
+    with zipfile.ZipFile(jar, 'w', zipfile.ZIP_DEFLATED) as archive:
+        for name, data in entries:
+            archive.writestr(zipfile.ZipInfo(name, (2026, 1, 1, 0, 0, 0)), data, zipfile.ZIP_DEFLATED)
+    return jar
+
+
+def copy_image(image, server):
+    """The installed loader, copied for this run (a clone where the file system has them); the image is never written."""
+    if subprocess.run(['cp', '-c', '-R', str(image), str(server)], capture_output=True).returncode != 0:
+        shutil.rmtree(server, ignore_errors=True)
+        shutil.copytree(image, server, symlinks=True)
+
+
+def read_mod_scores(text):
+    raw = {m.group(1): int(m.group(2)) for m in re.finditer(r'#([A-Za-z0-9_]+) has (-?\d+) \[fp\]', text)}
+    return {name: (MOD_CODES[raw[name]] if 0 <= raw.get(name, -1) < len(MOD_CODES) else raw.get(name)) for name in mod_scores()}
+
+
+def fired(text):
+    """Per case: how many times each canary reported its rule firing at that case's cell."""
+    cells = {mod_cell(i): name for i, (name, _, _) in enumerate(MOD_CASES)}
+    counts = {name: {'neoforge': 0, 'minecraftforge': 0} for name, _, _ in MOD_CASES}
+    for m in FIRED.finditer(text):
+        name = cells.get((int(m.group(2)), int(m.group(3)), int(m.group(4))))
+        if name:
+            counts[name][m.group(1)] += 1
+    return counts
+
+
+def mods_main(args, kernel, output):
+    controls = (args.native_controls or kernel / 'build/native-controls').resolve()
+    images = {family: controls / 'native' / short for family, (short, _, _) in NATIVE.items()}
+    for family, image in images.items():
+        if not (image / 'installation.json').is_file():
+            print(f'[fluid-parity] FAIL no native {family} image at {image}: run native-controls.py prepare', flush=True)
+            return 2
+    jars = {family: compile_canary(kernel, family, image, output) for family, image in images.items()}
+    port = 25560 + os.getpid() % 200
+    arms = {}
+    for arm in ('neoforge', 'minecraftforge', 'forbric'):
+        run = output / arm
+        if arm == 'forbric':
+            stage(run, port, mod_functions(), list(jars.values()))
+            launcher, cwd = kernel / 'run/launch-kernel-server.sh', None
+            env = dict(os.environ, RUNDIR=str(run), FORBRIC_COMPAT_POLICY='strict',
+                       FORBRIC_JVM='-Xmx2G' + (' -Dforbric.fluidInteractions=off' if args.unfixed else ''))
+        else:
+            server = run / 'server'
+            run.mkdir(parents=True)
+            copy_image(images[arm], server)
+            stage(server, port, mod_functions(), [jars[arm]])
+            launcher = ['java', '-Xmx2G', '-Djava.awt.headless=true', f'@libraries/{NATIVE[arm][1]}/unix_args.txt', 'nogui']
+            cwd, env = server, dict(os.environ)
+        port += 1
+        print(f'[fluid-parity] {arm}: booting', flush=True)
+        text, finished, code = boot(launcher, run, env, names=mod_scores(), cwd=cwd)
+        arms[arm] = dict(finished=finished, exit=code, saved='All dimensions are saved' in text or 'Saved the game' in text,
+                         registered=sorted(set(re.findall(r'\[FluidCanary\] (\w+) rules registered', text))),
+                         scores=read_mod_scores(text), fired=fired(text))
+        print(f'[fluid-parity] {arm}: finished={finished} exit={code} saved={arms[arm]["saved"]} '
+              f'registered={arms[arm]["registered"]} scores={json.dumps(arms[arm]["scores"])}', flush=True)
+
+    failures = []
+    for arm, result in arms.items():
+        if not (result['finished'] and result['saved'] and result['exit'] == 0):
+            failures.append(f'{arm} did not run the scenario to the end, save and stop')
+        expected = ['minecraftforge', 'neoforge'] if arm == 'forbric' else [arm]
+        if result['registered'] != expected:
+            failures.append(f'{arm} registered the rules of {result["registered"]}, not {expected}')
+    neo, forge, forbric = arms['neoforge'], arms['minecraftforge'], arms['forbric']
+    if neo['scores'].get('N_neighbour') != 'glowstone' or forge['scores'].get('M_place') != 'shroomlight' \
+            or {neo['scores'].get('V_place'), forge['scores'].get('V_place')} != {'obsidian'}:
+        failures.append('the native servers did not show the reactions the scenario measures')
+    cases = {}
+    for name, judge, _ in MOD_CASES:
+        natives = [neo, forge] if judge == 'both' else [arms[judge]]
+        for key in (name, name + '_end'):
+            want = {n['scores'].get(key) for n in natives}
+            got = forbric['scores'].get(key)
+            if len(want) != 1:
+                failures.append(f'{key}: the two native servers disagree ({neo["scores"].get(key)} / {forge["scores"].get(key)})')
+            elif got not in want:
+                failures.append(f'{key}: forbric={got}, native {judge}={next(iter(want))}')
+        reference = {family: max(n['fired'][name][family] for n in natives) for family in ('neoforge', 'minecraftforge')}
+        if forbric['fired'][name] != reference:
+            failures.append(f'{name}: the canaries fired {forbric["fired"][name]} on forbric, {reference} on {judge}')
+        cases[name] = dict(judge=judge, forbric=[forbric['scores'].get(name), forbric['scores'].get(name + '_end')],
+                           native=[[n['scores'].get(name), n['scores'].get(name + '_end')] for n in natives],
+                           fired=forbric['fired'][name], native_fired=reference)
+    jar = kernel / 'build/libs/forbric-kernel-0.1.0-SNAPSHOT.jar'
+    summary = dict(mode='mods', unfixed=args.unfixed, passed=not failures, failures=failures,
+                   kernel_sha256=hashlib.sha256(jar.read_bytes()).hexdigest() if jar.is_file() else None,
+                   canaries={j.name: hashlib.sha256(j.read_bytes()).hexdigest() for j in jars.values()},
+                   native_controls=str(controls), cases=cases, arms=arms)
+    (output / 'summary.json').write_text(json.dumps(summary, indent=2) + '\n')
+    for failure in failures:
+        print(f'[fluid-parity] FAIL {failure}', flush=True)
+    print(f'[fluid-parity] {"PASS" if not failures else "RED"}: {output}', flush=True)
+    return 0 if not failures else 1
+
+
 if __name__ == '__main__':
     main()
+
