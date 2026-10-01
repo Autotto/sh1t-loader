@@ -610,6 +610,9 @@ public final class KernelBoot {
 		chain.register(TransformPhase.COREMOD, new net.forbric.kernel.transform.FurnaceTickCallsInjector());
 		// The Ender Dragon's parts are NeoForge PartEntitys, as every part consumer in the merged game casts them.
 		chain.register(TransformPhase.COREMOD, new net.forbric.kernel.transform.DragonPartsInjector());
+		// The client's onTrackingStart is MinecraftForge's body: it read only MinecraftForge's getParts(), which a NeoForge
+		// mod's multipart entity leaves null, and the client disconnected on sight of one. NeoForge's parts are tracked too.
+		chain.register(TransformPhase.COREMOD, new net.forbric.kernel.transform.ClientPartTrackingInjector());
 		// A Fabric or MinecraftForge mod's fluid has no NeoForge type; it gets the one its fluid tags imply.
 		chain.register(TransformPhase.COREMOD, new net.forbric.kernel.transform.ForeignFluidTypeInjector());
 		// …and a tag a Fabric mod gave a fluid behaviour has that behaviour's fluid type where the merged
