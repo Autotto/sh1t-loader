@@ -390,3 +390,26 @@ render submission to run, then requires screenshots and normal save/exit. The un
 hash-bound. A crash marker terminates only this child process group within five seconds. Run the offline
 CorpseNameTagAdapterTest before this client test; an off-adapter graphics run is unnecessary to reproduce
 the known missing-field error because the actual original constructor is executed in the JVM test.
+
+## macOS random sweep
+
+`mac/pick.py <data-dir> <seed> <exclude-manifest> ...` selects up to 38 previously untested popular projects from the top 200
+and fills the remaining places with random projects for the selected game version, then downloads and verifies required dependencies.
+`mac/api.py` supplies registry requests; `mac/archive.py` reads declared nested dependencies recursively.
+Set `PERMOD_DATA=<data-dir>` and run `mac/closure.py` to produce the per-subject transitive dependency sets.
+`mac/per-mod.py` runs each subject separately; dependency libraries are not counted as subjects. Configure
+`PERMOD_MC` to an isolated installed Minecraft root and `FORBRIC_VERSION` to its kernel profile (a single
+kernel profile is detected automatically), `FORBRIC_JAVA` to Java 25+, and `PERMOD_OUT` to a new evidence
+folder. `mac/mac-run.py` adapts the installed-profile client drivers to macOS and captures thread dumps
+for owned Java processes that time out. `SWEEP_WORLD_TICKS` extends the standard world session for pack
+validation. Evidence remains under the selected data directory. The current world/options fixtures come
+from the preserved local `build/sweep80-mac` baseline; a missing fixture is a setup error, not a mod failure.
+
+Run `python3 -m unittest discover -s run/compat/mac -p test_archive.py` to verify recursive dependency handling (`mac/test_archive.py`).
+
+After all subjects finish, run `mac/mixed.py` with the same `PERMOD_MC`, `PERMOD_DATA`, `PERMOD_OUT`,
+`FORBRIC_VERSION` and `FORBRIC_JAVA`. It checks kernel/input fingerprints, combines every strictly passing
+subject and its dependencies, tests 6,000 world ticks, then reloads the saved world. Its full pack manifest,
+reports and screenshots go to `mixed/`. A partial or failed first load leaves reload explicitly NOT_RUN.
+The runner clears only directories bearing its `.forbric-sweep-instance` marker. Use a new evidence folder
+for a new candidate; unfinished or differently fingerprinted individual results cannot feed a mixed test.
