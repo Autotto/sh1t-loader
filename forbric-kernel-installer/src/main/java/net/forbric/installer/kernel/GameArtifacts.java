@@ -80,9 +80,12 @@ final class GameArtifacts {
 	private static final byte[] FORGE_REFERENCE = "net/minecraftforge/".getBytes(StandardCharsets.US_ASCII);
 	private static final byte[] NEO_REFERENCE = "net/neoforged/".getBytes(StandardCharsets.US_ASCII);
 
+	private final Path dir;
 	private final Map<String, Path> found = new LinkedHashMap<>();
+	private final List<String> missing = new ArrayList<>();
 
-	private GameArtifacts() {
+	private GameArtifacts(Path dir) {
+		this.dir = dir;
 	}
 
 	/**
@@ -98,8 +101,19 @@ final class GameArtifacts {
 	 * depending on whether the checkout running them had built its own artifacts.
 	 */
 	static GameArtifacts locate(String mcVersion, Path dir) throws IOException {
-		GameArtifacts artifacts = new GameArtifacts();
-		List<String> missing = new ArrayList<>();
+		GameArtifacts artifacts = find(mcVersion, dir);
+		if (!artifacts.missing.isEmpty()) throw artifacts.refusal(Map.of());
+		return artifacts;
+	}
+
+	/**
+	 * What {@link #locate} looks for, file by file, without refusing an incomplete set: {@link #all} holds what is
+	 * there and {@link #missing} names what is not. {@code --doctor} reports a half-filled directory this way; it
+	 * used to call every file in one missing, the ones that were there included, because locate refuses the set
+	 * as a whole.
+	 */
+	static GameArtifacts find(String mcVersion, Path dir) {
+		GameArtifacts artifacts = new GameArtifacts(dir);
 		for (Map.Entry<String, String> wanted : WANTED.entrySet()) {
 			String fileName = String.format(wanted.getValue(), mcVersion);
 			Path hit = null;
@@ -113,17 +127,15 @@ final class GameArtifacts {
 					break;
 				}
 			}
-			if (hit == null) missing.add(fileName);
+			if (hit == null) artifacts.missing.add(fileName);
 			else artifacts.found.put(wanted.getKey(), hit);
 		}
-		if (!missing.isEmpty()) {
-			throw new IOException("Built artifacts: cannot find " + String.join(", ", missing) + " in " + dir
-					+ ".\n" + LEAVE_EMPTY
-					+ "\nDevelopers: the directory must hold what forbric-loader/run/build-merged-base.sh and the two "
-					+ "assemble-*-runtime.sh scripts write (build-merged-base.sh also writes "
-					+ "merged-base/forge-runtime-interop.jar), or be that run/ directory itself.");
-		}
 		return artifacts;
+	}
+
+	/** The file names {@link #find} looked for and did not find. */
+	List<String> missing() {
+		return missing;
 	}
 
 	/**
@@ -151,14 +163,30 @@ final class GameArtifacts {
 		return problems;
 	}
 
-	/** The refusal for {@code problems}: each bad file by its full path, what is wrong with it, and the way out. */
+	/**
+	 * The refusal for this set: the files that are not there, then each file in {@code problems} by its full path
+	 * and what is wrong with it, then the way out. An install never gets both halves at once — it does not open
+	 * an incomplete set — but {@code --doctor} does, and says both.
+	 */
 	IOException refusal(Map<String, String> problems) {
 		List<String> lines = new ArrayList<>();
-		for (Map.Entry<String, String> e : problems.entrySet()) {
-			lines.add("  " + found.get(e.getKey()) + "\n    " + e.getValue());
+		if (!missing.isEmpty()) {
+			lines.add("Built artifacts: cannot find " + String.join(", ", missing) + " in " + dir + ".");
 		}
-		return new IOException("Built artifacts: " + (lines.size() == 1 ? "this file is" : "these files are")
-				+ " not the game files Forbric needs.\n" + String.join("\n", lines) + "\n" + LEAVE_EMPTY);
+		if (!problems.isEmpty()) {
+			lines.add("Built artifacts: " + (problems.size() == 1 ? "this file is" : "these files are")
+					+ " not the game files Forbric needs.");
+			for (Map.Entry<String, String> e : problems.entrySet()) {
+				lines.add("  " + found.get(e.getKey()) + "\n    " + e.getValue());
+			}
+		}
+		lines.add(LEAVE_EMPTY);
+		if (!missing.isEmpty()) {
+			lines.add("Developers: the directory must hold what forbric-loader/run/build-merged-base.sh and the two "
+					+ "assemble-*-runtime.sh scripts write (build-merged-base.sh also writes "
+					+ "merged-base/forge-runtime-interop.jar), or be that run/ directory itself.");
+		}
+		return new IOException(String.join("\n", lines));
 	}
 
 	/**

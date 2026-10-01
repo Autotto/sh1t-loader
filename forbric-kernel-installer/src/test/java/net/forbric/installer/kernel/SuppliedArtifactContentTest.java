@@ -4,6 +4,8 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -17,6 +19,8 @@ import java.util.zip.ZipOutputStream;
  * entries the file a player might grab instead carries). Class bodies are placeholder bytes holding the package
  * references the merged-base check looks for; nothing here is loaded or link-checked, which is
  * {@link MergedBaseLinkGateTest}'s job.
+ *
+ * <p>{@code --doctor} judges a supplied set with the same checks, so its report is checked here too.
  */
 public final class SuppliedArtifactContentTest {
 	private static final String MC = "26.2";
@@ -147,8 +151,62 @@ public final class SuppliedArtifactContentTest {
 		}
 		checks++;
 
+		checks += doctor(work, merged, forge, neo, wrong);
+
 		System.out.println("PASS installer --artifacts content: " + checks + " checks (real shapes accepted;"
-				+ " renamed gson, empty zip, installers, vanilla, half-patched, universal and swapped jars refused)");
+				+ " renamed gson, empty zip, installers, vanilla, half-patched, universal and swapped jars refused;"
+				+ " --doctor names every file and every problem)");
+	}
+	/**
+	 * {@code --doctor --artifacts}: each file judged on its own, and every reason it finds printed — the
+	 * artifacts' and the JDK's.
+	 */
+	private static int doctor(Path work, Path merged, Path forge, Path neo, Path wrong) throws IOException {
+		int checks = 0;
+		Path mcDir = work.resolve("doctor-minecraft"); // never created: --doctor writes nothing
+
+		// A bad --jdk AND a wrong set: both reasons, not just the first.
+		Path noJdk = work.resolve("no-such-jdk");
+		List<String> out = new ArrayList<>();
+		Doctor.Report report = new Doctor(out::add).examine(mcDir, noJdk, wrong);
+		String text = String.join("\n", out);
+		require(!report.ok(), "--doctor passed a wrong set with no JDK:\n" + text);
+		require(text.contains("not the game files Forbric needs"), "the artifact refusal is missing:\n" + text);
+		require(text.contains("--jdk " + noJdk + " is not usable"), "the JDK's reason was dropped:\n" + text);
+		checks++;
+
+		// A half-filled directory: what is there is "present" (or WRONG FILE), only what is not is "missing", and
+		// the verdict names both the missing file and the wrong one, with the way out once.
+		Path half = Files.createDirectories(work.resolve("doctor-half"));
+		Files.copy(merged, half.resolve("patched-mc-merged-26.2.jar"));
+		Files.copy(forge, half.resolve("neoforge-runtime.jar")); // the usual mistake: the runtimes swapped
+		out.clear();
+		report = new Doctor(out::add).examine(mcDir, null, half);
+		text = String.join("\n", out);
+		require(!report.ok(), "--doctor passed a half-filled directory:\n" + text);
+		for (String line : List.of("    present  net.forbric:patched-mc-merged",
+				"    missing  net.forbric:forge-runtime",
+				"    WRONG FILE  net.forbric:neoforge-runtime")) {
+			require(out.contains(line), "no line \"" + line + "\":\n" + text);
+		}
+		require(text.contains("cannot find forge-runtime-interop.jar in " + half), "the missing file is not named:\n" + text);
+		require(text.contains("does not contain NeoForge (it looks like MinecraftForge instead)"),
+				"the wrong file's reason is missing:\n" + text);
+		require(text.indexOf("Leave \"Built artifacts\" empty") == text.lastIndexOf("Leave \"Built artifacts\" empty"),
+				"the way out is said more than once:\n" + text);
+		checks++;
+
+		// Negative control: the same directory completed with the right files is ready.
+		Files.copy(forge, half.resolve("forge-runtime-interop.jar"));
+		Files.copy(neo, half.resolve("neoforge-runtime.jar"), StandardCopyOption.REPLACE_EXISTING);
+		out.clear();
+		report = new Doctor(out::add).examine(mcDir, null, half);
+		text = String.join("\n", out);
+		require(report.ok() && out.contains("RESULT: ready to install, with no build needed."),
+				"--doctor refused a complete, correct set:\n" + text);
+		require(!Files.exists(mcDir), "--doctor created " + mcDir);
+		checks++;
+		return checks;
 	}
 
 	/** Minecraft {@code version} as the merged base carries it, with or without each family's patches. */

@@ -111,19 +111,19 @@ final class Doctor {
 
 		// Supplied artifacts replace the whole build, so say plainly which ones are here — and judge them the way an
 		// install would. A supplied set that is incomplete, or holds files that are not what their names say, is
-		// refused rather than built around, so "to build" would be a promise the install does not keep.
+		// refused rather than built around, so "to build" would be a promise the install does not keep. Each file
+		// is judged on its own: one missing file does not make the other two missing, and the ones that are here
+		// are opened even so, so the answer to a half-filled directory is everything wrong with it at once.
 		Map<String, Boolean> artifacts = new LinkedHashMap<>();
 		Map<String, Path> located = Map.of();
 		Map<String, String> wrong = Map.of();
 		String artifactProblem = null;
 		if (artifactDir != null) {
-			try {
-				GameArtifacts supplied = GameArtifacts.locate(Pins.MINECRAFT, artifactDir);
-				located = supplied.all();
-				wrong = supplied.contentProblems(Pins.MINECRAFT);
-				if (!wrong.isEmpty()) artifactProblem = supplied.refusal(wrong).getMessage();
-			} catch (IOException someMissing) {
-				artifactProblem = someMissing.getMessage();
+			GameArtifacts supplied = GameArtifacts.find(Pins.MINECRAFT, artifactDir);
+			located = supplied.all();
+			wrong = supplied.contentProblems(Pins.MINECRAFT);
+			if (!wrong.isEmpty() || !supplied.missing().isEmpty()) {
+				artifactProblem = supplied.refusal(wrong).getMessage();
 			}
 		}
 		for (String coordinate : new String[] {
@@ -153,13 +153,18 @@ final class Doctor {
 		if (artifactProblem != null) {
 			log.accept("RESULT: an install would refuse the supplied game artifacts.");
 			log.accept(artifactProblem);
-		} else if (problem != null) {
-			log.accept("RESULT: this machine cannot build the game artifacts yet.");
+		}
+		// Said after an artifact refusal too: otherwise fixing the artifacts just uncovers this on the next run.
+		if (problem != null) {
+			if (artifactProblem != null) log.accept("");
+			log.accept((artifactProblem == null ? "RESULT: " : "ALSO: ") + (artifactDir == null
+					? "this machine cannot build the game artifacts yet."
+					: "this machine has no usable Java to link-check the supplied game artifacts with."));
 			log.accept(problem);
-		} else if (allPresent) {
-			log.accept("RESULT: ready to install, with no build needed.");
-		} else {
-			log.accept("RESULT: ready to install; the game artifacts will be built here first.");
+		}
+		if (artifactProblem == null && problem == null) {
+			log.accept(allPresent ? "RESULT: ready to install, with no build needed."
+					: "RESULT: ready to install; the game artifacts will be built here first.");
 		}
 		if (problem == null) problem = artifactProblem;
 		return new Report(mcDir, mcDirExists, baseInstalled, jvm, problem, artifacts);
