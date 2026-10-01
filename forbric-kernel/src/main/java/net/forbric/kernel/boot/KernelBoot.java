@@ -240,6 +240,7 @@ public final class KernelBoot {
 
 		nestedJarJarJars = List.copyOf(nested);
 		modJars.addAll(nested);
+		publishNestedPresence(nested);
 
 		// THE MC LIBRARIES GO IN AHEAD OF THE MODS, and the order is the whole policy.
 		//
@@ -617,6 +618,7 @@ public final class KernelBoot {
 		chain.register(TransformPhase.COREMOD, new net.forbric.kernel.transform.UntrackedFluidEyeQueryInjector());
 		chain.register(TransformPhase.COREMOD, new net.forbric.kernel.transform.AxeStripCallbacksInjector());
 		chain.register(TransformPhase.COREMOD, new net.forbric.kernel.transform.CompatPluginPlatformInjector());
+		chain.register(TransformPhase.COREMOD, new net.forbric.kernel.transform.SpectreConfigContractInjector());
 		// MinecraftForge's ParticleEngine.registerParticleGroup against NeoForge's engine: its statics, merged in on build.
 		chain.register(TransformPhase.COREMOD, new net.forbric.kernel.transform.ParticleGroupsInjector());
 		// MinecraftForge's Hurt, Damage and player-Attack events have no NeoForge event at their positions to bridge
@@ -1382,6 +1384,15 @@ public final class KernelBoot {
 	}
 
 	/** The mixin configs declared by JarJar-extracted nested jars. Same pass, applied to the children. */
+	/** Publish the selected nested owners before Fabric creates presence aliases for them. */
+	static void publishNestedPresence(List<Path> nested) {
+		List<DiscoveredMod> mods = new ArrayList<>(ModPresence.forgeFamilyMods());
+		java.util.Set<String> seen = new java.util.LinkedHashSet<>();
+		for (DiscoveredMod mod : mods) seen.add(mod.getId());
+		mods.addAll(PassiveSeeder.arbitratedNestedForgeFamilyMods(nested, seen));
+		ModPresence.publishForgeFamily(mods);
+	}
+
 	static List<KernelForgeFamilyMixins.ForgeMixinConfig> discoverForgeMixinConfigs(List<Path> jars, String what) {
 		List<KernelForgeFamilyMixins.ForgeMixinConfig> configs = new ArrayList<>();
 		if (jars.isEmpty()) return configs;

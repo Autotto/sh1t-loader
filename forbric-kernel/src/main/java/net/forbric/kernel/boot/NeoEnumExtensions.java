@@ -92,16 +92,10 @@ public final class NeoEnumExtensions {
 			Map<Object, Object> declarations = new LinkedHashMap<>();
 			Map<String, String> byMod = new LinkedHashMap<>();
 			for (Path jar : modJars) {
-				byte[] json = read(jar, DECLARATION);
-				if (json == null) continue;
-				String modId = modIdOf(discoverer, jar);
-				if (modId == null) {
-					ForbricLog.warn("[Forbric/EnumExt] %s declares enum extensions but no readable mod id — skipped",
-							jar.getFileName());
-					continue;
+				for (var declaration : declarationsForJar(discoverer, jar).entrySet()) {
+					declarations.put(modInfo(iModInfo, declaration.getKey()), resource(gameLoader, jarResource, declaration.getValue()));
+					byMod.put(declaration.getKey(), jar.getFileName().toString());
 				}
-				declarations.put(modInfo(iModInfo, modId), resource(gameLoader, jarResource, json));
-				byMod.put(modId, jar.getFileName().toString());
 			}
 			if (declarations.isEmpty()) return 0;
 
@@ -192,24 +186,22 @@ public final class NeoEnumExtensions {
 		return null;
 	}
 
-	/**
-	 * The mod's REAL id, read from its manifest — never the jar file name.
-	 *
-	 * <p>NeoForge requires every added constant to be prefixed with the declaring mod's id in upper case
-	 * ({@code SOPHISTICATEDBACKPACKS_WORN} for {@code sophisticatedbackpacks}) and rejects the whole declaration
-	 * otherwise. Passing the file name — {@code sophisticatedbackpacks-26.2-3.25.83.2018} — failed that check for
-	 * all three mods, and the rejection is reported as a collected {@code ModLoadingIssue} rather than thrown, so
-	 * it read as a clean load of zero prototypes and the injector then matched nothing, silently.
-	 *
-	 * @return the first id the jar declares, or null if it declares none.
-	 */
-	private static String modIdOf(ForbricModDiscoverer discoverer, Path jar) {
+	/** Reads each NeoForge mod's declared enum resource, retaining the conventional path for older mods. */
+	static Map<String, byte[]> declarationsForJar(ForbricModDiscoverer discoverer, Path jar) {
 		try {
-			List<DiscoveredMod> mods = discoverer.discoverJar(jar);
-			return mods.isEmpty() ? null : mods.get(0).getId();
+			Map<String, byte[]> result = new LinkedHashMap<>();
+			for (DiscoveredMod mod : discoverer.discoverJar(jar)) {
+				if (mod.getEcosystem() != Ecosystem.NEOFORGE) continue;
+				Object configured = mod.getConfigElements().get("enumExtensions");
+				String path = configured instanceof String value && !value.isBlank() ? value : DECLARATION;
+				byte[] json = read(jar, path);
+				if (json != null) result.put(mod.getId(), json);
+				else if (configured instanceof String) ForbricLog.warn("[Forbric/EnumExt] %s declares missing enum extension resource %s", mod.getId(), path);
+			}
+			return result;
 		} catch (Throwable t) {
-			ForbricLog.debug("[Forbric/EnumExt] could not read a mod id from %s: %s", jar, String.valueOf(t));
-			return null;
+			ForbricLog.debug("[Forbric/EnumExt] could not read declarations from %s: %s", jar, String.valueOf(t));
+			return Map.of();
 		}
 	}
 

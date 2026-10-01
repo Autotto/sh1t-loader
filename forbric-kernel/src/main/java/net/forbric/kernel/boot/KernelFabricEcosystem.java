@@ -672,6 +672,14 @@ public final class KernelFabricEcosystem {
 	 * Invokes one entrypoint key, isolating failures per mod: a mod whose {@code onInitialize} throws is reported
 	 * and skipped rather than aborting the remaining mods' initialization (and with them the whole server boot).
 	 */
+	/** Spectre's NeoForge global-load phase does not discover Fabric's custom config entries. */
+	static void initializeSpectreConfigs() {
+		if (!net.forbric.kernel.transform.SpectreConfigContractInjector.needed()) return;
+		int count = invoke("spectrelib-config", net.forbric.kernel.interop.SpectreConfigInitializer.class,
+				net.forbric.kernel.interop.SpectreConfigInitializer::onInitializeConfig);
+		if (count > 0) ForbricLog.info("[Forbric/Spectre] initialized %d Fabric config entrypoint(s) before the selected NeoForge library loads global configs", count);
+	}
+
 	private static <T> int invoke(String key, Class<T> type, java.util.function.Consumer<T> action) {
 		int count = 0;
 

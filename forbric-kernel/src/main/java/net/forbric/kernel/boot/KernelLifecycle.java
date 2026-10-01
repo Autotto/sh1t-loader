@@ -758,6 +758,7 @@ public final class KernelLifecycle {
 			closeWindow = true;
 			// MOD buses only — buses.get(0) is the baseline, whose registries PassiveSeeder already registered at
 			// seed time; posting there re-collects them and fill() dies on "Attempted duplicate registration".
+			KernelFabricEcosystem.initializeSpectreConfigs();
 			postNeoNewRegistryEvent(cl, buses.subList(1, buses.size()));
 			// Isolated for the same reason KernelEventSubscribers.registerAll above is, and this one is wider.
 			// fireRegisterEvents resolves a GAME-side class reflectively, so a LinkageError inside it escapes to
