@@ -16,6 +16,8 @@
 
 package net.forbric.installer.kernel;
 
+import java.io.ByteArrayInputStream;
+import java.io.DataInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -27,6 +29,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.jar.Manifest;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipException;
 import java.util.zip.ZipFile;
@@ -79,6 +82,17 @@ final class GameArtifacts {
 			"net/neoforged/neoforgespi/language/IModInfo.class");
 	private static final byte[] FORGE_REFERENCE = "net/minecraftforge/".getBytes(StandardCharsets.US_ASCII);
 	private static final byte[] NEO_REFERENCE = "net/neoforged/".getBytes(StandardCharsets.US_ASCII);
+
+	/**
+	 * The one method {@code RuntimeInteropPatcher} adds to MinecraftForge's runtime, and so the one thing that
+	 * tells {@code forge-runtime-interop.jar} from the {@code forge-runtime.jar} it is made from: same entries,
+	 * same manifest, and in the raw jar this class has no {@code contents()} at all. The {@code .pins} stamp is no
+	 * marker — only the installer's own build directory writes one; the development scripts' {@code run/} and an
+	 * installed {@code libraries/} tree have none.
+	 */
+	private static final String INTEROP_CLASS = "net/minecraftforge/registries/NamespacedWrapper$3.class";
+	private static final String INTEROP_METHOD = "contents";
+	private static final String INTEROP_DESCRIPTOR = "()Ljava/util/Map;";
 
 	private final Path dir;
 	private final Map<String, Path> found = new LinkedHashMap<>();
@@ -207,23 +221,43 @@ final class GameArtifacts {
 	 *   <li>Each runtime holds its family's core class AND its family's mod loader. A {@code -universal} jar has
 	 *       the first without the second; the kernel needs both, and the loader half is exactly what was absent
 	 *       in #13 ({@code net/neoforged/neoforgespi/language/IModInfo}).</li>
+	 *   <li>Each runtime was built for the version this installer pins: the {@code Implementation-Version} in its
+	 *       manifest's main section, which both runtime builders (and both {@code assemble-*-runtime.sh}) write
+	 *       from the pin — {@link Pins#NEOFORGE}, and {@link Pins#FORGE}'s FML half ({@code 65.0.1}). A runtime
+	 *       from an older install passes every check above: 0.2.0's NeoForge runtime, {@code 26.2.0.38-beta},
+	 *       installed without a word.</li>
+	 *   <li>The MinecraftForge runtime is the interop-patched one ({@link #INTEROP_CLASS}), not
+	 *       {@code forge-runtime.jar} renamed — which passes everything else and fails in game with an
+	 *       {@code AbstractMethodError}.</li>
 	 * </ul>
 	 */
 	static String problem(String coordinate, Path jar, String mcVersion) {
-		try (ZipFile zip = new ZipFile(jar.toFile())) {
+		ZipFile opened;
+		try {
+			opened = new ZipFile(jar.toFile());
+		} catch (ZipException notAZip) {
+			return "It is not a jar file: it cannot be opened as one.";
+		} catch (IOException unreadable) {
+			return "It cannot be read: " + unreadable.getMessage();
+		}
+		try (ZipFile zip = opened) {
 			if (zip.size() == 0) return "It is an empty archive, with no files in it.";
 			String installer = installerName(zip);
 			if (installer != null) return "It is " + installer + ", not " + what(coordinate, mcVersion) + ".";
 			return switch (coordinate) {
 				case ArtifactBuilder.MERGED -> mergedBaseProblem(zip, mcVersion);
-				case ArtifactBuilder.FORGE_RUNTIME -> runtimeProblem(zip, "MinecraftForge", FORGE_CORE, FORGE_LOADER);
-				case ArtifactBuilder.NEOFORGE_RUNTIME -> runtimeProblem(zip, "NeoForge", NEO_CORE, NEO_LOADER);
+				case ArtifactBuilder.FORGE_RUNTIME -> {
+					String problem = runtimeProblem(zip, "MinecraftForge", FORGE_CORE, FORGE_LOADER,
+							new ForgeArtifacts(mcVersion, Pins.FORGE).fmlVersion);
+					yield problem != null ? problem : interopProblem(zip);
+				}
+				case ArtifactBuilder.NEOFORGE_RUNTIME -> runtimeProblem(zip, "NeoForge", NEO_CORE, NEO_LOADER,
+						Pins.NEOFORGE);
 				default -> throw new IllegalArgumentException("not a game artifact: " + coordinate);
 			};
-		} catch (ZipException notAZip) {
-			return "It is not a jar file: it cannot be opened as one.";
-		} catch (IOException unreadable) {
-			return "It cannot be read: " + unreadable.getMessage();
+		} catch (IOException damaged) {
+			// It opened, so it is a jar; an entry inside it did not read back.
+			return "It is damaged: part of it cannot be read (" + damaged.getMessage() + ").";
 		}
 	}
 
@@ -266,7 +300,8 @@ final class GameArtifacts {
 				+ " only. The merged game base carries both MinecraftForge's and NeoForge's patches.";
 	}
 
-	private static String runtimeProblem(ZipFile zip, String family, String core, List<String> loader) {
+	private static String runtimeProblem(ZipFile zip, String family, String core, List<String> loader,
+			String pinned) {
 		if (zip.getEntry(core) == null) return "It does not contain " + family + looksLike(zip, family) + ".";
 		for (String marker : loader) {
 			if (zip.getEntry(marker) == null) {
@@ -274,7 +309,104 @@ final class GameArtifacts {
 						+ family + " runtime Forbric puts together (" + family + "'s -universal jar looks like this).";
 			}
 		}
+		String built = implementationVersion(zip);
+		if (built == null) {
+			return "It does not say which " + family + " it was built for (its manifest has no "
+					+ "Implementation-Version); this installer needs " + pinned + ".";
+		}
+		if (!built.equals(pinned)) {
+			return "It was built for " + family + " " + built + "; this installer needs " + pinned + ".";
+		}
 		return null;
+	}
+
+	private static String interopProblem(ZipFile zip) throws IOException {
+		ZipEntry entry = zip.getEntry(INTEROP_CLASS);
+		byte[] bytes = null;
+		if (entry != null) {
+			try (InputStream in = zip.getInputStream(entry)) {
+				bytes = in.readAllBytes();
+			}
+		}
+		if (bytes != null && declaresMethod(bytes, INTEROP_METHOD, INTEROP_DESCRIPTOR)) return null;
+		return "It is forge-runtime.jar, the MinecraftForge runtime before Forbric patches it to fit the merged "
+				+ "game base; forge-runtime-interop.jar is the patched one.";
+	}
+
+	/**
+	 * The {@code Implementation-Version} of the manifest's main section, or null. Only the main section: the
+	 * MinecraftForge runtime's manifest also carries one per bundled library ({@code AccessTransformers 8.2.2},
+	 * {@code Bootstrap 2.1.8}, ...), and none of those says what the runtime was built for.
+	 */
+	private static String implementationVersion(ZipFile zip) {
+		ZipEntry entry = zip.getEntry("META-INF/MANIFEST.MF");
+		if (entry == null) return null;
+		try (InputStream in = zip.getInputStream(entry)) {
+			String version = new Manifest(in).getMainAttributes().getValue("Implementation-Version");
+			return version == null || version.isBlank() ? null : version.strip();
+		} catch (IOException unreadable) {
+			return null;
+		}
+	}
+
+	/**
+	 * Whether a class file declares the method {@code name}{@code descriptor}, read from its own method table; a
+	 * file that does not parse as a class declares nothing. Searching the bytes for the name would also match a
+	 * class that only CALLS such a method; this installer carries no ASM, and walking the constant pool to the
+	 * method table is all that is needed.
+	 */
+	private static boolean declaresMethod(byte[] classFile, String name, String descriptor) {
+		try {
+			return methodTableHas(new DataInputStream(new ByteArrayInputStream(classFile)), name, descriptor);
+		} catch (IOException | RuntimeException malformed) {
+			return false;
+		}
+	}
+
+	private static boolean methodTableHas(DataInputStream in, String name, String descriptor) throws IOException {
+		if (in.readInt() != 0xCAFEBABE) return false;
+		in.skipNBytes(4); // minor, major
+		int count = in.readUnsignedShort();
+		String[] utf8 = new String[count];
+		for (int i = 1; i < count; i++) {
+			int tag = in.readUnsignedByte();
+			switch (tag) {
+				case 1 -> utf8[i] = in.readUTF(); // the class file's modified UTF-8 is exactly readUTF's format
+				case 7, 8, 16, 19, 20 -> in.skipNBytes(2);
+				case 15 -> in.skipNBytes(3);
+				case 3, 4, 9, 10, 11, 12, 17, 18 -> in.skipNBytes(4);
+				case 5, 6 -> { // a long or double takes two constant-pool slots
+					in.skipNBytes(8);
+					i++;
+				}
+				default -> throw new IOException("not a class file: constant-pool tag " + tag);
+			}
+		}
+		in.skipNBytes(6); // access flags, this class, super class
+		in.skipNBytes(2L * in.readUnsignedShort()); // interfaces
+		skipMembers(in); // fields
+		for (int methods = in.readUnsignedShort(); methods > 0; methods--) {
+			in.skipNBytes(2); // access flags
+			String methodName = utf8[in.readUnsignedShort()];
+			String methodDescriptor = utf8[in.readUnsignedShort()];
+			if (name.equals(methodName) && descriptor.equals(methodDescriptor)) return true;
+			skipAttributes(in);
+		}
+		return false;
+	}
+
+	private static void skipMembers(DataInputStream in) throws IOException {
+		for (int members = in.readUnsignedShort(); members > 0; members--) {
+			in.skipNBytes(6); // access flags, name, descriptor
+			skipAttributes(in);
+		}
+	}
+
+	private static void skipAttributes(DataInputStream in) throws IOException {
+		for (int attributes = in.readUnsignedShort(); attributes > 0; attributes--) {
+			in.skipNBytes(2); // name
+			in.skipNBytes(in.readInt() & 0xFFFFFFFFL);
+		}
 	}
 
 	/** A hint at what a wrong file actually is, when that is recognisable — the usual mistake is a swap. */

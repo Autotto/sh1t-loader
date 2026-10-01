@@ -58,8 +58,10 @@ public final class MergedBaseLinkGateTest {
 	 * the Forge runtime, and a failed check leaves no profile behind.
 	 *
 	 * <p>The set has to look like a real one first, or the content check refuses it before any link check runs:
-	 * the game jar is Minecraft 26.2 whose client refers to both families, and each carrier holds its family's
-	 * core class and mod loader. Those references are real bytecode, so they are resolved like any other.
+	 * the game jar is Minecraft 26.2 whose client refers to both families, each carrier holds its family's core
+	 * class and mod loader and names the pinned version in its manifest, and the Forge carrier has the interop
+	 * bridge. Those are real bytecode, so they are resolved like any other — and the bridge, compiled by javac,
+	 * is a real class file for the content check's class-file reader.
 	 */
 	private static void suppliedArtifacts(Path work, Path classes, Path target, List<String> logs) throws Exception {
 		Path supplied = Files.createDirectories(work.resolve("supplied"));
@@ -74,11 +76,19 @@ public final class MergedBaseLinkGateTest {
 		compileWith(forgeClasses, null,
 				source(carriers, "net.minecraftforge.common", "public class MinecraftForge " + hook),
 				source(carriers, "net.minecraftforge.fml.loading", "public class FMLLoader { }"),
-				source(carriers, "net.minecraftforge.forgespi.language", "public interface IModInfo { }"));
+				source(carriers, "net.minecraftforge.forgespi.language", "public interface IModInfo { }"),
+				source(carriers, "net.minecraftforge.registries", "public class NamespacedWrapper$3 { "
+						+ "java.util.Map<String, Object> bindings = java.util.Map.of(); "
+						+ "public java.util.Map<String, Object> contents() { return bindings; } }"));
 		compileWith(neoClasses, null,
 				source(carriers, "net.neoforged.neoforge.common", "public class NeoForge " + hook),
 				source(carriers, "net.neoforged.fml.loading", "public class FMLLoader { }"),
 				source(carriers, "net.neoforged.neoforgespi.language", "public interface IModInfo { }"));
+		Files.writeString(Files.createDirectories(forgeClasses.resolve("META-INF")).resolve("MANIFEST.MF"),
+				"Manifest-Version: 1.0\r\nImplementation-Title: MinecraftForge\r\nImplementation-Version: 65.0.1\r\n\r\n");
+		Files.writeString(Files.createDirectories(neoClasses.resolve("META-INF")).resolve("MANIFEST.MF"),
+				"Manifest-Version: 1.0\r\nImplementation-Title: NeoForge\r\nImplementation-Version: " + Pins.NEOFORGE
+						+ "\r\n\r\n");
 		jar(forgeClasses, interop);
 		jar(forgeClasses, raw);
 		jar(neoClasses, neo);
@@ -159,7 +169,7 @@ public final class MergedBaseLinkGateTest {
 
 	/** Writes {@code body} as the one top-level type of {@code pkg}, named after the type it declares. */
 	private static Path source(Path root, String pkg, String body) throws IOException {
-		String name = body.replaceFirst("^public (?:class|interface) (\\w+).*$", "$1");
+		String name = body.replaceFirst("^public (?:class|interface) ([\\w$]+).*$", "$1");
 		Path file = Files.createDirectories(root.resolve(pkg.replace('.', '/'))).resolve(name + ".java");
 		Files.writeString(file, "package " + pkg + "; " + body);
 		return file;

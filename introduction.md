@@ -743,8 +743,11 @@ forge-runtime ──────────────────────
   `GameArtifacts` takes the three jars from that directory alone and opens each before anything is downloaded or
   written: the merged base must be Minecraft 26.2 whose `net/minecraft/` classes refer to both
   `net/minecraftforge/` and `net/neoforged/`; each runtime must hold its family's core class and its mod loader
-  (`FMLLoader`, `IModInfo`). Only then the link check, which on its own passes any jar that refers to nothing
-  outside itself (issue #13).
+  (`FMLLoader`, `IModInfo`), and name the pinned version as its manifest's main `Implementation-Version`
+  (`Pins.NEOFORGE`; for MinecraftForge the FML half of `Pins.FORGE`, `65.0.1`); and the MinecraftForge runtime
+  must be the interop-patched one, whose `NamespacedWrapper$3` declares `contents()`. Only then the link check,
+  which on its own passes any jar that refers to nothing outside itself (issue #13); a supplied set that fails it
+  is reported as files that do not fit together, with the same way out.
 - `Pins`: `MINECRAFT = "26.2"` (the only supported version), `FORGE = "26.2-65.0.1"`, `NEOFORGE = "26.2.0.88"`,
   `NFRT = "2.0.18"`, `NFRT_RESULT = "gameJarNoRecomp"`, each with its reason in the source. `BuildStamp` keys every
   cached artifact to the pin set, so a pin bump cannot be served from cache.

@@ -1,5 +1,7 @@
 package net.forbric.installer.kernel;
 
+import java.io.ByteArrayOutputStream;
+import java.io.DataOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -17,8 +19,8 @@ import java.util.zip.ZipOutputStream;
  *
  * <p>Each fake jar below is built from the entries the real one was found to carry (or, for the negatives, the
  * entries the file a player might grab instead carries). Class bodies are placeholder bytes holding the package
- * references the merged-base check looks for; nothing here is loaded or link-checked, which is
- * {@link MergedBaseLinkGateTest}'s job.
+ * references the merged-base check looks for, except the one class the interop check parses, which is a real
+ * (minimal) class file; nothing here is loaded or link-checked, which is {@link MergedBaseLinkGateTest}'s job.
  *
  * <p>{@code --doctor} judges a supplied set with the same checks, so its report is checked here too.
  */
@@ -34,8 +36,8 @@ public final class SuppliedArtifactContentTest {
 
 		// ---- the real shapes pass ----
 		Path merged = jar(work.resolve("ok/patched-mc-merged-26.2.jar"), mergedBase(MC, true, true));
-		Path forge = jar(work.resolve("ok/forge-runtime-interop.jar"), forgeRuntime());
-		Path neo = jar(work.resolve("ok/neoforge-runtime.jar"), neoRuntime());
+		Path forge = jar(work.resolve("ok/forge-runtime-interop.jar"), forgeRuntime("65.0.1", true));
+		Path neo = jar(work.resolve("ok/neoforge-runtime.jar"), neoRuntime(Pins.NEOFORGE));
 		requireOk(MERGED, merged);
 		requireOk(FORGE, forge);
 		requireOk(NEO, neo);
@@ -92,6 +94,46 @@ public final class SuppliedArtifactContentTest {
 		requireProblem(NEO, forge, "does not contain NeoForge (it looks like MinecraftForge instead)");
 		requireProblem(NEO, merged, "does not contain NeoForge (it looks like Minecraft instead)");
 		checks += 5;
+
+		// ---- the right runtime, built for another version: 0.2.0's NeoForge runtime passed all of the above ----
+		requireProblem(NEO, jar(work.resolve("neoforge-runtime-0.2.0.jar"), neoRuntime("26.2.0.38-beta")),
+				"It was built for NeoForge 26.2.0.38-beta; this installer needs " + Pins.NEOFORGE + ".");
+		requireProblem(FORGE, jar(work.resolve("forge-runtime-65.0.0.jar"), forgeRuntime("65.0.0", true)),
+				"It was built for MinecraftForge 65.0.0; this installer needs 65.0.1.");
+		Map<String, byte[]> unversioned = neoRuntime(Pins.NEOFORGE);
+		unversioned.remove("META-INF/MANIFEST.MF");
+		requireProblem(NEO, jar(work.resolve("neoforge-runtime-no-manifest.jar"), unversioned),
+				"does not say which NeoForge it was built for");
+		// MinecraftForge's runtime manifest carries an Implementation-Version per bundled library; those are not it.
+		Map<String, byte[]> sectionOnly = forgeRuntime("65.0.1", true);
+		sectionOnly.putAll(entries("META-INF/MANIFEST.MF", "Manifest-Version: 1.0\r\n"
+				+ "Implementation-Title: MinecraftForge\r\n\r\n"
+				+ "Name: net/minecraftforge/accesstransformer/\r\nImplementation-Version: 65.0.1\r\n\r\n"));
+		requireProblem(FORGE, jar(work.resolve("forge-runtime-section-version.jar"), sectionOnly),
+				"does not say which MinecraftForge it was built for");
+		checks += 4;
+
+		// ---- MinecraftForge's runtime, but not the interop-patched one ----
+		requireProblem(FORGE, jar(work.resolve("forge-runtime.jar"), forgeRuntime("65.0.1", false)),
+				"It is forge-runtime.jar, the MinecraftForge runtime before Forbric patches it");
+		Map<String, byte[]> noBridgeClass = forgeRuntime("65.0.1", true);
+		noBridgeClass.remove(INTEROP_CLASS);
+		requireProblem(FORGE, jar(work.resolve("forge-runtime-no-bridge-class.jar"), noBridgeClass),
+				"It is forge-runtime.jar");
+		// The class names contents()Ljava/util/Map; (it calls such a method) without declaring it: the method table
+		// is what counts, not the bytes.
+		Map<String, byte[]> callsOnly = forgeRuntime("65.0.1", false);
+		callsOnly.put(INTEROP_CLASS, classFile(INTEROP_CLASS, List.of("contents", "()Ljava/util/Map;"), "<init>", "()V"));
+		requireProblem(FORGE, jar(work.resolve("forge-runtime-calls-contents.jar"), callsOnly), "It is forge-runtime.jar");
+		// NeoForge's runtime has no such bridge and needs none.
+		requireOk(NEO, jar(work.resolve("neo-without-bridge/neoforge-runtime.jar"), neoRuntime(Pins.NEOFORGE)));
+		checks += 4;
+
+		// ---- a jar that opens but whose entry does not read back is damaged, not "not a jar" ----
+		Path damaged = jar(work.resolve("forge-runtime-damaged.jar"), forgeRuntime("65.0.1", true));
+		damage(damaged, INTEROP_CLASS);
+		requireProblem(FORGE, damaged, "It is damaged: part of it cannot be read");
+		checks++;
 
 		// ---- the whole set: every bad file named at once, with the way out ----
 		Path wrong = Files.createDirectories(work.resolve("wrong"));
@@ -154,9 +196,10 @@ public final class SuppliedArtifactContentTest {
 		checks += doctor(work, merged, forge, neo, wrong);
 
 		System.out.println("PASS installer --artifacts content: " + checks + " checks (real shapes accepted;"
-				+ " renamed gson, empty zip, installers, vanilla, half-patched, universal and swapped jars refused;"
-				+ " --doctor names every file and every problem)");
+				+ " renamed gson, empty zip, installers, vanilla, half-patched, universal, swapped, other-version and"
+				+ " unpatched jars refused; --doctor names every file and every problem)");
 	}
+
 	/**
 	 * {@code --doctor --artifacts}: each file judged on its own, and every reason it finds printed — the
 	 * artifacts' and the JDK's.
@@ -222,17 +265,33 @@ public final class SuppliedArtifactContentTest {
 		return entries;
 	}
 
-	private static Map<String, byte[]> forgeRuntime() {
-		return entries(
+	/**
+	 * MinecraftForge's runtime as ForgeRuntimeBuilder writes it — FML's version in the manifest's main section,
+	 * one section per bundled library after it — with or without the bridge RuntimeInteropPatcher adds.
+	 */
+	private static Map<String, byte[]> forgeRuntime(String version, boolean interopPatched) {
+		Map<String, byte[]> entries = entries(
+				"META-INF/MANIFEST.MF", "Manifest-Version: 1.0\r\n"
+						+ "Automatic-Module-Name: net.minecraftforge.forge\r\n"
+						+ "Implementation-Title: MinecraftForge\r\n"
+						+ "Implementation-Version: " + version + "\r\n\r\n"
+						+ "Name: net/minecraftforge/accesstransformer/\r\nImplementation-Version: 8.2.2\r\n\r\n",
 				"fabric.mod.json", "{\"id\": \"forge\"}",
 				"META-INF/mods.toml", "modId=\"forge\"",
 				"net/minecraftforge/common/MinecraftForge.class", "core",
 				"net/minecraftforge/fml/loading/FMLLoader.class", "loader",
 				"net/minecraftforge/forgespi/language/IModInfo.class", "spi");
+		entries.put(INTEROP_CLASS, interopPatched
+				? classFile(INTEROP_CLASS, List.of(), "contents", "()Ljava/util/Map;", "<init>", "()V")
+				: classFile(INTEROP_CLASS, List.of(), "<init>", "()V", "key", "()Lnet/minecraft/resources/ResourceKey;"));
+		return entries;
 	}
 
-	private static Map<String, byte[]> neoRuntime() {
+	/** NeoForge's runtime as NeoForgeRuntimeBuilder writes it: its four-line manifest names the NeoForge version. */
+	private static Map<String, byte[]> neoRuntime(String version) {
 		return entries(
+				"META-INF/MANIFEST.MF", "Manifest-Version: 1.0\r\nImplementation-Title: NeoForge\r\n"
+						+ "Implementation-Version: " + version + "\r\nAutomatic-Module-Name: neoforge\r\n\r\n",
 				"fabric.mod.json", "{\"id\": \"neoforge\"}",
 				"META-INF/neoforge.mods.toml", "modId=\"neoforge\"",
 				"net/neoforged/neoforge/common/NeoForge.class", "core",
@@ -240,12 +299,59 @@ public final class SuppliedArtifactContentTest {
 				"net/neoforged/neoforgespi/language/IModInfo.class", "spi");
 	}
 
-	private static Map<String, byte[]> entries(String... nameThenContent) {
-		Map<String, byte[]> out = new LinkedHashMap<>();
-		for (int i = 0; i < nameThenContent.length; i += 2) {
-			out.put(nameThenContent[i], nameThenContent[i + 1].getBytes(StandardCharsets.UTF_8));
+	private static final String INTEROP_CLASS = "net/minecraftforge/registries/NamespacedWrapper$3.class";
+
+	/**
+	 * A minimal class file: {@code extra} as additional constant-pool strings (what a class that only refers to a
+	 * name carries), then one method per name/descriptor pair. A long constant sits between them, because it takes
+	 * two constant-pool slots and a parser that forgets that misreads every index after it.
+	 */
+	private static byte[] classFile(String entryName, List<String> extra, String... methods) {
+		try {
+			ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+			DataOutputStream out = new DataOutputStream(bytes);
+			out.writeInt(0xCAFEBABE);
+			out.writeShort(0);
+			out.writeShort(61);
+			// #1 this name, #2 Class #1, #3 java/lang/Object, #4 Class #3, then the extras, a long, the methods' names
+			int count = 5 + extra.size() + 2 + methods.length;
+			out.writeShort(count);
+			out.writeByte(1);
+			out.writeUTF(entryName.substring(0, entryName.length() - ".class".length()));
+			out.writeByte(7);
+			out.writeShort(1);
+			out.writeByte(1);
+			out.writeUTF("java/lang/Object");
+			out.writeByte(7);
+			out.writeShort(3);
+			for (String s : extra) {
+				out.writeByte(1);
+				out.writeUTF(s);
+			}
+			out.writeByte(5);
+			out.writeLong(0x5EED_5EEDL);
+			int firstMethod = 5 + extra.size() + 2;
+			for (String s : methods) {
+				out.writeByte(1);
+				out.writeUTF(s);
+			}
+			out.writeShort(0x0021); // public super
+			out.writeShort(2);
+			out.writeShort(4);
+			out.writeShort(0); // interfaces
+			out.writeShort(0); // fields
+			out.writeShort(methods.length / 2);
+			for (int i = 0; i < methods.length; i += 2) {
+				out.writeShort(0x0401); // public abstract: no Code attribute needed
+				out.writeShort(firstMethod + i);
+				out.writeShort(firstMethod + i + 1);
+				out.writeShort(0);
+			}
+			out.writeShort(0); // attributes
+			return bytes.toByteArray();
+		} catch (IOException impossible) {
+			throw new IllegalStateException(impossible);
 		}
-		return out;
 	}
 
 	/**
@@ -267,6 +373,14 @@ public final class SuppliedArtifactContentTest {
 			return;
 		}
 		throw new AssertionError(entryName + " not found in " + jar);
+	}
+
+	private static Map<String, byte[]> entries(String... nameThenContent) {
+		Map<String, byte[]> out = new LinkedHashMap<>();
+		for (int i = 0; i < nameThenContent.length; i += 2) {
+			out.put(nameThenContent[i], nameThenContent[i + 1].getBytes(StandardCharsets.UTF_8));
+		}
+		return out;
 	}
 
 	private static Path jar(Path dest, Map<String, byte[]> entries) throws IOException {
