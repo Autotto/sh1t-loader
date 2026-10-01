@@ -26,7 +26,7 @@ final class CreateGuestMixinFixture {
 		assertEquals(0, ToolProvider.getSystemJavaCompiler().run(null, null, null, args.toArray(String[]::new)));
 		Path file = root.resolve(mixin.name + ".class"); ClassNode shell = MixinFit.parse(Files.readAllBytes(file));
 		for (MethodNode method : mixin.methods) if (methods.test(method)) {
-			method.access = Opcodes.ACC_PUBLIC;
+			method.access = Opcodes.ACC_PUBLIC | (method.access & Opcodes.ACC_STATIC);
 			method.visibleAnnotations = null; method.invisibleAnnotations = null;
 			shell.methods.removeIf(m -> m.name.equals(method.name) && m.desc.equals(method.desc));
 			shell.methods.add(method);

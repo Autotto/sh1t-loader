@@ -14,6 +14,9 @@ import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 public final class KernelWrapOperations {
 	private KernelWrapOperations() {
 	}
+	/** The original callback has already made its pure native boolean query; preserve that value exactly. */
+	public static <R> Operation<R> constant(R value) { return args -> value; }
+	public static <R> Operation<R> supplied(java.util.function.Supplier<R> nativeQuery) { return args -> nativeQuery.get(); }
 
 	/**
 	 * @param original the merged call's operation

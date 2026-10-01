@@ -283,6 +283,12 @@ public final class ForbricMixinService
 		// …and a single-point injector compiled with an array-valued `at` (another Mixin fork's shape) is given the
 		// shape this Mixin declares, before MixinExtras' pre-apply transformer casts it.
 		MixinAtShape.normalise(node);
+		CreateInjectionAdapters.adapt(node, this::mergedBaseNodeWithCode);
+		CreateContextualBlockAdapters.adapt(node, this::mergedBaseNodeWithCode);
+		CreateInteractionMixinAdapters.adapt(node, this::mergedBaseNodeWithCode);
+		CreateBreathingMixinAdapter.adapt(node, this::mergedBaseNodeWithCode);
+		CreateEntitySoundMixinAdapter.adapt(node, this::mergedBaseNodeWithCode);
+		CreateHudMixinAdapter.adapt(node, this::mergedBaseNodeWithCode);
 		FabricRegistryLoaderMixinAdapter.adapt(node, this::mergedBaseNodeWithCode);
 		FabricRegistryInitializationMixinAdapter.adapt(node);
 		FabricCreativePagerMixinAdapter.adapt(node);

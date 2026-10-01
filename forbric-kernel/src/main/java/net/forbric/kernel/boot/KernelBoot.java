@@ -529,6 +529,11 @@ public final class KernelBoot {
 		chain.register(TransformPhase.COREMOD, new net.forbric.kernel.transform.SoundRegistryIdentityInjector());
 		chain.register(TransformPhase.COREMOD, new net.forbric.kernel.transform.ServerReloadListenerNamesInjector());
 		chain.register(TransformPhase.COREMOD, new net.forbric.kernel.transform.CreateWorkerWaitInjector());
+		if (loader.getResource("com/zurrtum/create/mixin/LivingEntityMixin.class") != null) {
+			chain.register(TransformPhase.COREMOD, new net.forbric.kernel.transform.CreateBreathingInjector());
+			chain.register(TransformPhase.COREMOD, new net.forbric.kernel.transform.CreateSoundQueryInjector());
+			if (side == Side.CLIENT) chain.register(TransformPhase.COREMOD, new net.forbric.kernel.transform.CreateHudContextInjector());
+		}
 
 		// …and NeoForge's configuration-phase registry sync remaps a registry through MappedRegistry fields those same
 		// wrappers never fill, so the first real client to connect was dropped with "Failed to sync registries from the
