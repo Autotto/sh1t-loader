@@ -187,6 +187,44 @@ class LaunchInputCheckTest {
 		assertTrue(problems.get(1).contains("contains a complete NeoForge runtime"), problems.get(1));
 	}
 
+	/**
+	 * A NeoForge or MinecraftForge mod under a runtime's name has the family's manifest -- one of the markers -- and
+	 * nothing else of it. Called an incomplete runtime, it read as a carrier missing its classes, which no mod has.
+	 */
+	@Test
+	void aModJarUnderARuntimeNameIsCalledAModNotAnIncompleteRuntime(@TempDir Path dir) throws IOException {
+		Path forge = carrier(dir.resolve("forge-runtime-26.2.jar"), Ecosystem.FORGE);
+		// The shape of sodium-neoforge-0.9.2+mc26.2.jar: the manifest, the mod itself nested, a few classes of its own.
+		Path neoMod = entries(dir.resolve("neoforge-runtime-26.2.jar"), "META-INF/neoforge.mods.toml",
+				"META-INF/jarjar/net.caffeinemc.sodium-neoforge-0.9.2+mc26.2-mod.jar",
+				"net/caffeinemc/mods/sodium/service/SodiumWorkarounds.class");
+
+		List<String> problems = LaunchInputCheck.problems(List.of(merged(dir)), List.of(forge, neoMod));
+
+		assertEquals(2, problems.size(), all(problems));
+		assertTrue(problems.get(0).startsWith("runtime jar neoforge-runtime-26.2.jar looks like a NeoForge mod, not a "
+				+ "runtime: it has META-INF/neoforge.mods.toml, which mods carry too, and none of the runtime's classes ["
+				+ "net/neoforged/neoforgespi/language/IModInfo.class, "), problems.get(0));
+		assertFalse(problems.get(0).contains("incomplete"), problems.get(0));
+		assertTrue(problems.get(1).contains("contains a complete NeoForge runtime"), problems.get(1));
+
+		Path neo = carrier(dir.resolve("neoforge-runtime.jar"), Ecosystem.NEOFORGE);
+		Path forgeMod = entries(dir.resolve("forge-runtime-interop.jar"), "META-INF/mods.toml");
+		String said = LaunchInputCheck.problems(List.of(merged(dir)), List.of(forgeMod, neo)).get(0);
+		assertTrue(said.startsWith("runtime jar forge-runtime-interop.jar looks like a MinecraftForge mod, not a "
+				+ "runtime: it has META-INF/mods.toml,"), said);
+
+		// A mod declaring both manifests -- and one that has a runtime class besides is a broken runtime, not a mod.
+		Path both = entries(dir.resolve("both.jar"), "META-INF/neoforge.mods.toml", "META-INF/mods.toml");
+		said = LaunchInputCheck.problems(List.of(merged(dir)), List.of(both)).get(0);
+		assertTrue(said.startsWith("runtime jar both.jar looks like a NeoForge and MinecraftForge mod, not a runtime: "
+				+ "it has META-INF/neoforge.mods.toml and META-INF/mods.toml,"), said);
+		Path broken = entries(dir.resolve("broken.jar"), "META-INF/neoforge.mods.toml",
+				LaunchInputCheck.markers(Ecosystem.NEOFORGE).get(2));
+		said = LaunchInputCheck.problems(List.of(merged(dir)), List.of(broken)).get(0);
+		assertTrue(said.startsWith("runtime jar broken.jar is an incomplete NeoForge runtime"), said);
+	}
+
 	@Test
 	void aLaunchWithNoRuntimeJarOrOnlyOneOfTheTwoCannotStartAndSaysSo(@TempDir Path dir) throws IOException {
 		// No --runtimeJar at all: this always died -- the merged base and the kernel's own game side both name NeoForge

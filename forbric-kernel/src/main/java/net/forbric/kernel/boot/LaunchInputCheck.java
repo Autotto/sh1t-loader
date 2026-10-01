@@ -58,8 +58,9 @@ import net.forbric.kernel.util.ForbricLog;
  *       Vanilla's implements neither, a NeoForge- or MinecraftForge-patched game one, and a jar that is not
  *       Minecraft has no {@code Block}.</li>
  *   <li>Every {@code --runtimeJar} carries at least one family completely: the loader SPI, {@code ModContainer},
- *       {@code FMLLoader} and the family's own manifest. A jar with some of that is a broken carrier; a jar with none
- *       of it is something else wearing a carrier's name.</li>
+ *       {@code FMLLoader} and the family's own manifest. A jar with some of that is a broken carrier; a jar with only
+ *       the manifest is one of that family's mods, which carry the same manifest; a jar with none of it is something
+ *       else wearing a carrier's name.</li>
  *   <li>Both families are carried by something this launch owns. The merged base and the kernel's own game side
  *       name both, so a launch missing either cannot start -- that includes no {@code --runtimeJar} at all, and a
  *       launcher that kept only the last of two repeated flags.</li>
@@ -97,7 +98,12 @@ final class LaunchInputCheck {
 		return List.of(ForeignType.MOD_INFO_SPI.internal(family) + ".class",
 				ForeignType.MOD_CONTAINER.internal(family) + ".class",
 				ForeignType.FML_LOADER.internal(family) + ".class",
-				family == Ecosystem.NEOFORGE ? "META-INF/neoforge.mods.toml" : "META-INF/mods.toml");
+				manifest(family));
+	}
+
+	/** The family's manifest. Its runtime carries one, and so does every one of its mods. */
+	static String manifest(Ecosystem family) {
+		return family == Ecosystem.NEOFORGE ? "META-INF/neoforge.mods.toml" : "META-INF/mods.toml";
 	}
 
 	/** The package root a family's extension interfaces on {@code Block} live under. */
@@ -163,14 +169,30 @@ final class LaunchInputCheck {
 			if (!contents.complete().isEmpty()) continue;
 
 			List<String> partial = new ArrayList<>();
+			List<Ecosystem> modLike = new ArrayList<>();
 			for (Ecosystem family : FAMILIES) {
-				if (contents.present(family)) {
-					partial.add("an incomplete " + family.displayName() + " runtime: it is missing "
+				if (contents.manifestOnly(family)) {
+					modLike.add(family);
+				} else if (contents.present(family)) {
+					partial.add("is an incomplete " + family.displayName() + " runtime: it is missing "
 							+ String.join(", ", contents.missing().get(family)));
 				}
 			}
+			if (!modLike.isEmpty()) {
+				// A mod under a runtime's name. The manifest is the one marker a mod shares with its runtime, so
+				// "an incomplete runtime" would send the player looking for classes no mod ever had.
+				List<String> names = new ArrayList<>(), manifests = new ArrayList<>(), classes = new ArrayList<>();
+				for (Ecosystem family : modLike) {
+					names.add(family.displayName());
+					manifests.add(manifest(family));
+					for (String marker : markers(family)) if (!marker.equals(manifest(family))) classes.add(marker);
+				}
+				partial.add("looks like a " + String.join(" and ", names) + " mod, not a runtime: it has "
+						+ String.join(" and ", manifests) + ", which mods carry too, and none of the runtime's classes "
+						+ classes);
+			}
 			if (!partial.isEmpty()) {
-				problems.add("runtime jar " + jar.getFileName() + " is " + String.join("; and ", partial) + " ("
+				problems.add("runtime jar " + jar.getFileName() + " " + String.join("; and ", partial) + " ("
 						+ described(jar) + ")");
 			} else {
 				problems.add("runtime jar " + jar.getFileName() + " contains neither NeoForge nor MinecraftForge: none of "
@@ -254,6 +276,11 @@ final class LaunchInputCheck {
 		/** Whether anything of {@code family} is in this jar. */
 		boolean present(Ecosystem family) {
 			return unreadable == null && found.get(family) > 0;
+		}
+
+		/** Whether all this jar has of {@code family} is its manifest: what that family's mods carry. */
+		boolean manifestOnly(Ecosystem family) {
+			return present(family) && found.get(family) == 1 && !missing.get(family).contains(manifest(family));
 		}
 	}
 
