@@ -372,7 +372,7 @@ check_absent "join negotiation succeeded"   "Network Protocol Error"            
 # that, and fidelity to the genuine contract is worth more than two recovered mixins.
 TOO_EARLY=$(grep -aoE 'Critical problem: [^ ]+ from mod' "$LOG" | sed -E 's/Critical problem: (.*) from mod/\1/' | sort -u | paste -sd, -)
 assert_eq "only the known plugin-clinit casualties load too early" \
-  "fabric-block-getter-api-v2.mixins.json:BlockGetterMixin,lithium.mixins.json:world.raycast.BlockGetterMixin" \
+  "lithium.mixins.json:world.raycast.BlockGetterMixin" \
   "$TOO_EARLY"
 check_absent "no registry load failure"     "Failed to load registries due to errors"          "$LOG"
 check_absent "no crash report"              "Preparing crash report"                           "$LOG"
