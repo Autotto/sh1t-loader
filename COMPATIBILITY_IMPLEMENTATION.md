@@ -1213,3 +1213,40 @@ them turned up a loss every player had.
   MinecraftForge mod uses its registry, MinecraftForge's copies of vanilla's two rules are asked again after
   NeoForge's missed; they can only differ for a fluid whose two families' types disagree (a NeoForge mod's own fluid
   tagged `minecraft:water`, which vanilla's tag-based rule would also treat as water).
+
+## Scarpet's callbacks in Fabric's order, and the census that judged them unrepaired (2026-10-02)
+
+- The same Fabric probe jar and Scarpet app on native Fabric 0.19.5 + Carpet and here differed in three places with the
+  Carpet adapter on. A hand-swap script that empties the main hand without cancelling ends with main=dirt off=empty on
+  Fabric, but off=stone here: the stale stack was written back, so an item could be duplicated or lost. A creative
+  break of a bed's foot that Scarpet cancels leaves both halves gone on Fabric and both standing here. Unstable TNT
+  whose survival break Scarpet cancels is primed on Fabric and was not primed here. In each case the adapter had bound
+  the callback at a different point than Fabric. The swap callback ran after NeoForge's `LivingSwapItemsEvent.Hands`
+  had kept both stacks (the hands are written from those). The break callback ran before `playerWillDestroy`, while
+  Fabric's runs after it and before `removeBlock`.
+- `CarpetMixinAdapter`: the swap callback now runs right before `CommonHooks.onLivingSwapHandItems`, after the spectator
+  gate, which is before anything reads a hand, as on Fabric. The break callback runs at the `preventsBlockDrops` read:
+  after `adjustedState` is stored, and before `mineBlock` and both of NeoForge's `removeBlock` branches. The authored
+  handler receives vanilla's captured locals by `@Local` index (blockEntity 4, block 5, adjustedState 6; vanilla's 2,
+  3 and 4), with no wrapper. NeoForge's swap veto now comes after Scarpet's callback. It still stops the swap, but the
+  script sees the attempt; the event reads the hands, so nothing can run before it and before every hand read at
+  once. NeoForge's break veto still runs first.
+- Every retarget checks the order it relies on, and if a merged body is out of that order, the whole mixin is left
+  untouched. Swap: the spectator gate directly before the event, and the veto, both getters and the writes after it.
+  Break: the break event before, the three locals stored once, then `mineBlock` and `removeBlock` after. Fill: the
+  update sits under `flags & 1`, and 16 is the flags bit that gates the shape updates. Blackstone: the registry's
+  `true` skips `scheduleTick`.
+- The preflight census judged Carpet's mixins as compiled, but the adapters rewrite them later, when Mixin loads the
+  class. So a fully repaired run still printed two "applies only partially" lines and kept a SUSPECTED row for
+  `ServerPlayerGameMode_scarpetEventsMixin`. The final class could not clear that row, because the handler takes
+  `@Local` sugar. `CarpetMixinAdapter.asLoaded` gives the census what Mixin will receive.
+- Evidence: `CarpetMixinAdapterTest` (11): eight reshaped hosts each refuse the whole retarget, and removing any order
+  check makes that test fail. The census through `unfitMixins` over the real `carpet.mixins.json` reports nothing
+  with the adapters on and both stale rows with them off. A/B, kernel e0aa078c (a79061ff): 14/14 probe results equal
+  native Fabric's. The control kernel 67aede69 (699c8214) gets 10/14, differing exactly on clear_main, the cancelled
+  bed (also 3 s later) and the cancelled TNT. With `-Dforbric.carpetMixins=off` it is 5/14. The Carpet gate grew from
+  22 to 27 checks: a direct `Level.setBlock` under `impendingFillSkipUpdates` for the redirect, which nothing
+  differentiated before; a script emptying a hand; the cancelled bed; the cancelled unstable TNT; and the native swap
+  veto now expects one Scarpet event. Its baseline fails exactly 16 Carpet checks and 0 base-fluid ones, and
+  the fixed run passes 27/27 with no stale census row or line. The same gate on 67aede69 fails exactly the four
+  native-order checks.
