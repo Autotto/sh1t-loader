@@ -23,6 +23,7 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
+import net.forbric.kernel.TestFixtures;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.parallel.ResourceLock;
@@ -738,8 +739,7 @@ class ForgePartTrackingInjectorTest {
 	}
 
 	private static Path newestUnder(String pattern) throws java.io.IOException {
-		String env = System.getenv("MC_DIR");
-		Path root = Path.of(env != null ? env + "/libraries" : System.getProperty("user.home") + "/Library/Application Support/minecraft/libraries");
+		Path root = TestFixtures.minecraftDir().resolve("libraries");
 		Path under = root.resolve(pattern);
 		if (!Files.isDirectory(under)) return null;
 		try (var stream = Files.walk(under)) {

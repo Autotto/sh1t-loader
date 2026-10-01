@@ -22,6 +22,7 @@ import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
+import net.forbric.kernel.TestFixtures;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.objectweb.asm.ClassReader;
@@ -52,7 +53,7 @@ class UncalledMethodCensusTest {
 	private static final Path INTEROP = Path.of(OLD, "run/merged-base/forge-runtime-interop.jar");
 	private static final Path NEO_RUNTIME = Path.of(OLD, "run/neoforge-runtime/neoforge-runtime.jar");
 	private static final Path FORGE_RUNTIME = Path.of(OLD, "run/forge-runtime/forge-runtime.jar");
-	private static final Path VANILLA = Path.of(System.getProperty("user.home"), "Library/Application Support/minecraft/versions/26.2/26.2.jar");
+	private static final Path VANILLA = TestFixtures.vanillaJar();
 	private static final Path FORGE = Path.of(OLD, "run/forge-patched/patched-mc-forge-26.2.jar");
 	private static final Path NEOFORGE = Path.of(OLD, "run/neoforge-patched/patched-mc-neoforge-26.2.jar");
 	private static final Path KERNEL_MAIN = Path.of("build/classes/java/main");

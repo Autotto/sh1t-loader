@@ -43,6 +43,7 @@ import com.electronwill.nightconfig.core.Config;
 import com.electronwill.nightconfig.core.UnmodifiableConfig;
 import com.electronwill.nightconfig.toml.TomlFormat;
 import com.electronwill.nightconfig.toml.TomlParser;
+import net.forbric.kernel.TestFixtures;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -384,9 +385,7 @@ class FmlTomlShapeOracleTest {
 	}
 
 	private static Path newestGuava() throws IOException {
-		String env = System.getenv("MC_DIR");
-		Path root = Path.of(env != null ? env + "/libraries"
-				: System.getProperty("user.home") + "/Library/Application Support/minecraft/libraries");
+		Path root = TestFixtures.minecraftDir().resolve("libraries");
 		Path under = root.resolve("com/google/guava/guava");
 		if (!Files.isDirectory(under)) return null;
 		try (var stream = Files.walk(under)) {

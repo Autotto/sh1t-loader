@@ -10,6 +10,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import net.forbric.kernel.TestFixtures;
 
 /**
  * The compiled game-side classes over the staged game and Minecraft 26.2's own libraries, for tests that initialise
@@ -33,8 +34,7 @@ public final class StagedGameClassLoader {
 		assumeTrue(Files.isRegularFile(merged) && Files.isRegularFile(neo) && Files.isRegularFile(forge) && Files.isDirectory(compiled),
 				"the staged game or the compiled game side is absent");
 		List<URL> urls = new ArrayList<>(List.of(compiled.toUri().toURL(), merged.toUri().toURL(), neo.toUri().toURL(), forge.toUri().toURL()));
-		String env = System.getenv("MC_DIR");
-		Path libraries = Path.of(env != null ? env + "/libraries" : System.getProperty("user.home") + "/Library/Application Support/minecraft/libraries");
+		Path libraries = TestFixtures.minecraftDir().resolve("libraries");
 		Path version = libraries.resolveSibling("versions/26.2/26.2.json");
 		assumeTrue(Files.isRegularFile(version), "no local Minecraft 26.2 version JSON");
 		Matcher artifact = ARTIFACT_PATH.matcher(Files.readString(version));

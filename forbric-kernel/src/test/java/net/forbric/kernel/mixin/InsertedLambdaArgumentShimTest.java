@@ -64,7 +64,8 @@ class InsertedLambdaArgumentShimTest {
  }
  @Test void actualLitematicaOpaqueAndTranslucentHandlersFollowThePrunedLiveLambda()throws Exception{
   TestFixtures.requireDirectory("local merged mod pack",Path.of("run/client-merged-pack/mods"));
-  Path jar;try(var files=Files.list(Path.of("run/client-merged-pack/mods"))){jar=files.filter(p->p.getFileName().toString().contains("litematica")&&p.toString().endsWith(".jar")).findFirst().orElseThrow();}
+  Path jar;try(var files=Files.list(Path.of("run/client-merged-pack/mods"))){jar=files.filter(p->p.getFileName().toString().contains("litematica")&&p.toString().endsWith(".jar")).findFirst().orElse(null);}
+  TestFixtures.require(jar!=null,"Litematica in the local merged mod pack");
   ClassNode mixin;try(ZipFile z=new ZipFile(jar.toFile())){mixin=MixinFit.parse(z.getInputStream(z.getEntry("fi/dy/masa/litematica/mixin/render/MixinLevelRenderer.class")).readAllBytes());}
   String owner="net/minecraft/client/renderer/LevelRenderer";ClassNode target=StagedFabricMixinFixture.game(owner,false);target=MixinFit.parse(new DuplicateLambdaPruneInjector().transform(owner.replace('/','.'),StagedFabricMixinFixture.bytes(target),null));ClassNode finalTarget=target;
   assertEquals(2,InsertedLambdaArgumentShim.adapt(mixin,n->finalTarget));

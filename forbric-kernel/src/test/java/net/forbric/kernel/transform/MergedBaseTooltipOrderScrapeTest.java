@@ -33,6 +33,7 @@ import java.util.Set;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
+import net.forbric.kernel.TestFixtures;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.objectweb.asm.ClassReader;
@@ -190,8 +191,6 @@ class MergedBaseTooltipOrderScrapeTest {
 	}
 
 	private static Path vanillaJar() {
-		String env = System.getenv("MC_DIR");
-		return Path.of(env != null && !env.isBlank() ? env : System.getProperty("user.home") + "/Library/Application Support/minecraft")
-				.resolve("versions/26.2/26.2.jar");
+		return TestFixtures.vanillaJar();
 	}
 }

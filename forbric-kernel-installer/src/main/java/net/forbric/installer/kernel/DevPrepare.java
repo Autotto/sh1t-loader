@@ -27,6 +27,9 @@ public final class DevPrepare {
 		copy(artifacts.get(ArtifactBuilder.NEOFORGE_RUNTIME), stage.resolve("neoforge-runtime/neoforge-runtime.jar"));
 		// Compilation and bytecode tests read the raw carrier, while launch uses the interop-patched carrier.
 		copy(mc.resolve(".forbric-build/out/forge-runtime.jar"), stage.resolve("forge-runtime/forge-runtime.jar"));
+		// Both patched sides too: the bytecode tests compare the merged base against each of them.
+		copy(mc.resolve(".forbric-build/out/patched-mc-forge-26.2.jar"),
+				stage.resolve("forge-patched/patched-mc-forge-26.2.jar"));
 		copy(mc.resolve(".forbric-build/out/patched-mc-neoforge-26.2.jar"),
 				stage.resolve("neoforge-patched/patched-mc-neoforge-26.2.jar"));
 		System.out.println("Development artifacts staged under " + stage);

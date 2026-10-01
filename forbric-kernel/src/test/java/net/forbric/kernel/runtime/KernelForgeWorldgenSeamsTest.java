@@ -15,6 +15,7 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.function.Predicate;
 
+import net.forbric.kernel.TestFixtures;
 import org.junit.jupiter.api.Test;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.tree.ClassNode;
@@ -96,8 +97,7 @@ class KernelForgeWorldgenSeamsTest {
 	}
 
 	private static Path lastByNameUnder(String pattern) throws Exception {
-		String env = System.getenv("MC_DIR");
-		Path root = Path.of(env != null ? env + "/libraries" : System.getProperty("user.home") + "/Library/Application Support/minecraft/libraries");
+		Path root = TestFixtures.minecraftDir().resolve("libraries");
 		Path under = root.resolve(pattern);
 		if (!Files.isDirectory(under)) return null;
 		try (var stream = Files.walk(under)) {

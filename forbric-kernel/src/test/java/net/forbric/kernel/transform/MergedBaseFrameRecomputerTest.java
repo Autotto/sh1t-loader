@@ -33,6 +33,7 @@ import java.util.function.Function;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
+import net.forbric.kernel.TestFixtures;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.objectweb.asm.ClassReader;
@@ -272,10 +273,7 @@ class MergedBaseFrameRecomputerTest {
 	/** The same library tree {@code build.gradle} resolves brigadier and fastutil from. */
 	private static Path newestUnder(String artifact) throws IOException {
 		String configured = System.getProperty("forbric.mcLibraries");
-		String env = System.getenv("MC_DIR");
-		Path root = Path.of(configured != null ? configured
-				: env != null ? env + "/libraries"
-				: System.getProperty("user.home") + "/Library/Application Support/minecraft/libraries")
+		Path root = (configured != null ? Path.of(configured) : TestFixtures.minecraftDir().resolve("libraries"))
 				.resolve(artifact);
 		if (!Files.isDirectory(root)) return null;
 		try (var found = Files.walk(root)) {

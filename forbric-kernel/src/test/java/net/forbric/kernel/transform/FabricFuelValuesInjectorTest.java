@@ -15,6 +15,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
+import net.forbric.kernel.TestFixtures;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.parallel.ResourceLock;
@@ -338,9 +339,7 @@ class FabricFuelValuesInjectorTest {
 
 	/** Minecraft 26.2's own library set, from the launcher's version JSON. */
 	private static List<URL> libraries() throws Exception {
-		String env = System.getenv("MC_DIR");
-		Path libraries = Path.of(env != null ? env + "/libraries"
-				: System.getProperty("user.home") + "/Library/Application Support/minecraft/libraries");
+		Path libraries = TestFixtures.minecraftDir().resolve("libraries");
 		Path versionJson = libraries.getParent().resolve("versions/26.2/26.2.json");
 		assumeTrue(Files.isRegularFile(versionJson), "no 26.2 version JSON beside the local Minecraft libraries");
 		List<URL> urls = new ArrayList<>();

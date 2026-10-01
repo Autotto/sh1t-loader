@@ -33,6 +33,7 @@ import java.util.Map;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
+import net.forbric.kernel.TestFixtures;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -104,7 +105,7 @@ class KernelFeatureFlagsTest {
 		List<URL> urls = new ArrayList<>(List.of(compiled.toUri().toURL(), forgeRt.toUri().toURL(), neoRt.toUri().toURL(), merged.toUri().toURL()));
 		for (String pattern : List.of("com/mojang/datafixerupper", "com/google/code/gson", "com/mojang/brigadier", "com/google/guava/guava",
 				"it/unimi/dsi/fastutil", "org/slf4j/slf4j-api", "org/apache/logging/log4j/log4j-api",
-				"io/netty/netty-common", "io/netty/netty-buffer", "io/netty/netty-codec", "io/netty/netty-transport", "io/netty/netty-handler",
+				"io/netty/netty-common", "io/netty/netty-buffer", TestFixtures.nettyCodecLibrary(), "io/netty/netty-transport", "io/netty/netty-handler",
 				"org/joml/joml", "com/mojang/authlib", "org/apache/commons/commons-lang3")) {
 			Path library = newestUnder(pattern);
 			assumeTrue(library != null, "no staged " + pattern + " jar in the local Minecraft libraries");
@@ -119,8 +120,7 @@ class KernelFeatureFlagsTest {
 	}
 
 	private static Path newestUnder(String pattern) throws java.io.IOException {
-		String env = System.getenv("MC_DIR");
-		Path root = Path.of(env != null ? env + "/libraries" : System.getProperty("user.home") + "/Library/Application Support/minecraft/libraries");
+		Path root = TestFixtures.minecraftDir().resolve("libraries");
 		Path under = root.resolve(pattern);
 		if (!Files.isDirectory(under)) return null;
 		try (var stream = Files.walk(under)) {

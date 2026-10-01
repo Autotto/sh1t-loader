@@ -37,6 +37,7 @@ import java.util.Optional;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
+import net.forbric.kernel.TestFixtures;
 import org.junit.jupiter.api.Test;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassWriter;
@@ -66,8 +67,7 @@ class KernelClientPackSourceTest {
 	private static final Path NEO_CARRIER = STAGED.resolve("neoforge-runtime/neoforge-runtime.jar");
 	private static final Path FORGE_CARRIER = STAGED.resolve("forge-runtime/forge-runtime.jar");
 	private static final Path RUNTIME = Path.of(System.getProperty("forbric.testRuntimeClasses", "build/classes/java/runtime"));
-	private static final Path MC = Path.of(System.getenv().getOrDefault("MC_DIR",
-			System.getProperty("user.home") + "/Library/Application Support/minecraft"));
+	private static final Path MC = TestFixtures.minecraftDir();
 	private static final String SOURCE = "net/forbric/kernel/runtime/KernelClientPackSource";
 	private static final String PACK = "net/minecraft/server/packs/repository/Pack";
 	private static final String METADATA_INIT = "(Lnet/minecraft/network/chat/Component;"

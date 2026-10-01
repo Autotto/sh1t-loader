@@ -35,6 +35,7 @@ import java.util.function.Function;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
+import net.forbric.kernel.TestFixtures;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.objectweb.asm.ClassReader;
@@ -379,10 +380,12 @@ class GuestInjectorPrunerTest {
 	}
 
 	private static Path fabricApiJar() throws Exception {
-		if (!Files.isDirectory(CLIENT_MODS)) return null;
-		try (var files = Files.list(CLIENT_MODS)) {
-			return files.filter(p -> p.getFileName().toString().startsWith("fabric-api-")).findFirst().orElse(null);
+		if (Files.isDirectory(CLIENT_MODS)) try (var files = Files.list(CLIENT_MODS)) {
+			Path found = files.filter(p -> p.getFileName().toString().startsWith("fabric-api-")).findFirst().orElse(null);
+			if (found != null) return found;
 		}
+		Path pinned = TestFixtures.fabricApi();
+		return Files.isRegularFile(pinned) ? pinned : null;
 	}
 
 	private static byte[] readFromJar(Path jar, String entry) throws Exception {

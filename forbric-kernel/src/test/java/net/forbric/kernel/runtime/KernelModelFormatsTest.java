@@ -38,6 +38,7 @@ import java.util.List;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
+import net.forbric.kernel.TestFixtures;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -68,11 +69,9 @@ class KernelModelFormatsTest {
 	/** The merged base names MinecraftForge types in signatures, so reflecting on it needs this carrier too. */
 	private static final Path FORGE_CARRIER = STAGED.resolve("forge-runtime/forge-runtime.jar");
 	/** The fabric-api jar build.gradle compiles the game side's transfer bridge against, found the same way. */
-	private static final Path FABRIC_API = STAGED.getParent().getParent()
-			.resolve("forbric-kernel/run/client-merged-pack/mods/fabric-api-0.155.2+26.2.jar");
+	private static final Path FABRIC_API = TestFixtures.fabricApi();
 	private static final Path RUNTIME = Path.of(System.getProperty("forbric.testRuntimeClasses", "build/classes/java/runtime"));
-	private static final Path MC = Path.of(System.getenv().getOrDefault("MC_DIR",
-			System.getProperty("user.home") + "/Library/Application Support/minecraft"));
+	private static final Path MC = TestFixtures.minecraftDir();
 	private static final String TARGET = "net/neoforged/neoforge/client/model/UnbakedModelParser$Deserializer";
 	private static final String DESERIALIZER = TARGET.replace('/', '.');
 

@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 import java.nio.file.*;
 import java.util.*;
 import java.util.zip.ZipFile;
+import net.forbric.kernel.TestFixtures;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.parallel.ResourceLock;
 import org.objectweb.asm.*;
@@ -75,7 +76,7 @@ class CarpetMixinAdapterTest {
 		assertArrayEquals(before,bytes(c));
 	}
 	@Test void vanillaAndDisabledRepairLeaveAllReleasedHandlersUntouched()throws Exception {
-		Path vanilla=Path.of(System.getProperty("user.home"),"Library/Application Support/minecraft/versions/26.2/26.2.jar");
+		Path vanilla=TestFixtures.vanillaJar();
 		for(String name:NAMES){ClassNode c=mixin(name);byte[] before=bytes(c);java.util.function.Function<String,ClassNode> resolver=n->{try{return n.startsWith("net/minecraft/")?from(vanilla,n):null;}catch(Exception e){throw new AssertionError(e);}};
 			assertEquals(0,CarpetMixinAdapter.adapt(c,resolver)+CarpetFluidMixinAdapter.adapt(c,resolver));assertArrayEquals(before,bytes(c));}
 		String old=System.setProperty(CarpetMixinAdapter.PROPERTY,"off");try{for(String name:NAMES)assertEquals(0,adapt(mixin(name)));}finally{if(old==null)System.clearProperty(CarpetMixinAdapter.PROPERTY);else System.setProperty(CarpetMixinAdapter.PROPERTY,old);}

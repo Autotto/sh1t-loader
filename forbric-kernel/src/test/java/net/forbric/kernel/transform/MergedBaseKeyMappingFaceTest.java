@@ -30,6 +30,7 @@ import java.util.List;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
+import net.forbric.kernel.TestFixtures;
 import org.junit.jupiter.api.Test;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.Opcodes;
@@ -308,10 +309,7 @@ class MergedBaseKeyMappingFaceTest {
 	/** The same library tree {@code build.gradle} resolves brigadier from. */
 	private static Path mcLibraries() {
 		String configured = System.getProperty("forbric.mcLibraries");
-		String env = System.getenv("MC_DIR");
-		Path root = Path.of(configured != null ? configured
-				: env != null ? env + "/libraries"
-				: System.getProperty("user.home") + "/Library/Application Support/minecraft/libraries");
+		Path root = configured != null ? Path.of(configured) : TestFixtures.minecraftDir().resolve("libraries");
 		return Files.isDirectory(root) ? root : null;
 	}
 

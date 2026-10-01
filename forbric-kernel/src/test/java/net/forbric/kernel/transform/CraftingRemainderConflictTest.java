@@ -10,6 +10,7 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 import java.util.zip.ZipInputStream;
 
+import net.forbric.kernel.TestFixtures;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.objectweb.asm.ClassReader;
@@ -27,7 +28,7 @@ class CraftingRemainderConflictTest {
 	private static final Path STAGED = Path.of(System.getProperty("forbric.stagedRoot", "../forbric-loader/run"));
 	private static final List<Path> JARS = List.of(STAGED.resolve("merged-base/patched-mc-merged-26.2.jar"),
 			STAGED.resolve("merged-base/forge-runtime-interop.jar"), STAGED.resolve("neoforge-runtime/neoforge-runtime.jar"));
-	private static final Path FABRIC_API = Path.of("run/client-merged-pack/mods/fabric-api-0.155.2+26.2.jar");
+	private static final Path FABRIC_API = TestFixtures.fabricApi();
 	private static final String ITEM = "net/minecraft/world/item/Item";
 	private static final String FABRIC_ITEM = "net/fabricmc/fabric/api/item/v1/FabricItem";
 	private static final String REMAINDER = "getCraftingRemainder";

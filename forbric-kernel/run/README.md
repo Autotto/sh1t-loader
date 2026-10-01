@@ -88,6 +88,9 @@ Gradle prints test and skip counts, and HTML reports live in `forbric-kernel/bui
 A boot-only build cannot prove the game or mods work. `integration` prepares the base game automatically,
 but the full suite also needs the particular third-party fixtures named in its reports (Create, Carpet,
 compatibility packs, etc.). It fails when those are missing rather than claiming complete coverage.
+On a freshly prepared clone every test that needs only the base game runs: the tests read Minecraft's jar
+and libraries from the directory Gradle compiled against (passed as `MC_DIR`) and the pinned Fabric API
+from `.dev/api/`, so what remains skipped, and listed in the report, is the third-party packs alone.
 
 Legacy `gate-m*.sh` checks are Bash integration tools with gate-specific packs, worlds and platform
 assumptions; they are not a fresh-clone smoke test. They remain runnable at their original paths, and

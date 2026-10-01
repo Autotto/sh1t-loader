@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.zip.ZipFile;
 
+import net.forbric.kernel.TestFixtures;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
@@ -42,7 +43,7 @@ class MixinRelocatedCallTest {
 		ClassNode mixin = fabric(), merged = merged(false);
 		assertEquals(0, MixinRelocatedCall.adapt(mixin, name -> merged), "the transformer did not run: no proof");
 		assertEquals(List.of("useOn"), selectors(mixin, "handleUseOnEvent"));
-		ClassNode vanilla = game(Path.of(System.getProperty("user.home"), "Library/Application Support/minecraft/versions/26.2/26.2.jar"));
+		ClassNode vanilla = game(TestFixtures.vanillaJar());
 		assertEquals(0, MixinRelocatedCall.adapt(mixin, name -> vanilla), "vanilla's useOn makes the call itself");
 	}
 
