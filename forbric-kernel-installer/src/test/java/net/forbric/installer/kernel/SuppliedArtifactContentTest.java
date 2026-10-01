@@ -248,6 +248,27 @@ public final class SuppliedArtifactContentTest {
 		return out;
 	}
 
+	/**
+	 * Makes {@code entryName}'s stored data in {@code jar} unreadable while the archive still opens: its first
+	 * deflate block header is set to block type 3, which every inflater rejects.
+	 */
+	static void damage(Path jar, String entryName) throws IOException {
+		byte[] bytes = Files.readAllBytes(jar);
+		byte[] name = entryName.getBytes(StandardCharsets.UTF_8);
+		for (int i = 0; i + 30 <= bytes.length; i++) {
+			if (bytes[i] != 'P' || bytes[i + 1] != 'K' || bytes[i + 2] != 3 || bytes[i + 3] != 4) continue;
+			int nameLength = (bytes[i + 26] & 0xFF) | (bytes[i + 27] & 0xFF) << 8;
+			int extraLength = (bytes[i + 28] & 0xFF) | (bytes[i + 29] & 0xFF) << 8;
+			if (nameLength != name.length
+					|| !java.util.Arrays.equals(bytes, i + 30, i + 30 + nameLength, name, 0, name.length)) continue;
+			require(bytes[i + 8] == 8, entryName + " is not deflated, so it cannot be damaged this way");
+			bytes[i + 30 + nameLength + extraLength] = 0x07; // final block, type 3 (reserved)
+			Files.write(jar, bytes);
+			return;
+		}
+		throw new AssertionError(entryName + " not found in " + jar);
+	}
+
 	private static Path jar(Path dest, Map<String, byte[]> entries) throws IOException {
 		Files.createDirectories(dest.getParent());
 		try (ZipOutputStream out = new ZipOutputStream(Files.newOutputStream(dest))) {

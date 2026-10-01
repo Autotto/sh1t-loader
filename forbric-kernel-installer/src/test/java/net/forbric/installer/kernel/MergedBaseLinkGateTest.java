@@ -109,9 +109,22 @@ public final class MergedBaseLinkGateTest {
 			new Installer(logs::add).install(mcDir, "26.2", supplied, jdk);
 			throw new AssertionError("installer published a supplied merged base with a new dangling reference");
 		} catch (IOException expected) {
-			require(expected.getMessage().contains("game/Target.value"), "lost the underlying evidence: " + expected);
+			requireDoNotFit(expected, supplied, "game/Target.value");
 		}
 		require(!Files.exists(mcDir.resolve("versions/26.2-forbric/26.2-forbric.json")), "a profile was written");
+
+		// A damaged copy of a runtime is still the right kind of file (the content check reads only what it needs),
+		// and the link checker dies reading it. The way out first, then the checker's own words.
+		Files.writeString(target, "package game; public class Target { public static int value = 3; }");
+		compile(classes, target);
+		jar(classes, game);
+		SuppliedArtifactContentTest.damage(interop, "net/minecraftforge/fml/loading/FMLLoader.class");
+		try {
+			new Installer(logs::add).obtainGameArtifacts(mcDir, "26.2", supplied, jdk);
+			throw new AssertionError("a supplied set with a damaged runtime passed the link check");
+		} catch (IOException expected) {
+			requireDoNotFit(expected, supplied, "merged base failed the reviewed link baseline");
+		}
 
 		Files.delete(interop);
 		try {
@@ -120,7 +133,17 @@ public final class MergedBaseLinkGateTest {
 		} catch (IOException expected) {
 			require(expected.getMessage().contains("forge-runtime-interop.jar"), "missing interop not named: " + expected);
 		}
-		System.out.println("PASS installer --artifacts: link-checked, interop staged, broken set refused with no profile");
+		System.out.println("PASS installer --artifacts: link-checked, interop staged, broken or damaged set refused"
+				+ " with the way out and no profile");
+	}
+
+	/** A supplied set whose link check failed: said to be the supplied files', the way out, then the evidence. */
+	private static void requireDoNotFit(IOException refusal, Path supplied, String evidence) {
+		String message = refusal.getMessage();
+		require(message.startsWith("Built artifacts: the files in " + supplied + " do not fit together"),
+				"not said to be the supplied files: " + message);
+		int wayOut = message.indexOf(GameArtifacts.LEAVE_EMPTY);
+		require(wayOut >= 0 && wayOut < message.indexOf(evidence), "no way out before the evidence: " + message);
 	}
 
 	private static void compile(Path classes, Path... sources) {

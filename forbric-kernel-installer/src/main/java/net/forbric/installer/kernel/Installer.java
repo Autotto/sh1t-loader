@@ -369,9 +369,19 @@ public final class Installer {
 			supplied.verifyContents(mcVersion);
 			log.accept("  each file holds what its name says");
 			JdkLocator.Jvm jvm = JdkLocator.locate(mcDir, explicitJdk, line -> log.accept("link-check JVM: " + line));
-			new MergedBaseTool(mcDir.resolve(".forbric-build").resolve("tools"), log).linkCheck(jvm,
-					found.get(ArtifactBuilder.MERGED), found.get(ArtifactBuilder.NEOFORGE_RUNTIME),
-					found.get(ArtifactBuilder.FORGE_RUNTIME));
+			try {
+				new MergedBaseTool(mcDir.resolve(".forbric-build").resolve("tools"), log).linkCheck(jvm,
+						found.get(ArtifactBuilder.MERGED), found.get(ArtifactBuilder.NEOFORGE_RUNTIME),
+						found.get(ArtifactBuilder.FORGE_RUNTIME));
+			} catch (MergedBaseTool.Failed doNotLink) {
+				// Each file is the right kind of file, or the content check would have said so; together they still
+				// do not make one game — one of them damaged, or the three from different builds. This used to
+				// reach the player as the link checker's own output, a stack trace with no way out in it.
+				throw new IOException("Built artifacts: the files in " + artifactDir + " do not fit together: each"
+						+ " is the right kind of file, but the link check of the three failed (one may be damaged, or"
+						+ " they come from different builds).\n" + GameArtifacts.LEAVE_EMPTY + "\n"
+						+ doNotLink.getMessage(), doNotLink);
+			}
 			return found;
 		}
 		JdkLocator.Jvm jvm = JdkLocator.locate(mcDir, explicitJdk, line -> log.accept("build JVM: " + line));

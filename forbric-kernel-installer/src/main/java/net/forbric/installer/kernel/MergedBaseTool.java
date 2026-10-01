@@ -140,6 +140,8 @@ final class MergedBaseTool {
 	 *
 	 * <p>The installer pins the supported carrier versions. Its tools carry the same reviewed baseline as the
 	 * development build: a missing baseline or a new dangling reference prevents publishing a broken profile.
+	 *
+	 * @throws Failed when the check ran and the jars did not pass it; any other IOException means it could not run
 	 */
 	void linkCheck(JdkLocator.Jvm jvm, Path mergedJar, Path neoRuntime, Path forgeRuntimeInterop)
 			throws IOException {
@@ -157,8 +159,18 @@ final class MergedBaseTool {
 				.orElse("[link-check] produced no summary line (exit " + code + ")");
 		log.accept("[merge] " + summary.strip());
 		if (code != 0 || !summary.contains(", new 0)")) {
-			throw new IOException("merged base failed the reviewed link baseline (exit " + code + "):\n"
+			throw new Failed("merged base failed the reviewed link baseline (exit " + code + "):\n"
 					+ String.join("\n", tail));
+		}
+	}
+
+	/**
+	 * The verdict "these jars do not link", as distinct from the check not running at all — so a caller that
+	 * did not build the jars itself can say whose they are.
+	 */
+	static final class Failed extends IOException {
+		Failed(String message) {
+			super(message);
 		}
 	}
 
