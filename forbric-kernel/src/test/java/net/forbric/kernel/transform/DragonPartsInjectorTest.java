@@ -71,9 +71,27 @@ class DragonPartsInjectorTest {
 		}
 	}
 
+	@Test void clientTrackingAndRemovalUseTheSameNeoForgeParts() throws Exception {
+		String name = DragonPartsInjector.CLIENT_CALLBACKS;
+		byte[] original = NativeCoremodParityTest.read(MERGED, name.replace('.', '/'));
+		assertTrue(new String(original, java.nio.charset.StandardCharsets.ISO_8859_1).contains(DragonPartsInjector.FORGE_PART));
+		byte[] out = new DragonPartsInjector().transform(name, original, null);
+		assertFalse(new String(out, java.nio.charset.StandardCharsets.ISO_8859_1).contains(DragonPartsInjector.FORGE_PART));
+		for (String phase : List.of("onTrackingStart", "onTrackingEnd")) {
+			MethodNode callback = node(out).methods.stream().filter(m -> m.name.equals(phase)
+					&& m.desc.equals("(Lnet/minecraft/world/entity/Entity;)V")).findFirst().orElseThrow();
+			assertTrue(Arrays.stream(callback.instructions.toArray()).anyMatch(i -> i instanceof MethodInsnNode c
+					&& c.name.equals("getParts") && c.desc.equals(DragonPartsInjector.NEO_GET_PARTS)), phase);
+			new Analyzer<>(new BasicVerifier()).analyze(name.replace('.', '/'), callback);
+		}
+		assertSame(out, new DragonPartsInjector().transform(name, out, null));
+		byte[] nativeBytes = NativeCoremodParityTest.read(NEO, name.replace('.', '/'));
+		assertSame(nativeBytes, new DragonPartsInjector().transform(name, nativeBytes, null));
+	}
+
 	@Test void theSwitchLeavesAllThreeAlone() throws Exception {
 		System.setProperty(DragonPartsInjector.PROPERTY, "off");
-		for (String name : List.of(PART, DRAGON, HITBOXES)) {
+		for (String name : List.of(PART, DRAGON, HITBOXES, DragonPartsInjector.CLIENT_CALLBACKS.replace('.', '/'))) {
 			byte[] merged = NativeCoremodParityTest.read(MERGED, name);
 			assertSame(merged, new DragonPartsInjector().transform(name.replace('/', '.'), merged, null), name);
 		}

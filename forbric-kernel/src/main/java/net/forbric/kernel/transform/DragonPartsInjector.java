@@ -50,6 +50,7 @@ public final class DragonPartsInjector implements ClassTransformer {
 	static final String PART = "net.minecraft.world.entity.boss.enderdragon.EnderDragonPart";
 	static final String DRAGON = "net.minecraft.world.entity.boss.enderdragon.EnderDragon";
 	static final String HITBOXES = "net.minecraft.client.renderer.debug.EntityHitboxDebugRenderer";
+	static final String CLIENT_CALLBACKS = "net.minecraft.client.multiplayer.ClientLevel$EntityCallbacks";
 	static final String FORGE_PART = ForeignType.PART_ENTITY.internal(Ecosystem.FORGE);
 	static final String NEO_PART = ForeignType.PART_ENTITY.internal(Ecosystem.NEOFORGE);
 	static final String PART_INTERNAL = "net/minecraft/world/entity/boss/enderdragon/EnderDragonPart";
@@ -82,12 +83,13 @@ public final class DragonPartsInjector implements ClassTransformer {
 		return AnchorSet.of(
 				new AnchorSet.Anchor(PART, AnchorSet.Severity.REQUIRED, "adding an Ender Dragon to a world throws in the entity callbacks"),
 				new AnchorSet.Anchor(DRAGON, AnchorSet.Severity.REQUIRED, "adding an Ender Dragon to a world throws in the entity callbacks"),
-				new AnchorSet.Anchor(HITBOXES, AnchorSet.Severity.REQUIRED, "the debug hitboxes leave out the Ender Dragon's parts"));
+				new AnchorSet.Anchor(HITBOXES, AnchorSet.Severity.REQUIRED, "the debug hitboxes leave out the Ender Dragon's parts"),
+				new AnchorSet.Anchor(CLIENT_CALLBACKS, AnchorSet.Severity.REQUIRED, "tracking a NeoForge multipart entity on the client reads the absent Forge parts"));
 	}
 
 	@Override public byte[] transform(String className, byte[] bytes, TransformContext context) {
 		if (!enabled() || bytes == null || bytes.length == 0) return bytes;
-		if (!PART.equals(className) && !DRAGON.equals(className) && !HITBOXES.equals(className)) return bytes;
+		if (!PART.equals(className) && !DRAGON.equals(className) && !HITBOXES.equals(className) && !CLIENT_CALLBACKS.equals(className)) return bytes;
 		ClassNode node = new ClassNode();
 		new ClassReader(bytes).accept(node, 0);
 		int changed = PART.equals(className) ? rebasePart(node) : DRAGON.equals(className) ? neoForgeParts(node) : hitboxes(node);
@@ -96,6 +98,7 @@ public final class DragonPartsInjector implements ClassTransformer {
 		node.accept(writer);
 		ForbricLog.info(PART.equals(className) ? "[Forbric/Entity] EnderDragonPart is a NeoForge PartEntity, as every part consumer in the merged game casts it"
 				: DRAGON.equals(className) ? "[Forbric/Entity] EnderDragon answers NeoForge's getParts() with its parts — it answered null, and adding a dragon threw"
+				: CLIENT_CALLBACKS.equals(className) ? "[Forbric/Entity] client tracking reads NeoForge multipart entities through NeoForge's getParts(), matching removal"
 				: "[Forbric/Entity] the debug hitboxes read the Ender Dragon's parts through NeoForge's getParts()");
 		return writer.toByteArray();
 	}
