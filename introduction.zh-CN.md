@@ -418,6 +418,7 @@ forge-runtime ──────────────────────
 
 - `ForgeRuntimeBuilder`、`PatchedMcBuilder`（Forge 的 `installertools`/`mergetool`/`binarypatcher` 作为子 JVM 运行，Forge 的 `AccessTransformerEngine` 在进程内运行）、`NeoForgeRuntimeBuilder`、`NfrtRunner`（NeoFormRuntime，取的结果是 `gameJarNoRecomp`：只打二进制补丁，不用反编译器，也不用 `javac`）。
 - `MergedBaseTool` 从安装器的资源里解出 `forbric-merge-tools.jar`，依次运行 `net.forbric.tools.MergedBaseBuilder`（`-Xmx4g`）、`RuntimeInteropPatcher`，然后对照打包在安装器里的已审核基线运行 `MergedLinkChecker`。**只要链接检查报告的不是 `new 0`，安装就会失败。**
+- `--artifacts DIR`（窗口里的 “Built artifacts (leave empty)”）只供开发者使用，用来跳过构建。`GameArtifacts` 只从这一个目录取这三个 jar，并在下载或写入任何东西之前逐个打开检查：合并基底必须是 Minecraft 26.2，且它 `net/minecraft/` 下的类同时引用 `net/minecraftforge/` 和 `net/neoforged/`；每个运行时都必须带着本生态的核心类和它的 mod 加载器（`FMLLoader`、`IModInfo`）。这之后才做链接检查——单靠链接检查，任何不引用自身以外任何东西的 jar 都能通过（issue #13）。
 - `Pins`：`MINECRAFT = "26.2"`（唯一支持的版本）、`FORGE = "26.2-65.0.1"`、`NEOFORGE = "26.2.0.88"`、`NFRT = "2.0.18"`、`NFRT_RESULT = "gameJarNoRecomp"`，每一项的理由都写在源码里。`BuildStamp` 让每个缓存产物都以整组锁定版本为键，所以锁定版本一升级，就不可能沿用缓存里的旧产物。
 - `JdkLocator` 要求构建工具用 Java ≥ 21（NeoFormRuntime 的 class 文件版本是 65）；它依次尝试当前运行的 JVM、启动器的运行时、系统里的 Java，从不下载 JDK。游戏本身需要 Java 25。
 

@@ -17,25 +17,34 @@
 package net.forbric.installer.kernel;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Enumeration;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipException;
+import java.util.zip.ZipFile;
 
 /**
- * The three heavy jars a Forbric instance runs on: the byte-merged game base and one runtime per Forge family.
+ * The three heavy jars a Forbric instance runs on, when someone supplies them instead of letting the installer build
+ * them: the byte-merged game base and one runtime per Forge family.
  *
  * <p>They are not in this installer and never will be. The merged base is Minecraft with two loaders' patches
  * applied and then merged, and the runtimes are assembled from MinecraftForge's and NeoForge's own distributions —
- * so all three embed code this project has no right to hand out. They are built on the machine that runs them,
- * which is what {@code forbric-loader/run/build-merged-base.sh} and its two {@code assemble-*-runtime.sh} siblings
- * do, and this class only finds the result.
+ * so all three embed code this project has no right to hand out. A player never needs this class: with no
+ * directory given, {@link ArtifactBuilder} builds all three during the install. It serves developers who already
+ * built them from source ({@code forbric-loader/run/build-merged-base.sh} and its two {@code assemble-*-runtime.sh}
+ * siblings) and want to skip that.
  *
- * <p>Order of search: an explicit directory the caller names, then the checkout this installer was built from.
- * A missing artifact is reported by name and expected path rather than guessed at, because every later step —
- * the profile's game arguments above all — is a lie without it.
+ * <p>A missing artifact is reported by name and expected path rather than guessed at, because every later step —
+ * the profile's game arguments above all — is a lie without it. A FOUND artifact is then opened and checked for
+ * what only the real one carries ({@link #verifyContents}), because a file name is not an identity.
  */
 final class GameArtifacts {
 	/** Coordinate → the file name the build scripts produce. */
@@ -51,52 +60,244 @@ final class GameArtifacts {
 		WANTED.put(ArtifactBuilder.NEOFORGE_RUNTIME, "neoforge-runtime.jar");
 	}
 
+	/**
+	 * What to do about any Built-artifacts error, said the same way everywhere. For everyone who is not developing
+	 * Forbric the answer is to supply nothing: the installer then builds all three itself.
+	 */
+	static final String LEAVE_EMPTY = "Leave \"Built artifacts\" empty (on the command line: leave out --artifacts) "
+			+ "and the installer downloads and builds these files itself.";
+
+	// What only the real artifacts carry; see problem() for how these were chosen.
+	private static final String MINECRAFT_CLIENT = "net/minecraft/client/Minecraft.class";
+	private static final String FORGE_CORE = "net/minecraftforge/common/MinecraftForge.class";
+	private static final String NEO_CORE = "net/neoforged/neoforge/common/NeoForge.class";
+	private static final List<String> FORGE_LOADER = List.of(
+			"net/minecraftforge/fml/loading/FMLLoader.class",
+			"net/minecraftforge/forgespi/language/IModInfo.class");
+	private static final List<String> NEO_LOADER = List.of(
+			"net/neoforged/fml/loading/FMLLoader.class",
+			"net/neoforged/neoforgespi/language/IModInfo.class");
+	private static final byte[] FORGE_REFERENCE = "net/minecraftforge/".getBytes(StandardCharsets.US_ASCII);
+	private static final byte[] NEO_REFERENCE = "net/neoforged/".getBytes(StandardCharsets.US_ASCII);
+
 	private final Map<String, Path> found = new LinkedHashMap<>();
 
 	private GameArtifacts() {
 	}
 
 	/**
-	 * Locates all three for {@code mcVersion}. {@code explicit} may be null; the directories under it are the same
-	 * ones the build scripts write into ({@code merged-base/}, {@code forge-runtime/}, {@code neoforge-runtime/}).
+	 * Locates all three for {@code mcVersion} in {@code dir}, or in the subdirectories the build scripts write into
+	 * ({@code merged-base/}, {@code forge-runtime/}, {@code neoforge-runtime/}) — so the scripts' own
+	 * {@code forbric-loader/run} can be named as it is.
+	 *
+	 * <p>Only the named directory. This used to fall back to the {@code run/} directory of whatever checkout the
+	 * installer jar sat in, from when that fallback was how the installer found anything at all. Since the
+	 * installer builds the artifacts itself when no directory is named, the fallback only ever completed a
+	 * directory someone DID name with files from somewhere else: a set mixed from two builds, reported under a
+	 * directory that did not hold it, and tests whose "this file is missing" case quietly passed or failed
+	 * depending on whether the checkout running them had built its own artifacts.
 	 */
-	static GameArtifacts locate(String mcVersion, Path explicit) throws IOException {
+	static GameArtifacts locate(String mcVersion, Path dir) throws IOException {
 		GameArtifacts artifacts = new GameArtifacts();
-		List<Path> roots = new ArrayList<>();
-		if (explicit != null) roots.add(explicit);
-		Path builtIn = developmentRunDirectory();
-		if (builtIn != null) roots.add(builtIn);
-
 		List<String> missing = new ArrayList<>();
 		for (Map.Entry<String, String> wanted : WANTED.entrySet()) {
 			String fileName = String.format(wanted.getValue(), mcVersion);
 			Path hit = null;
-			for (Path root : roots) {
-				for (Path candidate : new Path[] {
-						root.resolve(fileName),
-						root.resolve("merged-base").resolve(fileName),
-						root.resolve("forge-runtime").resolve(fileName),
-						root.resolve("neoforge-runtime").resolve(fileName)}) {
-					if (Files.isRegularFile(candidate)) {
-						hit = candidate;
-						break;
-					}
+			for (Path candidate : new Path[] {
+					dir.resolve(fileName),
+					dir.resolve("merged-base").resolve(fileName),
+					dir.resolve("forge-runtime").resolve(fileName),
+					dir.resolve("neoforge-runtime").resolve(fileName)}) {
+				if (Files.isRegularFile(candidate)) {
+					hit = candidate;
+					break;
 				}
-				if (hit != null) break;
 			}
 			if (hit == null) missing.add(fileName);
 			else artifacts.found.put(wanted.getKey(), hit);
 		}
 		if (!missing.isEmpty()) {
-			throw new IOException("cannot find the game artifacts this build needs: " + String.join(", ", missing)
-					+ ".\nThey contain Minecraft, MinecraftForge and NeoForge code, so they are built on your own "
-					+ "machine rather than shipped here. Produce them with forbric-loader/run/"
-					+ "assemble-minecraftforge-runtime.sh, assemble-neoforge-runtime.sh and build-merged-base.sh "
-					+ "(which writes merged-base/forge-runtime-interop.jar), then point the installer at the "
-					+ "directory holding them."
-					+ (roots.isEmpty() ? "" : "\nLooked under: " + roots));
+			throw new IOException("Built artifacts: cannot find " + String.join(", ", missing) + " in " + dir
+					+ ".\n" + LEAVE_EMPTY
+					+ "\nDevelopers: the directory must hold what forbric-loader/run/build-merged-base.sh and the two "
+					+ "assemble-*-runtime.sh scripts write (build-merged-base.sh also writes "
+					+ "merged-base/forge-runtime-interop.jar), or be that run/ directory itself.");
 		}
 		return artifacts;
+	}
+
+	/**
+	 * Opens every located artifact and refuses the set unless each one is what its name says it is — before
+	 * anything is staged or a profile is written.
+	 *
+	 * <p>Issue #13: a player filled "Built artifacts" with three unrelated jars that happened to carry the right
+	 * names. Nothing looked inside them. The link check passed, because a jar that refers to nothing outside
+	 * itself leaves nothing dangling; the install reported success; and the game died at the first NeoForge class
+	 * with five lines in latest.log and no crash report. Every bad file is listed at once, so fixing one does not
+	 * just reveal the next on the following attempt.
+	 */
+	void verifyContents(String mcVersion) throws IOException {
+		Map<String, String> problems = contentProblems(mcVersion);
+		if (!problems.isEmpty()) throw refusal(problems);
+	}
+
+	/** coordinate → why its file is not what its name says; empty when every located file is. */
+	Map<String, String> contentProblems(String mcVersion) {
+		Map<String, String> problems = new LinkedHashMap<>();
+		for (Map.Entry<String, Path> e : found.entrySet()) {
+			String problem = problem(e.getKey(), e.getValue(), mcVersion);
+			if (problem != null) problems.put(e.getKey(), problem);
+		}
+		return problems;
+	}
+
+	/** The refusal for {@code problems}: each bad file by its full path, what is wrong with it, and the way out. */
+	IOException refusal(Map<String, String> problems) {
+		List<String> lines = new ArrayList<>();
+		for (Map.Entry<String, String> e : problems.entrySet()) {
+			lines.add("  " + found.get(e.getKey()) + "\n    " + e.getValue());
+		}
+		return new IOException("Built artifacts: " + (lines.size() == 1 ? "this file is" : "these files are")
+				+ " not the game files Forbric needs.\n" + String.join("\n", lines) + "\n" + LEAVE_EMPTY);
+	}
+
+	/**
+	 * Why {@code jar} cannot stand for {@code coordinate}, in words a player can act on, or null when it can.
+	 *
+	 * <p>The markers were chosen against the real artifacts — the ones the development scripts stage and the ones
+	 * {@link ArtifactBuilder} builds — and against what a player is likely to pick up instead: the MinecraftForge,
+	 * NeoForge and Fabric installers, the vanilla client jar, each family's {@code -universal} jar, and each
+	 * family's half-patched Minecraft from {@code .forbric-build/out}. Every real artifact has all of its markers;
+	 * none of the others has all of them.
+	 *
+	 * <ul>
+	 *   <li>The merged base is Minecraft {@code mcVersion} (the id in its {@code version.json}, and the client's
+	 *       {@code Minecraft} class) whose own classes refer to BOTH {@code net/minecraftforge/} and
+	 *       {@code net/neoforged/}: that is what carrying both families' patches looks like in bytecode. Vanilla
+	 *       refers to neither, and each half-patched jar to only its own family. In the real merged base hundreds
+	 *       of classes refer to each, so this does not hinge on any one class keeping one hook.</li>
+	 *   <li>Each runtime holds its family's core class AND its family's mod loader. A {@code -universal} jar has
+	 *       the first without the second; the kernel needs both, and the loader half is exactly what was absent
+	 *       in #13 ({@code net/neoforged/neoforgespi/language/IModInfo}).</li>
+	 * </ul>
+	 */
+	static String problem(String coordinate, Path jar, String mcVersion) {
+		try (ZipFile zip = new ZipFile(jar.toFile())) {
+			if (zip.size() == 0) return "It is an empty archive, with no files in it.";
+			String installer = installerName(zip);
+			if (installer != null) return "It is " + installer + ", not " + what(coordinate, mcVersion) + ".";
+			return switch (coordinate) {
+				case ArtifactBuilder.MERGED -> mergedBaseProblem(zip, mcVersion);
+				case ArtifactBuilder.FORGE_RUNTIME -> runtimeProblem(zip, "MinecraftForge", FORGE_CORE, FORGE_LOADER);
+				case ArtifactBuilder.NEOFORGE_RUNTIME -> runtimeProblem(zip, "NeoForge", NEO_CORE, NEO_LOADER);
+				default -> throw new IllegalArgumentException("not a game artifact: " + coordinate);
+			};
+		} catch (ZipException notAZip) {
+			return "It is not a jar file: it cannot be opened as one.";
+		} catch (IOException unreadable) {
+			return "It cannot be read: " + unreadable.getMessage();
+		}
+	}
+
+	private static String what(String coordinate, String mcVersion) {
+		return switch (coordinate) {
+			case ArtifactBuilder.MERGED -> "the merged game base (Minecraft " + mcVersion
+					+ " with both MinecraftForge's and NeoForge's patches)";
+			case ArtifactBuilder.FORGE_RUNTIME -> "the MinecraftForge runtime";
+			case ArtifactBuilder.NEOFORGE_RUNTIME -> "the NeoForge runtime";
+			default -> coordinate;
+		};
+	}
+
+	private static String mergedBaseProblem(ZipFile zip, String mcVersion) throws IOException {
+		String id = versionId(zip);
+		if (id == null || zip.getEntry(MINECRAFT_CLIENT) == null) {
+			return "It does not contain Minecraft" + looksLike(zip, null) + ".";
+		}
+		if (!id.equals(mcVersion)) {
+			return "It is Minecraft " + id + ", but this install is for Minecraft " + mcVersion + ".";
+		}
+		boolean forge = false;
+		boolean neo = false;
+		for (Enumeration<? extends ZipEntry> entries = zip.entries(); entries.hasMoreElements(); ) {
+			ZipEntry entry = entries.nextElement();
+			String name = entry.getName();
+			if (!name.startsWith("net/minecraft/") || !name.endsWith(".class")) continue;
+			byte[] bytes;
+			try (InputStream in = zip.getInputStream(entry)) {
+				bytes = in.readAllBytes();
+			}
+			forge |= contains(bytes, FORGE_REFERENCE);
+			neo |= contains(bytes, NEO_REFERENCE);
+			if (forge && neo) return null;
+		}
+		if (!forge && !neo) {
+			return "It is plain Minecraft " + mcVersion + ", not the merged game base Forbric builds from it.";
+		}
+		return "It is Minecraft " + mcVersion + " patched by " + (forge ? "MinecraftForge" : "NeoForge")
+				+ " only. The merged game base carries both MinecraftForge's and NeoForge's patches.";
+	}
+
+	private static String runtimeProblem(ZipFile zip, String family, String core, List<String> loader) {
+		if (zip.getEntry(core) == null) return "It does not contain " + family + looksLike(zip, family) + ".";
+		for (String marker : loader) {
+			if (zip.getEntry(marker) == null) {
+				return "It contains " + family + " but not the mod loader that belongs with it, so it is not the "
+						+ family + " runtime Forbric puts together (" + family + "'s -universal jar looks like this).";
+			}
+		}
+		return null;
+	}
+
+	/** A hint at what a wrong file actually is, when that is recognisable — the usual mistake is a swap. */
+	private static String looksLike(ZipFile zip, String notThis) {
+		if (!"NeoForge".equals(notThis) && zip.getEntry(NEO_CORE) != null) return " (it looks like NeoForge instead)";
+		if (!"MinecraftForge".equals(notThis) && zip.getEntry(FORGE_CORE) != null) {
+			return " (it looks like MinecraftForge instead)";
+		}
+		if (zip.getEntry(MINECRAFT_CLIENT) != null) return " (it looks like Minecraft instead)";
+		return "";
+	}
+
+	/**
+	 * The installer a player most plausibly downloaded instead, or null. MinecraftForge's and NeoForge's installers
+	 * share one layout (NeoForge's is a fork) and are told apart by the version id they would install.
+	 */
+	private static String installerName(ZipFile zip) {
+		if (zip.getEntry("install_profile.json") != null) {
+			String id = versionId(zip);
+			String lower = id == null ? "" : id.toLowerCase(Locale.ROOT);
+			if (lower.contains("neoforge")) return "the NeoForge installer";
+			if (lower.contains("forge")) return "the MinecraftForge installer";
+			return "a mod loader's installer";
+		}
+		if (zip.stream().anyMatch(e -> e.getName().startsWith("net/fabricmc/installer/"))) {
+			return "the Fabric installer";
+		}
+		return null;
+	}
+
+	/** The {@code id} in a jar's {@code version.json}, or null when it has none that reads as one. */
+	private static String versionId(ZipFile zip) {
+		ZipEntry entry = zip.getEntry("version.json");
+		if (entry == null) return null;
+		try (InputStream in = zip.getInputStream(entry)) {
+			Object parsed = Json.parse(new String(in.readAllBytes(), StandardCharsets.UTF_8));
+			return parsed instanceof Map<?, ?> map && map.get("id") instanceof String id ? id : null;
+		} catch (IOException | RuntimeException unreadable) {
+			return null;
+		}
+	}
+
+	private static boolean contains(byte[] haystack, byte[] needle) {
+		outer:
+		for (int i = 0, last = haystack.length - needle.length; i <= last; i++) {
+			for (int j = 0; j < needle.length; j++) {
+				if (haystack[i + j] != needle[j]) continue outer;
+			}
+			return true;
+		}
+		return false;
 	}
 
 	/** coordinate (without version) → located file. */
@@ -106,22 +307,5 @@ final class GameArtifacts {
 
 	Path get(String coordinate) {
 		return found.get(coordinate);
-	}
-
-	/**
-	 * The {@code run/} directory of the checkout this installer jar sits in, when it is being run from one — the
-	 * ordinary case while developing, and what the installer gate uses. Null when the jar has been moved away.
-	 */
-	private static Path developmentRunDirectory() {
-		try {
-			Path jar = Path.of(GameArtifacts.class.getProtectionDomain().getCodeSource().getLocation().toURI());
-			for (Path dir = jar.getParent(); dir != null; dir = dir.getParent()) {
-				Path run = dir.resolve("forbric-loader").resolve("run");
-				if (Files.isDirectory(run)) return run;
-			}
-		} catch (Exception notFromAJarInACheckout) {
-			return null;
-		}
-		return null;
 	}
 }

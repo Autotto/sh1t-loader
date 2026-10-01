@@ -109,13 +109,22 @@ final class Doctor {
 			log.accept("build JVM     : NONE USABLE");
 		}
 
-		// Prebuilt artifacts short-circuit the whole build, so say plainly which ones are already here.
+		// Supplied artifacts replace the whole build, so say plainly which ones are here — and judge them the way an
+		// install would. A supplied set that is incomplete, or holds files that are not what their names say, is
+		// refused rather than built around, so "to build" would be a promise the install does not keep.
 		Map<String, Boolean> artifacts = new LinkedHashMap<>();
 		Map<String, Path> located = Map.of();
-		try {
-			if (artifactDir != null) located = GameArtifacts.locate(Pins.MINECRAFT, artifactDir).all();
-		} catch (IOException someMissing) {
-			// Expected on a machine that has never built them; the per-name report below is the useful answer.
+		Map<String, String> wrong = Map.of();
+		String artifactProblem = null;
+		if (artifactDir != null) {
+			try {
+				GameArtifacts supplied = GameArtifacts.locate(Pins.MINECRAFT, artifactDir);
+				located = supplied.all();
+				wrong = supplied.contentProblems(Pins.MINECRAFT);
+				if (!wrong.isEmpty()) artifactProblem = supplied.refusal(wrong).getMessage();
+			} catch (IOException someMissing) {
+				artifactProblem = someMissing.getMessage();
+			}
 		}
 		for (String coordinate : new String[] {
 				"net.forbric:patched-mc-merged", "net.forbric:forge-runtime", "net.forbric:neoforge-runtime"}) {
@@ -125,20 +134,26 @@ final class Doctor {
 		log.accept("game artifacts: " + (artifactDir == null ? "none supplied (--artifacts), they will be built"
 				: "looking in " + artifactDir));
 		for (Map.Entry<String, Boolean> e : artifacts.entrySet()) {
-			log.accept("    " + (e.getValue() ? "present" : "to build") + "  " + e.getKey());
+			String state = !e.getValue() ? (artifactDir == null ? "to build" : "missing")
+					: wrong.containsKey(e.getKey()) ? "WRONG FILE" : "present";
+			log.accept("    " + state + "  " + e.getKey());
 		}
 
 		boolean allPresent = artifacts.values().stream().allMatch(Boolean::booleanValue);
-		log.accept("");
-		if (allPresent) {
-			log.accept("disk          : nothing to build — the three artifacts are already here");
-		} else {
+		if (artifactDir == null) {
+			log.accept("");
 			log.accept("disk          : about " + PEAK_MB + " MB at peak, about " + RESIDENT_MB
 					+ " MB kept afterwards");
+		} else if (allPresent && artifactProblem == null) {
+			log.accept("");
+			log.accept("disk          : nothing to build — the three artifacts are already here");
 		}
 
 		log.accept("");
-		if (problem != null) {
+		if (artifactProblem != null) {
+			log.accept("RESULT: an install would refuse the supplied game artifacts.");
+			log.accept(artifactProblem);
+		} else if (problem != null) {
 			log.accept("RESULT: this machine cannot build the game artifacts yet.");
 			log.accept(problem);
 		} else if (allPresent) {
@@ -146,6 +161,7 @@ final class Doctor {
 		} else {
 			log.accept("RESULT: ready to install; the game artifacts will be built here first.");
 		}
+		if (problem == null) problem = artifactProblem;
 		return new Report(mcDir, mcDirExists, baseInstalled, jvm, problem, artifacts);
 	}
 }

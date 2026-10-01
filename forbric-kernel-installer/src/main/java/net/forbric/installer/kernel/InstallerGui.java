@@ -94,9 +94,13 @@ final class InstallerGui {
 		title.setAlignmentX(Component.LEFT_ALIGNMENT);
 		panel.add(title);
 		panel.add(Box.createVerticalStrut(6));
-		JTextArea intro = new JTextArea("Installs a version your usual launcher can start. The game base and the "
-				+ "two Forge-family runtimes are built on this machine and never shipped with the installer, so "
-				+ "point it at the directory holding them if it cannot find them itself.");
+		// This used to say the game base and runtimes "are built on this machine ... so point it at the directory
+		// holding them", from before the installer could build them itself. A player read that as "supply three
+		// files", filled Built artifacts with unrelated jars, and got a game that died on its first NeoForge class
+		// (#13). The one thing a player has to choose is the game directory, so that is all this asks for.
+		JTextArea intro = new JTextArea("Installs a version your usual launcher can start. Choose your game "
+				+ "directory and press Install: everything else is downloaded and built on this computer while it "
+				+ "installs. Leave \"Built artifacts\" empty; it is only for developers.");
 		intro.setEditable(false);
 		intro.setLineWrap(true);
 		intro.setWrapStyleWord(true);
@@ -120,17 +124,31 @@ final class InstallerGui {
 		addRow(panel, c, row++, "Game version", gameVersion, null);
 		addRow(panel, c, row++, "Loader version", loaderVersion, null);
 		addRow(panel, c, row++, "Game directory", directory, this::chooseDirectory);
-		addRow(panel, c, row, "Built artifacts", artifacts, this::chooseArtifacts);
+		// Said on the label itself, not only in a tooltip: a tooltip is what nobody hovers over before typing.
+		addRow(panel, c, row, "Built artifacts (leave empty)", artifacts, this::chooseArtifacts,
+				"<html>Leave this empty: the installer downloads and builds the game files it needs.<br>"
+						+ "Only for developers who already built Forbric's merged game base and both Forge<br>"
+						+ "runtimes from source, to skip that build.</html>");
 		return panel;
 	}
 
 	private void addRow(JPanel panel, GridBagConstraints c, int row, String label,
 			javax.swing.JComponent field, Runnable browse) {
+		addRow(panel, c, row, label, field, browse, null);
+	}
+
+	private void addRow(JPanel panel, GridBagConstraints c, int row, String label,
+			javax.swing.JComponent field, Runnable browse, String tooltip) {
 		c.gridx = 0;
 		c.gridy = row;
 		c.weightx = 0;
 		c.fill = GridBagConstraints.NONE;
-		panel.add(new JLabel(label), c);
+		JLabel name = new JLabel(label);
+		if (tooltip != null) {
+			name.setToolTipText(tooltip);
+			field.setToolTipText(tooltip);
+		}
+		panel.add(name, c);
 
 		c.gridx = 1;
 		c.weightx = 1;
@@ -171,7 +189,7 @@ final class InstallerGui {
 	}
 
 	private void chooseArtifacts() {
-		choose(artifacts, "Choose the directory holding the built game artifacts");
+		choose(artifacts, "Developers only: the directory holding a merged game base and both runtimes you built");
 	}
 
 	private void choose(JTextField field, String title) {

@@ -739,6 +739,12 @@ forge-runtime ──────────────────────
 - `MergedBaseTool` unpacks `forbric-merge-tools.jar` from the installer's resources and runs
   `net.forbric.tools.MergedBaseBuilder` (`-Xmx4g`), `RuntimeInteropPatcher`, then `MergedLinkChecker` against the
   packaged reviewed baseline. **An install fails unless the link check reports `new 0`.**
+- `--artifacts DIR` ("Built artifacts (leave empty)" in the window) is for developers only and skips the build.
+  `GameArtifacts` takes the three jars from that directory alone and opens each before anything is downloaded or
+  written: the merged base must be Minecraft 26.2 whose `net/minecraft/` classes refer to both
+  `net/minecraftforge/` and `net/neoforged/`; each runtime must hold its family's core class and its mod loader
+  (`FMLLoader`, `IModInfo`). Only then the link check, which on its own passes any jar that refers to nothing
+  outside itself (issue #13).
 - `Pins`: `MINECRAFT = "26.2"` (the only supported version), `FORGE = "26.2-65.0.1"`, `NEOFORGE = "26.2.0.88"`,
   `NFRT = "2.0.18"`, `NFRT_RESULT = "gameJarNoRecomp"`, each with its reason in the source. `BuildStamp` keys every
   cached artifact to the pin set, so a pin bump cannot be served from cache.
