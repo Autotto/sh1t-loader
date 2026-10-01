@@ -620,9 +620,10 @@ public final class KernelBoot {
 		// EntityFluidInteraction turns tags into types, instead of the IllegalArgumentException fabric-api hit every tick.
 		chain.register(TransformPhase.COREMOD, new net.forbric.kernel.transform.FabricFluidBehaviorInjector());
 		// Lava placed or flowing next to water: the merged LiquidBlock.onPlace (MinecraftForge's) asked MinecraftForge's
-		// registry, which the neuter below used to empty, so only water arriving next to lava reacted. Both entry points
-		// ask NeoForge's registry (vanilla's rules, then NeoForge mods'), and it asks MinecraftForge's last, once a
-		// MinecraftForge mod uses it. Off, the neuter is registered again and placement is as broken as before.
+		// registry, which the neuter below used to empty, so only water arriving next to lava reacted. It asks it whole
+		// now, as on MinecraftForge (vanilla's rules and MinecraftForge mods'; NeoForge's own placement runs no mod's).
+		// neighborChanged (NeoForge's) asks NeoForge's registry, and at each neighbour its rules miss, MinecraftForge
+		// mods' — once one adds a rule. Off, the neuter is registered again and placement is as broken as before.
 		boolean fluidInteractions = net.forbric.kernel.transform.FluidInteractionsInjector.enabled();
 		if (fluidInteractions) {
 			chain.register(TransformPhase.COREMOD, new net.forbric.kernel.transform.FluidInteractionsInjector());
@@ -823,7 +824,7 @@ public final class KernelBoot {
 		// So had a third: MinecraftForge's FluidInteractionRegistry.canInteract. Its AbstractMethodError went once the
 		// merged fluids answered MinecraftForge's getFluidType() (the per-class bridge, ForeignFluidTypeInjector), and the
 		// "vanilla fluid behaviour proceeds" it promised did not: the merged LiquidBlock.onPlace asks exactly this method,
-		// so placing lava next to water never reacted. FluidInteractionsInjector replaces it; off, it is put back.
+		// so placing lava next to water never reacted. It runs whole with FluidInteractionsInjector; off, it is put back.
 		MethodBodyNeuter neuter = neuters(side, fluidInteractions);
 		chain.register(TransformPhase.COREMOD, neuter);
 

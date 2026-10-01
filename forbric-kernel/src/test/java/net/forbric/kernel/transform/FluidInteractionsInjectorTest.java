@@ -17,6 +17,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 
 import net.forbric.kernel.runtime.StagedGameClassLoader;
 import org.junit.jupiter.api.AfterEach;
@@ -31,12 +32,17 @@ import org.objectweb.asm.tree.analysis.Analyzer;
 import org.objectweb.asm.tree.analysis.BasicVerifier;
 
 /**
- * Lava placed next to water on the merged game: on the real merged LiquidBlock and both carriers' registries, and in a
- * real JVM, where the merged {@code onPlace}/{@code neighborChanged}, NeoForge's and MinecraftForge's
+ * Lava and water on the merged game: on the real merged LiquidBlock and both carriers' registries, and in a real JVM,
+ * where the merged {@code onPlace}/{@code neighborChanged}, NeoForge's and MinecraftForge's
  * {@code FluidInteractionRegistry} and the merged {@code FluidState} are linked against each other and handed fixture
- * fluids in a fixture level. The registries' initializers (which need a bootstrapped game) are replaced by an empty
- * map, and the interactions are the test's own, registered through each registry's real {@code addInteraction}; the
- * control is the game as it was: the merged LiquidBlock with MinecraftForge's {@code canInteract} neutered.
+ * fluids in a fixture level. Each registry's initializer (which needs a bootstrapped game) is cut to its map and a
+ * fixture's copy of vanilla's water rule, registered through the registry's real {@code addInteraction} as its own
+ * initializer registers vanilla's; a mod's rule is registered the same way afterwards. The control is the game as it
+ * was: the merged LiquidBlock with MinecraftForge's {@code canInteract} neutered.
+ *
+ * <p>The families' own LiquidBlocks are the reference: MinecraftForge's {@code onPlace} and {@code neighborChanged}
+ * ask its registry; NeoForge's {@code neighborChanged} asks its registry and its {@code onPlace} runs vanilla's rules
+ * alone. Both registries walk the neighbours in vanilla's order and, at each, every rule before the next neighbour.
  */
 @ResourceLock("system-properties")
 class FluidInteractionsInjectorTest {
@@ -53,74 +59,115 @@ class FluidInteractionsInjectorTest {
 	private static final String LEVEL = "net/minecraft/world/level/Level";
 	private static final String POS = "net/minecraft/core/BlockPos";
 	private static final String INTERACT = FluidInteractionsInjector.INTERACT_DESC;
+	private static final String RUNTIME = FluidInteractionsInjector.RUNTIME;
 
 	@AfterEach void reset() { System.clearProperty(FluidInteractionsInjector.PROPERTY); }
 
 	// ------------------------------------------------------------------------------------------------ bytecode shape
 
-	@Test void onPlaceAsksNeoForgesRegistryAsNeighborChangedDoes() throws Exception {
+	@Test void theMergedLiquidBlockIsLeftAsEachFamilyWroteItsHalf() throws Exception {
 		byte[] merged = NativeCoremodParityTest.read(MERGED, LIQUID);
-		ClassNode original = node(merged);
-		assertEquals(List.of(FORGE), canInteractOwners(method(original, "onPlace")), "premise: the merged onPlace is MinecraftForge's");
-		assertEquals(List.of(NEO), canInteractOwners(method(original, "neighborChanged")), "premise: the merged neighborChanged is NeoForge's");
-
-		byte[] out = new FluidInteractionsInjector().transform(FluidInteractionsInjector.LIQUID, merged, null);
-		ClassNode repaired = node(out);
-		assertEquals(List.of(NEO), canInteractOwners(method(repaired, "onPlace")));
-		assertEquals(List.of(NEO), canInteractOwners(method(repaired, "neighborChanged")));
-		assertEquals(opcodes(method(original, "onPlace")), opcodes(method(repaired, "onPlace")), "the call's owner is all that changed");
-		assertEquals(opcodes(method(original, "neighborChanged")), opcodes(method(repaired, "neighborChanged")));
-		for (MethodNode m : repaired.methods) if (m.instructions.size() > 0) new Analyzer<>(new BasicVerifier()).analyze(LIQUID, m);
-		assertSame(out, new FluidInteractionsInjector().transform(FluidInteractionsInjector.LIQUID, out, null), "a second pass changes nothing");
+		assertEquals(List.of(FORGE), canInteractOwners(method(node(merged), "onPlace")), "premise: the merged onPlace is MinecraftForge's");
+		assertEquals(List.of(NEO), canInteractOwners(method(node(merged), "neighborChanged")), "premise: the merged neighborChanged is NeoForge's");
+		assertEquals(List.of(FORGE), canInteractOwners(method(node(NativeCoremodParityTest.read(FORGE_GAME, LIQUID)), "onPlace")),
+				"premise: MinecraftForge's own onPlace asks its registry");
+		ClassNode neoGame = node(NativeCoremodParityTest.read(NEO_GAME, LIQUID));
+		assertEquals(List.of(), canInteractOwners(method(neoGame, "onPlace")), "premise: NeoForge's own onPlace asks no registry");
+		assertTrue(Arrays.stream(method(neoGame, "onPlace").instructions.toArray()).anyMatch(i -> i instanceof MethodInsnNode c
+				&& c.name.equals("shouldSpreadLiquid")), "premise: NeoForge's onPlace runs vanilla's shouldSpreadLiquid");
+		for (byte[] liquid : List.of(merged, NativeCoremodParityTest.read(NEO_GAME, LIQUID), NativeCoremodParityTest.read(FORGE_GAME, LIQUID))) {
+			assertSame(liquid, new FluidInteractionsInjector().transform(dotted(LIQUID), liquid, null));
+		}
 	}
 
-	@Test void neoForgesUnmatchedAnswerAsksMinecraftForgesRegistry() throws Exception {
+	@Test void neoForgesWalkAsksMinecraftForgeModsAtEachNeighbourBeforeMovingOn() throws Exception {
 		byte[] carrier = NativeCoremodParityTest.read(NEO_CARRIER, NEO);
-		List<AbstractInsnNode> before = real(method(node(carrier), "canInteract", INTERACT));
-		assertEquals(List.of(Opcodes.ICONST_0, Opcodes.IRETURN), before.subList(before.size() - 2, before.size()).stream()
-				.map(AbstractInsnNode::getOpcode).toList(), "premise: NeoForge's canInteract ends `return false`");
-
+		MethodNode before = method(node(carrier), "canInteract", INTERACT);
 		byte[] out = new FluidInteractionsInjector().transform(FluidInteractionsInjector.NEO, carrier, null);
 		MethodNode canInteract = method(node(out), "canInteract", INTERACT);
-		List<AbstractInsnNode> after = real(canInteract);
-		List<AbstractInsnNode> tail = after.subList(after.size() - 4, after.size());
-		assertEquals(List.of(Opcodes.ALOAD, Opcodes.ALOAD, Opcodes.INVOKESTATIC, Opcodes.IRETURN), tail.stream().map(AbstractInsnNode::getOpcode).toList());
-		assertEquals(List.of(0, 1), tail.subList(0, 2).stream().map(i -> ((VarInsnNode) i).var).toList(), "(level, pos)");
-		MethodInsnNode ask = (MethodInsnNode) tail.get(2);
-		assertEquals(List.of(FluidInteractionsInjector.RUNTIME, FluidInteractionsInjector.FORGE_LEG, INTERACT), List.of(ask.owner, ask.name, ask.desc));
-		assertEquals(before.size() + 2, after.size(), "nothing else in NeoForge's walk changed");
-		assertEquals(1, Arrays.stream(canInteract.instructions.toArray()).filter(i -> i instanceof MethodInsnNode c && c.name.equals("interact")).count(),
-				"its own first match still returns at once");
+		InsnList code = canInteract.instructions;
+		List<MethodInsnNode> asks = calls(canInteract, RUNTIME);
+		assertEquals(1, asks.size());
+		MethodInsnNode ask = asks.getFirst();
+		assertEquals(List.of(FluidInteractionsInjector.FORGE_LEG, FluidInteractionsInjector.FORGE_LEG_DESC), List.of(ask.name, ask.desc));
+		VarInsnNode neighbour = (VarInsnNode) next(calls(canInteract, POS).stream().filter(c -> c.name.equals("relative")).findFirst().orElseThrow());
+		List<AbstractInsnNode> args = List.of(previous(previous(previous(ask))), previous(previous(ask)), previous(ask));
+		assertEquals(List.of(0, 1, neighbour.var), args.stream().map(i -> ((VarInsnNode) i).var).toList(), "(level, pos, the neighbour)");
+		// Order: the inner walk's exit jumps to the question; the question's "no" goes on to the next neighbour.
+		List<MethodInsnNode> hasNext = calls(canInteract, "java/util/Iterator").stream().filter(c -> c.name.equals("hasNext")).toList();
+		JumpInsnNode exit = (JumpInsnNode) next(hasNext.get(1));
+		assertEquals(Opcodes.IFEQ, exit.getOpcode());
+		assertTrue(code.indexOf(neighbour) < code.indexOf(hasNext.get(1)), "the neighbour is known before NeoForge's rules are walked");
+		assertSame(previous(previous(previous(ask))), next(exit.label), "NeoForge's rules ran out at this neighbour: ask about it");
+		JumpInsnNode no = (JumpInsnNode) next(ask);
+		assertEquals(Opcodes.IFEQ, no.getOpcode());
+		assertEquals(List.of(Opcodes.ICONST_1, Opcodes.IRETURN), List.of(next(no).getOpcode(), next(next(no)).getOpcode()), "a match is handled");
+		JumpInsnNode moveOn = (JumpInsnNode) next(no.label);
+		assertEquals(Opcodes.GOTO, moveOn.getOpcode());
+		assertSame(previous(hasNext.get(0)), next(moveOn.label), "no: on to the next neighbour, as before");
+		assertTrue(code.indexOf(ask) < code.indexOf(moveOn), "asked before the walk moves on");
+		assertEquals(real(before).size() + 7, real(canInteract).size(), "nothing else in NeoForge's walk changed");
+		assertEquals(1, calls(canInteract, NEO + "$FluidInteraction").size(), "its own first match still returns at once");
+		List<AbstractInsnNode> tail = real(canInteract).subList(real(canInteract).size() - 2, real(canInteract).size());
+		assertEquals(List.of(Opcodes.ICONST_0, Opcodes.IRETURN), tail.stream().map(AbstractInsnNode::getOpcode).toList(), "no neighbour matched: false");
 		new Analyzer<>(new BasicVerifier()).analyze(NEO, canInteract);
-		assertSame(out, new FluidInteractionsInjector().transform(FluidInteractionsInjector.NEO, out, null));
+		assertSame(out, new FluidInteractionsInjector().transform(FluidInteractionsInjector.NEO, out, null), "a second pass changes nothing");
 	}
 
-	@Test void minecraftForgesAddInteractionReportsInAndItsCanInteractIsLeftWhole() throws Exception {
+	@Test void minecraftForgesInitializerHandsOverItsMapAndAddInteractionReportsIn() throws Exception {
 		byte[] carrier = NativeCoremodParityTest.read(FORGE_CARRIER, FORGE);
 		byte[] out = new FluidInteractionsInjector().transform(FluidInteractionsInjector.FORGE, carrier, null);
 		ClassNode repaired = node(out);
 		MethodNode add = repaired.methods.stream().filter(m -> m.name.equals("addInteraction")).findFirst().orElseThrow();
-		assertTrue(real(add).getFirst() instanceof MethodInsnNode first && first.owner.equals(FluidInteractionsInjector.RUNTIME)
+		assertTrue(real(add).getFirst() instanceof MethodInsnNode first && first.owner.equals(RUNTIME)
 				&& first.name.equals(FluidInteractionsInjector.IN_USE) && first.desc.equals("()V"), "reports in before it adds");
+		List<AbstractInsnNode> clinit = real(method(repaired, "<clinit>"));
+		List<AbstractInsnNode> end = clinit.subList(clinit.size() - 3, clinit.size());
+		assertTrue(end.get(0) instanceof FieldInsnNode map && map.getOpcode() == Opcodes.GETSTATIC && map.name.equals("INTERACTIONS"));
+		assertTrue(end.get(1) instanceof MethodInsnNode hand && hand.owner.equals(RUNTIME) && hand.name.equals(FluidInteractionsInjector.REGISTRY)
+				&& hand.desc.equals("(Ljava/util/Map;)V"), "hands over its map once vanilla's rules are in");
+		assertEquals(Opcodes.RETURN, end.get(2).getOpcode());
+		assertEquals(2, clinit.stream().filter(i -> i instanceof MethodInsnNode c && c.name.equals("addInteraction")).count(),
+				"premise: its initializer adds vanilla's two rules, before the hand-over");
 		assertEquals(opcodes(method(node(carrier), "canInteract", INTERACT)), opcodes(method(repaired, "canInteract", INTERACT)),
 				"MinecraftForge's own walk is not neutered any more, and not edited");
 		for (MethodNode m : repaired.methods) if (m.instructions.size() > 0) new Analyzer<>(new BasicVerifier()).analyze(FORGE, m);
 		assertSame(out, new FluidInteractionsInjector().transform(FluidInteractionsInjector.FORGE, out, null));
 	}
 
-	@Test void eachFamilysOwnLiquidBlockIsLeftAlone() throws Exception {
-		for (Path game : List.of(NEO_GAME, FORGE_GAME)) {
-			byte[] own = NativeCoremodParityTest.read(game, LIQUID);
-			assertSame(own, new FluidInteractionsInjector().transform(FluidInteractionsInjector.LIQUID, own, null), game.toString());
+	@Test void reshapedRegistriesAreLeftAsMerged() throws Exception {
+		Map<String, Consumer<MethodNode>> neo = Map.of(
+				"the walk's exit tests the other way", m -> nthHasNextExit(m).setOpcode(Opcodes.IFNE),
+				"something runs between the rules running out and the next neighbour",
+				m -> m.instructions.insertBefore(next(nthHasNextExit(m).label), new InsnNode(Opcodes.NOP)),
+				"the neighbour is computed twice", m -> {
+					MethodInsnNode relative = calls(m, POS).stream().filter(c -> c.name.equals("relative")).findFirst().orElseThrow();
+					m.instructions.insertBefore(relative, new MethodInsnNode(Opcodes.INVOKEVIRTUAL, POS, "relative", relative.desc, false));
+				},
+				"a match does not return at once", m -> {
+					MethodInsnNode interact = calls(m, NEO + "$FluidInteraction").getFirst();
+					m.instructions.insert(interact, new InsnNode(Opcodes.NOP));
+				});
+		for (var reshape : neo.entrySet()) {
+			byte[] bytes = edited(NativeCoremodParityTest.read(NEO_CARRIER, NEO), "canInteract", INTERACT, reshape.getValue(), ClassReader.EXPAND_FRAMES);
+			assertSame(bytes, new FluidInteractionsInjector().transform(FluidInteractionsInjector.NEO, bytes, null), reshape.getKey());
+		}
+		Map<String, Consumer<MethodNode>> forge = Map.of(
+				"its initializer returns twice", m -> m.instructions.insert(new InsnNode(Opcodes.RETURN)),
+				"its initializer stores no map", m -> {
+					for (AbstractInsnNode i : m.instructions) if (i instanceof FieldInsnNode f && f.getOpcode() == Opcodes.PUTSTATIC) f.name = "OTHER";
+				});
+		for (var reshape : forge.entrySet()) {
+			byte[] bytes = edited(NativeCoremodParityTest.read(FORGE_CARRIER, FORGE), "<clinit>", "()V", reshape.getValue(), 0);
+			assertSame(bytes, new FluidInteractionsInjector().transform(FluidInteractionsInjector.FORGE, bytes, null), reshape.getKey());
 		}
 	}
 
-	@Test void theSwitchLeavesAllThreeAlone() throws Exception {
+	@Test void theSwitchLeavesBothRegistriesAlone() throws Exception {
 		System.setProperty(FluidInteractionsInjector.PROPERTY, "off");
-		for (String[] target : List.of(new String[] {LIQUID, MERGED.toString()}, new String[] {NEO, NEO_CARRIER.toString()},
-				new String[] {FORGE, FORGE_CARRIER.toString()})) {
+		for (String[] target : List.of(new String[] {NEO, NEO_CARRIER.toString()}, new String[] {FORGE, FORGE_CARRIER.toString()})) {
 			byte[] bytes = NativeCoremodParityTest.read(Path.of(target[1]), target[0]);
-			assertSame(bytes, new FluidInteractionsInjector().transform(target[0].replace('/', '.'), bytes, null), target[0]);
+			assertSame(bytes, new FluidInteractionsInjector().transform(dotted(target[0]), bytes, null), target[0]);
 		}
 	}
 
@@ -128,90 +175,157 @@ class FluidInteractionsInjectorTest {
 
 	@Test void asMergedPlacingLavaNextToWaterNeverReachesAnInteraction() throws Exception {
 		try (World merged = new World(false)) {
-			merged.neoRule("water", merged.neighbourIs("water"));
-			merged.lavaNextTo("water");
+			merged.at("east", "water");
 			merged.onPlace();
 			assertEquals(List.of("tick"), merged.events, "control: onPlace asked MinecraftForge's neutered registry, found nothing and let the lava flow");
 			merged.events.clear();
 			merged.neighborChanged();
-			assertEquals(List.of("neo:water"), merged.events, "only water arriving next to lava reacted");
+			assertEquals(List.of("neo:vanilla"), merged.events, "only water arriving next to lava reacted");
 		}
 	}
 
-	@Test void placingLavaNextToWaterRunsNeoForgesInteractionOnceAndSchedulesNothing() throws Exception {
+	@Test void placingLavaNextToWaterRunsMinecraftForgesVanillaRuleOnceAsOnMinecraftForge() throws Exception {
 		try (World repaired = new World(true)) {
-			repaired.neoRule("water", repaired.neighbourIs("water"));
-			repaired.lavaNextTo("water");
+			repaired.at("east", "water");
 			repaired.onPlace();
-			assertEquals(List.of("neo:water"), repaired.events, "the same interaction neighborChanged runs, and no fluid tick");
+			assertEquals(List.of("forge:vanilla"), repaired.events, "MinecraftForge's own placement: its copy of vanilla's rule, and no fluid tick");
+			assertEquals(0, repaired.asked("neo:vanilla"), "NeoForge's registry is not asked on placement, as on NeoForge");
+			int byPlacement = repaired.asked("forge:vanilla");
 			repaired.events.clear();
 			repaired.neighborChanged();
-			assertEquals(List.of("neo:water"), repaired.events);
-			assertFalse(repaired.loaded(FORGE), "no MinecraftForge mod used its registry, so it was never even loaded");
+			assertEquals(List.of("neo:vanilla"), repaired.events, "NeoForge's own neighbour change: its copy");
+			assertEquals(byPlacement, repaired.asked("forge:vanilla"), "MinecraftForge's copy is never asked by the neighbour change");
 		}
 	}
 
-	@Test void withNothingToReactToTheLavaStillFlows() throws Exception {
+	@Test void aNeighbourChangeAloneNeverLoadsMinecraftForgesRegistry() throws Exception {
 		try (World repaired = new World(true)) {
-			repaired.neoRule("water", repaired.neighbourIs("water"));
-			repaired.lavaNextTo("stone");
-			repaired.onPlace();
+			repaired.at("east", "stone");
 			repaired.neighborChanged();
-			assertEquals(List.of("tick", "tick"), repaired.events);
-			// NeoForge's walk found nothing and ended at the kernel's question both times; with no MinecraftForge mod
-			// using its registry the question is answered without touching that class at all.
-			assertFalse(repaired.loaded(FORGE), "no MinecraftForge mod used its registry, so it was never even loaded");
+			repaired.at("east", "water");
+			repaired.neighborChanged();
+			assertEquals(List.of("tick", "neo:vanilla"), repaired.events);
+			assertFalse(repaired.loaded(FORGE), "no MinecraftForge mod used its registry, so a neighbour change never even loaded it");
+		}
+	}
+
+	@Test void untilAMinecraftForgeModAddsARuleANeighbourChangeNeverAsksIt() throws Exception {
+		try (World repaired = new World(true)) {
+			repaired.at("east", "stone");
+			repaired.onPlace();   // placement initializes MinecraftForge's registry, as on MinecraftForge
+			assertTrue(repaired.loaded(FORGE), "premise: placement asked MinecraftForge's registry");
+			repaired.forgeTypeAsked(0);
+			repaired.neighborChanged();
+			repaired.neighborChanged();
+			assertEquals(List.of("tick", "tick", "tick"), repaired.events);
+			assertEquals(0, repaired.forgeTypeAsked(0), "its copies of vanilla's rules alone: the neighbour change asked it nothing");
+			repaired.forgeRule("honey", repaired.neighbourIs("honey"));
+			repaired.neighborChanged();
+			assertTrue(repaired.forgeTypeAsked(0) > 0, "control: once a MinecraftForge mod added a rule, it is asked");
 		}
 	}
 
 	@Test void aMinecraftForgeModsInteractionRunsFromBothEntryPoints() throws Exception {
 		try (World repaired = new World(true)) {
-			repaired.neoRule("water", repaired.neighbourIs("water"));
 			repaired.forgeRule("honey", repaired.neighbourIs("honey"));
-			repaired.lavaNextTo("honey");
+			repaired.at("east", "honey");
 			repaired.onPlace();
-			assertEquals(List.of("forge:honey"), repaired.events, "NeoForge had nothing for honey; MinecraftForge's registry did");
+			assertEquals(List.of("forge:honey"), repaired.events, "placement: MinecraftForge's own walk");
 			repaired.events.clear();
 			repaired.neighborChanged();
-			assertEquals(List.of("forge:honey"), repaired.events);
+			assertEquals(List.of("forge:honey"), repaired.events, "a neighbour change: after NeoForge's rules missed that neighbour");
 		}
 		try (World merged = new World(false)) {
 			merged.forgeRule("honey", merged.neighbourIs("honey"));
-			merged.lavaNextTo("honey");
+			merged.at("east", "honey");
 			merged.onPlace();
 			merged.neighborChanged();
 			assertEquals(List.of("tick", "tick"), merged.events, "control: as merged it ran from neither");
 		}
 	}
 
-	@Test void oneLiquidNeverReactsTwice() throws Exception {
+	@Test void aNeoForgeModsInteractionRunsOnANeighbourChangeOnlyAsOnNeoForge() throws Exception {
 		try (World repaired = new World(true)) {
-			repaired.neoRule("water", repaired.neighbourIs("water"));
-			repaired.forgeRule("water", repaired.neighbourIs("water"));   // MinecraftForge's copy of vanilla's rule
-			repaired.lavaNextTo("water");
+			repaired.neoRule("honey", repaired.neighbourIs("honey"));
+			repaired.at("east", "honey");
 			repaired.onPlace();
+			assertEquals(List.of("tick"), repaired.events, "NeoForge's own onPlace runs vanilla's rules alone, never a mod's");
+			repaired.events.clear();
 			repaired.neighborChanged();
-			assertEquals(List.of("neo:water", "neo:water"), repaired.events, "NeoForge's match returns at once; MinecraftForge's is never asked");
+			assertEquals(List.of("neo:honey"), repaired.events);
 		}
 	}
 
-	@Test void aMinecraftForgeRegistryThatFailsToLinkIsLeftOutOnce() throws Exception {
+	@Test void aModsRuleAtAnEarlierNeighbourBeatsVanillasAtALaterOneAsInItsOwnFamily() throws Exception {
+		// Above is the first neighbour both registries walk, east the fifth.
 		try (World repaired = new World(true)) {
-			repaired.neoRule("water", repaired.neighbourIs("water"));
+			repaired.forgeRule("honey", repaired.neighbourIs("honey"));
+			repaired.at("above", "honey");
+			repaired.at("east", "water");
+			repaired.onPlace();
+			repaired.neighborChanged();
+			assertEquals(List.of("forge:honey", "forge:honey"), repaired.events, "as MinecraftForge's walk: the mod's rule above, before vanilla's east");
+		}
+		try (World repaired = new World(true)) {
+			repaired.neoRule("honey", repaired.neighbourIs("honey"));
+			repaired.at("above", "honey");
+			repaired.at("east", "water");
+			repaired.neighborChanged();
+			assertEquals(List.of("neo:honey"), repaired.events, "NeoForge's own order is unchanged");
+		}
+		try (World merged = new World(false)) {
+			merged.forgeRule("honey", merged.neighbourIs("honey"));
+			merged.at("above", "honey");
+			merged.at("east", "water");
+			merged.neighborChanged();
+			assertEquals(List.of("neo:vanilla"), merged.events, "control: as merged, vanilla's rule east won");
+		}
+	}
+
+	@Test void oneLiquidNeverReactsTwice() throws Exception {
+		try (World repaired = new World(true)) {
+			repaired.neoRule("honey", repaired.neighbourIs("honey"));
+			repaired.forgeRule("honey", repaired.neighbourIs("honey"));
+			repaired.at("east", "honey");
+			repaired.onPlace();
+			repaired.neighborChanged();
+			assertEquals(List.of("forge:honey", "neo:honey"), repaired.events, "each entry point runs its own family's first match, once");
+			repaired.events.clear();
+			repaired.at("east", "water");
+			repaired.onPlace();
+			repaired.neighborChanged();
+			assertEquals(List.of("forge:vanilla", "neo:vanilla"), repaired.events);
+		}
+	}
+
+	@Test void minecraftForgesCopiesOfVanillasRulesAreNeverAskedAfterNeoForgesOwn() throws Exception {
+		try (World repaired = new World(true)) {
+			repaired.forgeRule("honey", repaired.neighbourIs("honey"));
+			repaired.at("east", "stone");
+			repaired.neighborChanged();
+			assertEquals(List.of("tick"), repaired.events);
+			assertEquals(5, repaired.asked("forge:honey"), "the mod's rule, at each of the five neighbours");
+			assertEquals(0, repaired.asked("forge:vanilla"), "MinecraftForge's copy of vanilla's rule, at none: NeoForge's just was");
+			assertEquals(5, repaired.asked("neo:vanilla"));
+		}
+	}
+
+	@Test void aMinecraftForgeRuleThatFailsToLinkIsLeftOutOfNeighbourChangesOnce() throws Exception {
+		try (World repaired = new World(true)) {
 			int[] asked = {0};
 			repaired.forgeRule("honey", (level, current, relative, state) -> {
 				asked[0]++;
 				throw new NoClassDefFoundError("net/minecraftforge/SomethingTheMergeLacks");
 			});
-			repaired.lavaNextTo("honey");
-			repaired.onPlace();
-			repaired.onPlace();
+			repaired.at("east", "honey");
+			repaired.neighborChanged();
+			repaired.neighborChanged();
 			assertEquals(List.of("tick", "tick"), repaired.events, "the lava flows as NeoForge decided, both times");
 			assertEquals(1, asked[0], "asked once, then left out");
-			repaired.lavaNextTo("water");
+			repaired.at("east", "water");
 			repaired.events.clear();
-			repaired.onPlace();
-			assertEquals(List.of("neo:water"), repaired.events, "vanilla's and NeoForge mods' interactions are untouched");
+			repaired.neighborChanged();
+			assertEquals(List.of("neo:vanilla"), repaired.events, "vanilla's and NeoForge mods' interactions are untouched");
 		}
 	}
 
@@ -222,25 +336,26 @@ class FluidInteractionsInjectorTest {
 	}
 
 	/**
-	 * The merged game around one lava source at (0, 64, 0) and the liquid east of it: LiquidBlock (merged or repaired),
-	 * both registries (MinecraftForge's neutered as KernelBoot did, or repaired), the merged FluidState and Level, and the
+	 * The merged game around one lava source at (0, 64, 0) and the liquids next to it: LiquidBlock as merged, both
+	 * registries (MinecraftForge's neutered as KernelBoot did, or both repaired), the merged FluidState and Level, and the
 	 * compiled game side (KernelFluidInteractions). Every fluid is a fixture answering both families' getFluidType().
+	 * Each registry's initializer adds its family's copy of vanilla's water rule ("neo:vanilla", "forge:vanilla").
 	 */
 	private static final class World implements AutoCloseable {
 		final List<Object> events = new ArrayList<>();
+		private final Map<String, Integer> asked = new HashMap<>();
 		private final Loader loader;
-		private final Object level, liquid, lavaState, pos, east;
+		private final Object level, liquid, lavaState, pos;
+		private final Class<?> posClass, fluidClass;
 		private final Map<String, Object> neoTypes = new HashMap<>(), forgeTypes = new HashMap<>(), states = new HashMap<>();
 		private final Map<Object, Object> fluids = new HashMap<>();
 
 		World(boolean repaired) throws Exception {
 			Map<String, byte[]> defined = new HashMap<>();
 			FluidInteractionsInjector injector = new FluidInteractionsInjector();
-			byte[] liquidBlock = NativeCoremodParityTest.read(MERGED, LIQUID);
-			byte[] neo = NativeCoremodParityTest.read(NEO_CARRIER, NEO);
-			byte[] forge = NativeCoremodParityTest.read(FORGE_CARRIER, FORGE);
+			byte[] neo = initializerOnly(NativeCoremodParityTest.read(NEO_CARRIER, NEO), NEO, "neo");
+			byte[] forge = initializerOnly(NativeCoremodParityTest.read(FORGE_CARRIER, FORGE), FORGE, "forge");
 			if (repaired) {
-				liquidBlock = injector.transform(FluidInteractionsInjector.LIQUID, liquidBlock, null);
 				neo = injector.transform(FluidInteractionsInjector.NEO, neo, null);
 				forge = injector.transform(FluidInteractionsInjector.FORGE, forge, null);
 			} else {
@@ -248,9 +363,9 @@ class FluidInteractionsInjectorTest {
 				forge = new MethodBodyNeuter().add(new MethodBodyNeuter.Target(FluidInteractionsInjector.FORGE, "canInteract", INTERACT, "control"))
 						.transform(FluidInteractionsInjector.FORGE, forge, null);
 			}
-			defined.put(dotted(LIQUID), flowDirectionsOnly(liquidBlock));
-			defined.put(dotted(NEO), emptyRegistry(neo, NEO));
-			defined.put(dotted(FORGE), emptyRegistry(forge, FORGE));
+			defined.put(dotted(LIQUID), flowDirectionsOnly(NativeCoremodParityTest.read(MERGED, LIQUID)));
+			defined.put(dotted(NEO), neo);
+			defined.put(dotted(FORGE), forge);
 			for (String name : List.of("net/minecraft/world/level/block/Block", "net/minecraft/world/level/block/state/BlockBehaviour",
 					"net/minecraft/world/level/block/state/BlockState", "net/minecraft/world/level/block/state/BlockBehaviour$BlockStateBase",
 					"net/minecraft/world/level/block/state/StateHolder", FLUID_STATE, "net/minecraft/world/level/material/Fluid",
@@ -266,18 +381,22 @@ class FluidInteractionsInjectorTest {
 			defined.put("fixture.TestLevel", testLevel());
 			defined.put("fixture.TestFluid", testFluid());
 			defined.put("fixture.NoTags", noTags());
+			defined.put("fixture.Initializers", initializers());
 			loader = new Loader(defined);
 
 			Class<?> testLevel = loader.loadClass("fixture.TestLevel");
 			testLevel.getField("FLUIDS").set(null, fluids);
 			testLevel.getField("EVENTS").set(null, events);
 			level = unsafe().allocateInstance(testLevel);
-			loader.loadClass("fixture.TestFluid").getField("NO_TAGS").set(null, unsafe().allocateInstance(loader.loadClass("fixture.NoTags")));
+			fluidClass = loader.loadClass("fixture.TestFluid");
+			fluidClass.getField("NO_TAGS").set(null, unsafe().allocateInstance(loader.loadClass("fixture.NoTags")));
 			for (String name : List.of("lava", "water", "honey", "stone")) fluid(name, name.equals("lava") || name.equals("water"));
 			testLevel.getField("EMPTY").set(null, states.get("stone"));
-			Class<?> posClass = loader.loadClass(dotted(POS));
+			Class<?> initializers = loader.loadClass("fixture.Initializers");
+			initializers.getField("NEO").set(null, (Runnable) () -> rule(NEO, neoTypes.get("lava"), "neo:vanilla", neighbourIs("water")));
+			initializers.getField("FORGE").set(null, (Runnable) () -> rule(FORGE, forgeTypes.get("lava"), "forge:vanilla", neighbourIs("water")));
+			posClass = loader.loadClass(dotted(POS));
 			pos = posClass.getConstructor(int.class, int.class, int.class).newInstance(0, 64, 0);
-			east = posClass.getMethod("east").invoke(pos);
 			lavaState = states.get("lava");
 			fluids.put(pos, lavaState);
 			Class<?> liquidClass = loader.loadClass(dotted(LIQUID));
@@ -289,7 +408,6 @@ class FluidInteractionsInjectorTest {
 		private void fluid(String name, boolean source) throws Exception {
 			Object neoType = unsafe().allocateInstance(loader.loadClass("net.neoforged.neoforge.fluids.FluidType"));
 			Object forgeType = unsafe().allocateInstance(loader.loadClass("net.minecraftforge.fluids.FluidType"));
-			Class<?> fluidClass = loader.loadClass("fixture.TestFluid");
 			Object fluid = unsafe().allocateInstance(fluidClass);
 			fluidClass.getField("name").set(fluid, name);
 			fluidClass.getField("neoType").set(fluid, neoType);
@@ -302,9 +420,9 @@ class FluidInteractionsInjectorTest {
 			states.put(name, state);
 		}
 
-		/** Lava at the origin, {@code liquid} east of it. */
-		void lavaNextTo(String liquid) {
-			fluids.put(east, states.get(liquid));
+		/** {@code liquid} at the lava's {@code side}: "above", "east", … — a BlockPos method name. */
+		void at(String side, String liquid) throws Exception {
+			fluids.put(posClass.getMethod(side).invoke(pos), states.get(liquid));
 		}
 
 		/** Whether the liquid at {@code relative} is {@code name}, read the way the registries read it: its fluid state. */
@@ -322,13 +440,36 @@ class FluidInteractionsInjectorTest {
 			register(FORGE, forgeTypes.get("lava"), "forge:" + name, rule);
 		}
 
+		/** How many times the rule recording {@code event} was asked. */
+		int asked(String event) {
+			return asked.getOrDefault(event, 0);
+		}
+
+		/** How many times a fixture fluid answered MinecraftForge's getFluidType() since the last call; resets to {@code to}. */
+		int forgeTypeAsked(int to) throws Exception {
+			int was = fluidClass.getField("FORGE_TYPE_ASKED").getInt(null);
+			fluidClass.getField("FORGE_TYPE_ASKED").setInt(null, to);
+			return was;
+		}
+
+		private void rule(String registry, Object lavaType, String event, Rule rule) {
+			try {
+				register(registry, lavaType, event, rule);
+			} catch (Exception e) {
+				throw new AssertionError(e);
+			}
+		}
+
 		private void register(String registry, Object lavaType, String event, Rule rule) throws Exception {
 			Class<?> owner = loader.loadClass(dotted(registry));
 			Class<?> predicate = loader.loadClass(dotted(registry) + "$HasFluidInteraction");
 			Class<?> interaction = loader.loadClass(dotted(registry) + "$FluidInteraction");
 			Class<?> information = loader.loadClass(dotted(registry) + "$InteractionInformation");
 			Object test = Proxy.newProxyInstance(loader, new Class<?>[] {predicate}, (proxy, method, args) -> switch (method.getName()) {
-				case "test" -> rule.test(args[0], args[1], args[2], args[3]);
+				case "test" -> {
+					asked.merge(event, 1, Integer::sum);
+					yield rule.test(args[0], args[1], args[2], args[3]);
+				}
 				case "hashCode" -> System.identityHashCode(proxy);
 				case "equals" -> proxy == args[0];
 				default -> event;
@@ -338,7 +479,11 @@ class FluidInteractionsInjectorTest {
 				return method.getName().equals("hashCode") ? System.identityHashCode(proxy) : method.getName().equals("equals") ? proxy == args[0] : null;
 			});
 			Object info = information.getConstructor(predicate, interaction).newInstance(test, react);
-			owner.getMethod("addInteraction", lavaType.getClass(), information).invoke(null, lavaType, info);
+			try {
+				owner.getMethod("addInteraction", lavaType.getClass(), information).invoke(null, lavaType, info);
+			} catch (InvocationTargetException thrown) {
+				throw new AssertionError(thrown.getCause());
+			}
 		}
 
 		void onPlace() throws Exception {
@@ -424,8 +569,11 @@ class FluidInteractionsInjectorTest {
 		return writer.toByteArray();
 	}
 
-	/** A registry whose initializer only creates its (empty) map: vanilla's rules need NeoForgeMod/ForgeMod, a game's. */
-	private static byte[] emptyRegistry(byte[] bytes, String owner) {
+	/**
+	 * A registry whose initializer creates its (empty) map and runs {@code fixture.Initializers.<family>()}, which adds the
+	 * fixture's copy of vanilla's rule — in place of NeoForgeMod/ForgeMod's types, which need a bootstrapped game.
+	 */
+	private static byte[] initializerOnly(byte[] bytes, String owner, String family) {
 		ClassNode node = node(bytes);
 		MethodNode clinit = node.methods.stream().filter(m -> m.name.equals("<clinit>")).findFirst().orElseThrow();
 		clinit.instructions.clear();
@@ -435,10 +583,30 @@ class FluidInteractionsInjectorTest {
 		clinit.instructions.add(new InsnNode(Opcodes.DUP));
 		clinit.instructions.add(new MethodInsnNode(Opcodes.INVOKESPECIAL, "java/util/HashMap", "<init>", "()V", false));
 		clinit.instructions.add(new FieldInsnNode(Opcodes.PUTSTATIC, owner, "INTERACTIONS", "Ljava/util/Map;"));
+		clinit.instructions.add(new MethodInsnNode(Opcodes.INVOKESTATIC, "fixture/Initializers", family, "()V", false));
 		clinit.instructions.add(new InsnNode(Opcodes.RETURN));
 		ClassWriter writer = new ClassWriter(ClassWriter.COMPUTE_MAXS);
 		node.accept(writer);
 		return writer.toByteArray();
+	}
+
+	/** {@code neo()} and {@code forge()} run the Runnable in the static field of that family's name. */
+	private static byte[] initializers() {
+		String name = "fixture/Initializers";
+		ClassWriter cw = new ClassWriter(ClassWriter.COMPUTE_MAXS);
+		cw.visit(Opcodes.V21, Opcodes.ACC_PUBLIC, name, null, "java/lang/Object", null);
+		for (String family : List.of("NEO", "FORGE")) {
+			cw.visitField(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC, family, "Ljava/lang/Runnable;", null, null).visitEnd();
+			MethodVisitor run = cw.visitMethod(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC, family.toLowerCase(), "()V", null, null);
+			run.visitCode();
+			run.visitFieldInsn(Opcodes.GETSTATIC, name, family, "Ljava/lang/Runnable;");
+			run.visitMethodInsn(Opcodes.INVOKEINTERFACE, "java/lang/Runnable", "run", "()V", true);
+			run.visitInsn(Opcodes.RETURN);
+			run.visitMaxs(0, 0);
+			run.visitEnd();
+		}
+		cw.visitEnd();
+		return cw.toByteArray();
 	}
 
 	/** A Level whose fluid states come from FLUIDS (EMPTY elsewhere) and whose fluid ticks are recorded in EVENTS. */
@@ -472,7 +640,10 @@ class FluidInteractionsInjectorTest {
 		return cw.toByteArray();
 	}
 
-	/** A fluid answering both families' getFluidType() from its fields, with a tick delay and no tags. */
+	/**
+	 * A fluid answering both families' getFluidType() from its fields — counting MinecraftForge's answers in
+	 * FORGE_TYPE_ASKED — with a tick delay and no tags.
+	 */
 	private static byte[] testFluid() {
 		String name = "fixture/TestFluid";
 		String neoType = "net/neoforged/neoforge/fluids/FluidType", forgeType = "net/minecraftforge/fluids/FluidType";
@@ -482,9 +653,16 @@ class FluidInteractionsInjectorTest {
 			cw.visitField(Opcodes.ACC_PUBLIC, field.split(":")[0], field.split(":")[1], null, null).visitEnd();
 		}
 		cw.visitField(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC, "NO_TAGS", "Ljava/lang/Object;", null, null).visitEnd();
+		cw.visitField(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC, "FORGE_TYPE_ASKED", "I", null, null).visitEnd();
 		for (String[] type : List.of(new String[] {"neoType", neoType}, new String[] {"forgeType", forgeType})) {
 			MethodVisitor m = cw.visitMethod(Opcodes.ACC_PUBLIC, "getFluidType", "()L" + type[1] + ";", null, null);
 			m.visitCode();
+			if (type[1].equals(forgeType)) {
+				m.visitFieldInsn(Opcodes.GETSTATIC, name, "FORGE_TYPE_ASKED", "I");
+				m.visitInsn(Opcodes.ICONST_1);
+				m.visitInsn(Opcodes.IADD);
+				m.visitFieldInsn(Opcodes.PUTSTATIC, name, "FORGE_TYPE_ASKED", "I");
+			}
 			m.visitVarInsn(Opcodes.ALOAD, 0);
 			m.visitFieldInsn(Opcodes.GETFIELD, name, type[0], "Ljava/lang/Object;");
 			m.visitTypeInsn(Opcodes.CHECKCAST, type[1]);
@@ -539,6 +717,28 @@ class FluidInteractionsInjectorTest {
 
 	// ------------------------------------------------------------------------------------------------ helpers
 
+	/** {@code bytes} with one method edited, read with {@code flags} and written back unchanged otherwise. */
+	private static byte[] edited(byte[] bytes, String name, String desc, Consumer<MethodNode> edit, int flags) {
+		ClassNode node = new ClassNode();
+		new ClassReader(bytes).accept(node, flags);
+		edit.accept(method(node, name, desc));
+		ClassWriter writer = new ClassWriter(0);
+		node.accept(writer);
+		return writer.toByteArray();
+	}
+
+	/** The IFEQ after the inner walk's hasNext: where NeoForge's rules at one neighbour run out. */
+	private static JumpInsnNode nthHasNextExit(MethodNode method) {
+		List<MethodInsnNode> hasNext = calls(method, "java/util/Iterator").stream().filter(c -> c.name.equals("hasNext")).toList();
+		return (JumpInsnNode) next(hasNext.get(1));
+	}
+
+	private static List<MethodInsnNode> calls(MethodNode method, String owner) {
+		List<MethodInsnNode> found = new ArrayList<>();
+		for (AbstractInsnNode insn : method.instructions) if (insn instanceof MethodInsnNode call && call.owner.equals(owner)) found.add(call);
+		return found;
+	}
+
 	private static List<String> canInteractOwners(MethodNode method) {
 		List<String> owners = new ArrayList<>();
 		for (AbstractInsnNode insn : method.instructions) {
@@ -553,6 +753,18 @@ class FluidInteractionsInjectorTest {
 
 	private static List<AbstractInsnNode> real(MethodNode method) {
 		return Arrays.stream(method.instructions.toArray()).filter(i -> i.getOpcode() >= 0).toList();
+	}
+
+	private static AbstractInsnNode next(AbstractInsnNode insn) {
+		AbstractInsnNode next = insn.getNext();
+		while (next != null && next.getOpcode() < 0) next = next.getNext();
+		return next;
+	}
+
+	private static AbstractInsnNode previous(AbstractInsnNode insn) {
+		AbstractInsnNode previous = insn.getPrevious();
+		while (previous != null && previous.getOpcode() < 0) previous = previous.getPrevious();
+		return previous;
 	}
 
 	private static ClassNode node(byte[] bytes) {
