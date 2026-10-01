@@ -158,6 +158,9 @@ class FluidInteractionsInjectorTest {
 			repaired.onPlace();
 			repaired.neighborChanged();
 			assertEquals(List.of("tick", "tick"), repaired.events);
+			// NeoForge's walk found nothing and ended at the kernel's question both times; with no MinecraftForge mod
+			// using its registry the question is answered without touching that class at all.
+			assertFalse(repaired.loaded(FORGE), "no MinecraftForge mod used its registry, so it was never even loaded");
 		}
 	}
 
