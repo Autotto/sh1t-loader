@@ -8,6 +8,7 @@ import shutil
 import subprocess
 import sys
 import time
+from world_save import saved_since
 
 DATA = Path(os.environ['PERMOD_DATA']).resolve()
 TOOLS = Path(__file__).resolve().parent
@@ -43,7 +44,7 @@ def run(label, ticks):
     bad = [row for row in report.get('mods', []) if row.get('status') != 'OK']
     missing = [name for name in subjects if permod.mod_status(name, report)[0] != 'OK']
     world = permod.INST / 'saves' / 'compat-world'
-    saved = (world / 'level.dat').is_file() and (world / 'level.dat').stat().st_mtime >= start and any(p.stat().st_mtime >= start for p in (world / 'region').glob('*.mca'))
+    saved = saved_since(world, start)
     strict = process.returncode == 0 and verdict == 'PASS' and bool(report.get('mods')) and not bad and not missing and saved and not report.get('catalogFailures') and report.get('confirmedRequired', 0) == 0
     result = dict(run=verdict, strict=strict, bad_mods=bad, missing_subjects=missing, saved=saved, world_ticks=ticks, seconds=int(time.time() - start))
     (evidence / 'result.json').write_text(json.dumps(result, indent=2) + '\n')
@@ -75,6 +76,9 @@ for name in subjects:
 OUT.mkdir(parents=True, exist_ok=False)
 (OUT / 'manifest.json').write_text(json.dumps([row for row in manifest if row['filename'] in selected], indent=2) + '\n')
 permod.prepare(selected)
+# Other test windows must not pause this five-minute mixed world when they take focus.
+options = permod.INST / 'options.txt'
+options.write_text(options.read_text().replace('pauseOnLostFocus:true', 'pauseOnLostFocus:false'))
 first = run('first-load', 6000)
 second = dict(run='NOT_RUN', strict=False)
 if first['strict']:
