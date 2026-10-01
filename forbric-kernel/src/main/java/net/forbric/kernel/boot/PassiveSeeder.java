@@ -193,6 +193,11 @@ public final class PassiveSeeder {
 	 * caller that already knows the mods dir passes ITS answer rather than re-deriving one that could drift.
 	 */
 	public static void seedNeoForgeLoader(ClassLoader gameLoader, Path gameDir, Path modsDir, Side side) {
+		seedNeoForgeLoader(gameLoader, gameDir, modsDir, side, null);
+	}
+
+	/** Pass the detected game version into FML's own argument parser, rather than leaving VersionInfo null. */
+	public static void seedNeoForgeLoader(ClassLoader gameLoader, Path gameDir, Path modsDir, Side side, String gameVersion) {
 		try {
 			Class<?> fmlLoader = Class.forName(ForeignType.FML_LOADER.binary(Ecosystem.NEOFORGE), false, gameLoader);
 
@@ -211,7 +216,7 @@ public final class PassiveSeeder {
 			Constructor<?> ctor = fmlLoader.getDeclaredConstructor(
 					ClassLoader.class, String[].class, distClass, boolean.class, Path.class);
 			ctor.setAccessible(true);
-			Object loader = ctor.newInstance(gameLoader, new String[0], dist, PRODUCTION, gameDir);
+			Object loader = ctor.newInstance(gameLoader, neoForgeVersionArguments(gameVersion), dist, PRODUCTION, gameDir);
 
 			// The ctor may or may not self-register; makeCurrent() (guarded) ensures getCurrent() resolves.
 			if (getCurrentOrNull.invoke(null) == null) {
@@ -229,6 +234,18 @@ public final class PassiveSeeder {
 		} catch (Throwable t) {
 			ForbricLog.warn("[Forbric/Seed] could not seed NeoForge FMLLoader identity", unwrap(t));
 		}
+	}
+
+	static String[] neoForgeVersionArguments(String gameVersion) {
+		List<String> args = new ArrayList<>();
+		if (gameVersion != null && !gameVersion.isBlank()) {
+			args.add("--fml.mcVersion"); args.add(gameVersion);
+		}
+		String neoVersion = net.forbric.kernel.metadata.forge.EcosystemVersions.provided("neoforge");
+		if (neoVersion != null && !neoVersion.isBlank()) {
+			args.add("--fml.neoForgeVersion"); args.add(neoVersion);
+		}
+		return args.toArray(String[]::new);
 	}
 
 	/**

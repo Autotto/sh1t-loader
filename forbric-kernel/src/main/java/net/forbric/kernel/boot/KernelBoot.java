@@ -909,7 +909,7 @@ public final class KernelBoot {
 		// The mods dir is passed explicitly (not re-derived inside the seeder) because the LoadingModList seeded here
 		// must describe the SAME jars this boot decided to load — see discoverForgeFamilyModJars above, which walks
 		// exactly this directory. Two independent derivations of "where the mods are" is how they drift apart.
-		PassiveSeeder.seedNeoForgeLoader(loader, gameDir, gameDir.resolve("mods"), side.api());
+		PassiveSeeder.seedNeoForgeLoader(loader, gameDir, gameDir.resolve("mods"), side.api(), gameVersion);
 		// MinecraftForge's FMLLoader identity, for a reason its NeoForge twin does not have: NeoForge's
 		// FMLEnvironment is stateless, so seeding it late could only THROW, which is loud. MinecraftForge's
 		// CACHES FMLLoader's answers into four public static final fields in a <clinit> that cannot throw — every
