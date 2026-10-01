@@ -1,5 +1,7 @@
 # forbric-installer
 
+English | [简体中文](README.zh-CN.md)
+
 A standalone, dependency-free installer that makes Forbric launchable from a stock Minecraft launcher
 (PCL2, HMCL, or anything else that reads the vanilla `versions/` layout). It is pure JDK — no third-party
 libraries — so the build produces one runnable jar.
