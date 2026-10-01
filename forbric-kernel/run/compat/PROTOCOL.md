@@ -413,3 +413,6 @@ subject and its dependencies, tests 6,000 world ticks, then reloads the saved wo
 reports and screenshots go to `mixed/`. A partial or failed first load leaves reload explicitly NOT_RUN.
 The runner clears only directories bearing its `.forbric-sweep-instance` marker. Use a new evidence folder
 for a new candidate; unfinished or differently fingerprinted individual results cannot feed a mixed test.
+
+`mac/dependency_selection.py` keeps already required API providers ahead of unrelated sampled hosts;
+`mac/test_archive.py` also verifies this selection rule.

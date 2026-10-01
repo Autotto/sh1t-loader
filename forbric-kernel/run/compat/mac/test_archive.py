@@ -3,6 +3,7 @@ import json
 import unittest
 import zipfile
 from archive import jar_ids
+from dependency_selection import select_provider
 
 
 def jar(entries):
@@ -14,6 +15,21 @@ def jar(entries):
 
 
 class ArchiveDependenciesTest(unittest.TestCase):
+    def test_existing_api_dependency_wins_over_an_unrelated_subject(self):
+        rows = {'app.jar': dict(loader='fabric', slug='app', kind='random'),
+                'api.jar': dict(loader='fabric', slug='fabric-api', kind='dep'),
+                'peer.jar': dict(loader='fabric', slug='peer', kind='random')}
+        self.assertEqual('api.jar', select_provider('fabric-lifecycle-events-v1', 'app.jar',
+                         ['peer.jar', 'api.jar'], rows, {'api.jar'}))
+        self.assertEqual('api.jar', select_provider('fabric-lifecycle-events-v1', 'app.jar',
+                         ['peer.jar', 'api.jar'], rows, set()))
+
+    def test_an_explicit_required_subject_is_not_silently_replaced(self):
+        rows = {'app.jar': dict(loader='fabric', slug='app', kind='random'),
+                'lib.jar': dict(loader='fabric', slug='lib', kind='dep'),
+                'peer.jar': dict(loader='fabric', slug='peer', kind='popular')}
+        self.assertEqual('peer.jar', select_provider('shared', 'app.jar',
+                         ['lib.jar', 'peer.jar'], rows, {'peer.jar'}))
     def test_nested_requirements_are_not_lost(self):
         child = jar({'fabric.mod.json': json.dumps(dict(schemaVersion=1, id='child', version='1', depends={'fabric-api-base': '*'}))})
         host = jar({'fabric.mod.json': json.dumps(dict(schemaVersion=1, id='host', version='1', jars=[dict(file='META-INF/jars/child.jar')])), 'META-INF/jars/child.jar': child})

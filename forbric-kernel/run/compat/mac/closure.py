@@ -7,6 +7,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 import api as p
 from archive import jar_ids
+from dependency_selection import select_provider
 
 import os
 HERE = Path(os.environ.get('PERMOD_DATA', str(p.HERE)))
@@ -45,15 +46,17 @@ for f, r in by_file.items():
             need.add((same or cands)[0])
         else:
             missing.setdefault(f, []).append('modrinth:' + str(pid))
+    # A module already supplied by an explicit dependency does not justify loading a second subject.
+    explicit = set(need)
     # jar-declared required ids
-    for mid in requires[f]:
+    for mid in sorted(requires[f]):
         if mid in IGNORE or mid in provides[f]:
             continue
         mid2 = ALIAS.get(mid, mid)
         cands = [g for g in index.get(mid, []) + index.get(mid2, []) if g != f]
-        same = [g for g in cands if by_file[g]['loader'] == r['loader']]
-        if same or cands:
-            need.add((same or cands)[0])
+        selected = select_provider(mid, f, cands, by_file, explicit | need)
+        if selected:
+            need.add(selected)
         else:
             missing.setdefault(f, []).append('id:' + mid)
     # recorded missing-dep rows (found by testing)
