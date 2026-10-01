@@ -1196,23 +1196,44 @@ them turned up a loss every player had.
   lookup once ended in an AbstractMethodError; the merged fluids have answered MinecraftForge's `getFluidType()` since
   the per-class bridge and `ForeignFluidTypeInjector`, and the merged `FluidState` implements `IForgeFluidState`). Carpet's
   fluid adapter happened to cover it whenever Carpet was installed.
-- `FluidInteractionsInjector` (`-Dforbric.fluidInteractions=off` puts the neuter back): `onPlace` asks NeoForge's
-  registry as `neighborChanged` does (vanilla's two rules first, in vanilla's order, then NeoForge mods'); NeoForge's
-  `canInteract` ends by asking MinecraftForge's (`KernelFluidInteractions`) instead of `return false`, so a
-  MinecraftForge mod's rules run from both entry points, after NeoForge's own match has had its chance; MinecraftForge's
-  `addInteraction` reports its registry in use, and until then it is never asked or loaded.
-- Evidence: `FluidInteractionsInjectorTest` (shapes on the staged jars, and a real JVM over the merged LiquidBlock, both
-  registries and FluidState with the as-merged control; each repair removed makes it fail); the new
-  `fluid-parity-gate.py` (vanilla and the kernel with zero mods identical on every score and saved block, two generators
-  20 blocks each; `--unfixed` RED with 14 scores and 6 blocks off); a NeoForge and a MinecraftForge canary mod each
-  adding one rule fire exactly once from placement, neighbour update and flowing lava, and where both rules match only
-  NeoForge's runs. The Carpet gate's negative control now fails exactly the 11 adapter checks (7/22 → 11/22 passing).
-- Not done: vanilla's reactions post NeoForge's `FluidPlaceBlockEvent`, not MinecraftForge's (an ore-generator mod
-  listening on MinecraftForge's bus still sees nothing, as before). NeoForge 26.2.0.88's own `onPlace` runs only
-  vanilla's rules; here a NeoForge mod's rule also fires on placement, as MinecraftForge's always did. Once a
-  MinecraftForge mod uses its registry, MinecraftForge's copies of vanilla's two rules are asked again after
-  NeoForge's missed; they can only differ for a fluid whose two families' types disagree (a NeoForge mod's own fluid
-  tagged `minecraft:water`, which vanilla's tag-based rule would also treat as water).
+- Each family patched its own callers of vanilla's rules. MinecraftForge's `onPlace` and `neighborChanged` both ask its
+  registry; NeoForge 26.2.0.88's `neighborChanged` asks its registry, but its `onPlace` still runs vanilla's
+  `shouldSpreadLiquid`, so on NeoForge a mod's rule fires when a block next to the liquid changes and never when the
+  liquid is placed. Both registries walk the neighbours in vanilla's order and try every rule at one neighbour before
+  the next, so on MinecraftForge a mod's rule above beats vanilla's water to the east.
+- `FluidInteractionsInjector` (`-Dforbric.fluidInteractions=off` puts the neuter back) makes each merged entry point
+  run what its own family runs there. `onPlace` stays as merged and asks MinecraftForge's registry whole (no longer
+  neutered): vanilla's rules and MinecraftForge mods', in MinecraftForge's order, which is also NeoForge's placement (a
+  fluid that is no MinecraftForge mod's gets its MinecraftForge type from its fluid tags, as vanilla decides).
+  `neighborChanged` asks NeoForge's registry; where its rules run out at one neighbour, it asks
+  `KernelFluidInteractions` for a MinecraftForge mod's rule at that same neighbour before moving on, skipping
+  MinecraftForge's copies of vanilla's rules (NeoForge's identical ones were just asked). MinecraftForge's initializer
+  hands the kernel its map once vanilla's two rules are in, and `addInteraction` reports each later add, so with no
+  MinecraftForge mod's rule a neighbour change asks nothing. One liquid never reacts twice: each walk returns at its
+  first match. Carpet's fluid adapter follows (blackstone falls back to NeoForge's registry only with the repair off;
+  deepslate goes into both registries).
+- The first version of this repair (same day) pointed `onPlace` at NeoForge's registry and asked MinecraftForge's only
+  after NeoForge's walk had finished. A review measured both against native servers: a NeoForge mod's rule fired on
+  placement (native: never), and vanilla's water east beat a MinecraftForge mod's rule above (native: the mod's rule).
+  Both are fixed above; the review's in-use gate and `KernelBoot` neuter findings are covered by tests
+  (`FluidInteractionsInjectorTest`, `KernelBootNeutersTest`).
+- Evidence: `FluidInteractionsInjectorTest` (15: shapes on the staged jars, reshaped registries left alone, and a real JVM
+  over the merged LiquidBlock, both registries and FluidState, each registry's initializer adding its copy of vanilla's
+  rule; eight source mutations each fail a case). `KernelBootNeutersTest` reads the neuter `KernelBoot.neuters` builds:
+  with the repair on, no side names MinecraftForge's registry. `fluid-parity-gate.py` with zero mods: vanilla and the
+  kernel (b8e09a2b) identical on every score and saved block, two generators 20 blocks each; `--unfixed` RED (14 scores,
+  6 blocks). `fluid-parity-gate.py --mods` against native NeoForge 26.2.0.88 and MinecraftForge 26.2-65.0.1 with a canary
+  mod each (`canary/fluid-interactions`): 13/13 cells and canary firings equal the deciding loader's; the pre-review
+  kernel (e0aa078c) RED on exactly placement of a NeoForge rule, the two neighbour-order cases and the both-rules
+  placement; `--unfixed` RED. The Carpet gate still passes (baseline 11/27, exactly the 16 Carpet checks failing; fixed
+  27/27), and the Carpet A/B against native Fabric 0.19.5 is 14/14.
+- Placement reactions now post MinecraftForge's `FluidPlaceBlockEvent` (its default interaction does) and neighbour
+  reactions NeoForge's, each as its own loader does at that entry point. Not measured, read from the code: a NeoForge
+  mod's fluid with its own type in `minecraft:water` should behave as on NeoForge (lava placed next to it reacts, since
+  its MinecraftForge type comes from its tags; a neighbour change does not). A MinecraftForge mod's fluid with its own
+  type in `minecraft:water` should react with lava on a neighbour change here (its NeoForge type comes from its tags) but
+  not on MinecraftForge. A MinecraftForge mod's rule that throws a `LinkageError` is left out of neighbour changes after
+  one report; on placement it propagates, as it would on MinecraftForge.
 
 ## Scarpet's callbacks in Fabric's order, and the census that judged them unrepaired (2026-10-02)
 
