@@ -6,10 +6,40 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import shutil
 import subprocess
 import tempfile
 import zipfile
+
+CHECKS = 27
+# Exactly these fail without the adapter (-Dforbric.carpetMixins=off): each needs a callback it restores.
+CARPET = {'fill.shape.false', 'fill.direct.lamp.false', 'fluid.blackstone.true', 'fluid.deepslate.true',
+          'fluid.blackstone.neighbor', 'fluid.deepslate.neighbor',
+          'swap.scarpetCancel.true', 'swap.scarpetCancel.false', 'swap.scarpetClearsMain', 'swap.nativeVeto',
+          'break.creative.scarpetCancel.true', 'break.creative.scarpetCancel.false',
+          'break.survival.scarpetCancel.true', 'break.survival.scarpetCancel.false',
+          'break.creative.bedCancel', 'break.survival.unstableTntCancel'}
+# Vanilla's own lava/water reactions. They failed in the baseline too until FluidInteractionsInjector: placement asked
+# MinecraftForge's neutered registry, and only Carpet's adapter happened to fall back to NeoForge's. Not Carpet's;
+# they must pass with the adapter off.
+BASE_FLUID = {'fluid.sourceStaysObsidian', 'fluid.aboveZeroStaysCobblestone', 'fluid.basaltPrecedesBlackstone',
+              'fluid.deepslate.false'}
+# The mixins the adapters rewrite. With them on, the preflight census judges what Mixin is handed, so none of these
+# may be left suspected or "applies only partially"; with them off, the first two must be (the check can fail).
+ADAPTED = ('Level_fillUpdatesMixin', 'ServerPlayerGameMode_scarpetEventsMixin',
+           'ServerGamePacketListenerImpl_scarpetEventsMixin', 'LiquidBlock_renewableBlackstoneMixin',
+           'LiquidBlock_renewableDeepslateMixin')
+
+
+def stale(console, compatibility):
+    """The census rows and console lines that call an adapted Carpet mixin incomplete."""
+    rows = sorted(f['id'] for f in compatibility['findings'] if f.get('modId') == 'carpet'
+                  and f.get('confidence') in ('SUSPECTED', 'CONFIRMED')
+                  and any(re.search(rf'\.{m}(#|$)', f['id']) for m in ADAPTED))
+    lines = sorted({m for line in console.splitlines() if 'applies only partially' in line
+                    for m in ADAPTED if f':{m} ' in line})
+    return rows, lines
 
 
 def main():
@@ -72,28 +102,30 @@ def main():
             raise RuntimeError(f'{phase}: server did not complete normal shutdown')
         report = json.loads((run / 'carpet-probe.json').read_text())
         cases = report['cases']
-        if len(cases) != 22 or len({c['name'] for c in cases}) != 22:
-            raise RuntimeError(f'{phase}: expected all 22 distinct behavior checks')
+        if len(cases) != CHECKS or len({c['name'] for c in cases}) != CHECKS:
+            raise RuntimeError(f'{phase}: expected all {CHECKS} distinct behavior checks')
         failed = {c['name'] for c in cases if not c['pass']}
-        results[phase] = {'passed': len(cases) - len(failed), 'failed': sorted(failed)}
+        compatibility = json.loads((run / '.forbric-kernel/compatibility-report.json').read_text())
+        rows, lines = stale(text, compatibility)
+        results[phase] = {'passed': len(cases) - len(failed), 'failed': sorted(failed),
+                          'carpetFailures': sorted(failed & CARPET), 'baseFluidFailures': sorted(failed & BASE_FLUID),
+                          'otherFailures': sorted(failed - CARPET - BASE_FLUID),
+                          'staleCensusRows': rows, 'partialLines': lines}
         if phase == 'baseline':
-            # Exactly the checks that need the adapter fail without it. Vanilla's own lava/water reactions
-            # (fluid.sourceStaysObsidian, fluid.aboveZeroStaysCobblestone, fluid.basaltPrecedesBlackstone,
-            # fluid.deepslate.false) failed here too until FluidInteractionsInjector: placement asked MinecraftForge's
-            # neutered registry, and only Carpet's adapter happened to fall back to NeoForge's. They must pass now.
-            expected = {'fill.shape.false', 'fluid.blackstone.true', 'fluid.deepslate.true',
-                        'fluid.blackstone.neighbor', 'fluid.deepslate.neighbor',
-                        'swap.scarpetCancel.true', 'swap.scarpetCancel.false',
-                        'break.creative.scarpetCancel.true', 'break.creative.scarpetCancel.false',
-                        'break.survival.scarpetCancel.true', 'break.survival.scarpetCancel.false'}
-            if failed != expected:
-                raise RuntimeError(f'Negative control failed: unexpected {sorted(failed - expected)}, '
-                                   f'did not fail {sorted(expected - failed)}')
+            if failed & BASE_FLUID:
+                raise RuntimeError(f'Base game, not Carpet: vanilla lava/water checks failed with the adapter off: '
+                                   f'{sorted(failed & BASE_FLUID)}')
+            if failed != CARPET:
+                raise RuntimeError(f'Negative control failed: unexpected {sorted(failed - CARPET)}, '
+                                   f'did not fail {sorted(CARPET - failed)}')
+            if not {'Level_fillUpdatesMixin', 'ServerPlayerGameMode_scarpetEventsMixin'} <= set(lines) or not rows:
+                raise RuntimeError(f'Negative control failed: the unadapted census reported rows={rows} lines={lines}')
         else:
-            compatibility = json.loads((run / '.forbric-kernel/compatibility-report.json').read_text())
             confirmed = [f for f in compatibility['findings'] if f.get('modId') == 'carpet' and f.get('confidence') == 'CONFIRMED']
             if failed or confirmed or compatibility['policy'] != 'STRICT':
                 raise RuntimeError(f'Fixed run failed: cases={failed}, compatibility={confirmed}')
+            if rows or lines:
+                raise RuntimeError(f'Fixed run still calls repaired mixins incomplete: rows={rows} lines={lines}')
         print(f'{phase}: {len(cases) - len(failed)}/{len(cases)} behavior checks passed', flush=True)
     results['carpet_sha256'] = hashlib.sha256(carpet.read_bytes()).hexdigest()
     results['kernel_sha256'] = hashlib.sha256((kernel / 'build/libs/forbric-kernel-0.1.0-SNAPSHOT.jar').read_bytes()).hexdigest()

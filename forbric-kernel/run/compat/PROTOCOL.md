@@ -56,11 +56,14 @@ jar before treating the selection as final; metadata resolution alone cannot pro
 ## Carpet rule and event verification
 
 `carpet-gate.py --carpet <fabric-carpet-26.2+v260616.jar> --staged-root <forbric-loader/run>`
-compiles the Carpet probe and runs 22 behavior checks in isolated dedicated-server worlds. The baseline
-runs with `forbric.carpetMixins=off` and must fail exactly the 11 checks that need the adapter (fill shape
-updates, renewable blackstone and deepslate on, both Scarpet events); vanilla's own lava/water reactions pass
-there, since placement no longer depends on the adapter (`FluidInteractionsInjector`); the fixed run uses strict
-compatibility policy and must pass every behavior check with no confirmed Carpet losses. Both runs
+compiles the Carpet probe and runs 27 behavior checks in isolated dedicated-server worlds. The baseline
+runs with `forbric.carpetMixins=off` and must fail exactly the 16 checks that need the adapter (fill shape
+updates, a direct `Level.setBlock` under `impendingFillSkipUpdates` for the neighbour-update redirect, renewable
+blackstone and deepslate on, both Scarpet events and their native-Fabric order); vanilla's own lava/water reactions
+pass there, since placement no longer depends on the adapter (`FluidInteractionsInjector`), and the summary lists
+Carpet and base-fluid failures separately. The fixed run uses strict compatibility policy and must pass every
+behavior check with no confirmed Carpet losses, and none of the five adapted mixins may be left suspected or
+"applies only partially" (the baseline must still show them, so the check can fail). Both runs
 must save and shut down normally. Reports, logs, test worlds and input hashes stay under the printed
 output directory; `--output` selects a new directory explicitly. See
 [the Carpet probe instructions](../../canary/carpet/README.md) for prerequisites and coverage.
