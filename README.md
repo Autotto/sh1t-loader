@@ -23,7 +23,11 @@ three it belongs to (for Fabric mods, only when Mod Menu is installed too).
 
 **You may have heard of Kilt or Sinytra Connector.** Those are mods you add to a normal loader, and they
 re-create one side's features inside the other — a translator in the room. Forbric is the loader itself.
-Your mods call the real Fabric API and the real Forge and NeoForge code; that part is not re-created.
+Fabric Loader and the loaders inside Forge and NeoForge never start; Forbric does their job — finding the
+mods, starting them, running them in order — and tries to do it the way each mod's own loader would. Your
+mods call the real Fabric API and the real Forge and NeoForge code; that part is not re-created. So this is
+not three loaders running side by side: it is one new loader that puts all three kinds of mods, and the
+real code they rely on, into one game.
 
 But Forge and NeoForge both change Minecraft, often in the same spots, and one game can hold only one
 version of each spot, so Forbric mostly keeps NeoForge's. Its own glue then keeps the other mods working:
@@ -173,8 +177,9 @@ want to keep. To get the disk space back as well, also delete `.minecraft/.forbr
 
 **More mods work.** We picked three batches of about 100 random mods from Modrinth (popular ones and
 random ones, all three kinds) and started the game with each mod on its own. **80.5% loaded without errors
-on 0.2.0, 89.0% on 0.3.0** (no mod failing to load in the log). On 0.3.0, 79.1% also had no part reported
-as not working.
+on 0.2.0, 89.0% on 0.3.0** (no mod failing to load in the log). On 0.3.0, 91.8% got into a world, and
+79.1% also had no part reported as not working. This test checks that a mod loads and a world opens. It
+does not try each mod's features, and it does not test mods together.
 
 New:
 
@@ -224,6 +229,11 @@ And what we do **not** promise:
 
 **We cannot promise any particular mod works.** In our own test about one mod in ten still fails on its
 own, and mods that each work alone can still clash when put together.
+
+**Part of a mod can stop working without a crash.** When a piece of a mod cannot attach to the game,
+Forbric keeps the rest of the mod running instead of stopping, and usually tells you — in the window
+before you play and in the Forbric mods list. If a piece attaches but then behaves wrongly, neither
+Forbric nor our tests can tell.
 
 **A known crash:** the NeoForge build of Sodium crashes at startup unless Fabric API is also installed,
 and so do mods that need it, such as the NeoForge builds of Iris and Sodium Extra. This is a Forbric bug,
