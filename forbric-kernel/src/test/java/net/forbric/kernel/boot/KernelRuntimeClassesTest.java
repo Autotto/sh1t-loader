@@ -351,6 +351,63 @@ class KernelRuntimeClassesTest {
 		}
 	}
 
+	/**
+	 * Issue #13, one layer down: the class is there and defines, but one of its public methods names a game type the
+	 * launch does not have. {@code initialize=false} resolves nothing, so the load succeeds and {@code getMethod} --
+	 * which resolves EVERY public signature, not only the one asked for -- throws {@code NoClassDefFoundError}. That
+	 * escaped verify, and the boot, to stderr.
+	 */
+	@Test
+	void verifyReportsAGameTypeItsMethodsNameThatThisLaunchDoesNotHaveInsteadOfThrowing(@TempDir Path dir)
+			throws Exception {
+		String victim = KernelRuntimeClasses.compiled().stream()
+				.filter(name -> !KernelRuntimeClasses.callsOn(name).isEmpty()).findFirst().orElseThrow();
+		Path jar = dir.resolve("forbric-kernel-runtime.jar");
+		try (OutputStream out = Files.newOutputStream(jar); ZipOutputStream zip = new ZipOutputStream(out)) {
+			for (String binary : KernelRuntimeClasses.compiled()) {
+				String internal = binary.replace('.', '/');
+				zip.putNextEntry(new ZipEntry(internal + ".class"));
+				zip.write(binary.equals(victim)
+						? standInNaming(internal, KernelRuntimeClasses.callsOn(binary), "forbrictest/AbsentGameType")
+						: standIn(internal, KernelRuntimeClasses.callsOn(binary), null));
+				zip.closeEntry();
+			}
+		}
+
+		String said;
+		boolean verified;
+		try (ForbricClassLoader loader =
+				new ForbricClassLoader(new URL[] {jar.toUri().toURL()}, getClass().getClassLoader())) {
+			boolean[] result = new boolean[1];
+			said = KernelLoadReportTest.capture(() -> result[0] = KernelRuntimeClasses.verify(loader));
+			verified = result[0];
+		}
+
+		assertFalse(verified, "a class whose methods cannot be resolved is not linked");
+		assertTrue(said.contains("[Forbric/Runtime] the kernel's own game-side class " + victim + " is there, but a "
+				+ "game type its methods name cannot be loaded"), said);
+		assertTrue(said.contains("forbrictest/AbsentGameType"), "the missing type is the lead, so it is named: " + said);
+	}
+
+	/** {@link #standIn}, plus one more public method whose only parameter is {@code absentType}. */
+	private static byte[] standInNaming(String internalName, List<KernelRuntimeClasses.Call> calls, String absentType) {
+		ClassWriter cw = new ClassWriter(ClassWriter.COMPUTE_MAXS);
+		new org.objectweb.asm.ClassReader(standIn(internalName, calls, null)).accept(
+				new org.objectweb.asm.ClassVisitor(Opcodes.ASM9, cw) {
+					@Override
+					public void visitEnd() {
+						MethodVisitor mv = super.visitMethod(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC, "needsTheGame",
+								"(L" + absentType + ";)V", null, null);
+						mv.visitCode();
+						mv.visitInsn(Opcodes.RETURN);
+						mv.visitMaxs(0, 0);
+						mv.visitEnd();
+						super.visitEnd();
+					}
+				}, 0);
+		return cw.toByteArray();
+	}
+
 	@Test
 	void theRegistryIsNotEmpty() {
 		assertEquals(KernelRuntimeClasses.all().size(),

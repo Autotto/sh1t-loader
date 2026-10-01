@@ -528,7 +528,10 @@ public final class KernelRuntimeClasses {
 	 * <p>A real load, not a resource probe, because the two failures worth separating are only distinguishable
 	 * that way: a class that is in no owned jar means the boot jar was built without staged artifacts, and a class
 	 * that IS there but does not define means the pipeline carrying it broke. Those have different fixes, so they
-	 * get different messages.
+	 * get different messages. A third, outside the kernel: a class that defines but whose method signatures name a
+	 * game type this launch does not have. That is the game jars' fault, not the build's, and it is reported, not
+	 * thrown -- {@link LaunchInputCheck} should have stopped such a launch already, and this must not be the place it
+	 * dies if it did not.
 	 *
 	 * <p>Runs after the transform chain and Mixin are installed, so these classes take exactly the path every game
 	 * class takes. Nothing targets them, but a self-check that skipped the pipeline would not be checking the
@@ -561,7 +564,22 @@ public final class KernelRuntimeClasses {
 				continue;
 			}
 
-			List<String> broken = unresolvable(c, callsOn(name));
+			List<String> broken;
+			try {
+				broken = unresolvable(c, callsOn(name));
+			} catch (LinkageError unlinkable) {
+				// Loading with initialize=false resolves nothing, so a class whose method signatures name a game type
+				// that is not there loads fine and fails HERE: getMethod resolves the parameter and return types of
+				// every public method the class declares, not only the one asked for. Issue #13's runtime jars held
+				// no NeoForge, and this NoClassDefFoundError was the whole boot's last word -- on stderr, outside
+				// latest.log -- because only NoSuchMethodException was caught.
+				ForbricLog.error("[Forbric/Runtime] the kernel's own game-side class %s is there, but a game type its "
+						+ "methods name cannot be loaded: %s. The kernel was built against a game that has it, so the "
+						+ "game jars this launch was given (--gameJar / --runtimeJar) are incomplete or from another "
+						+ "build. Players: run the Forbric installer again with \"Built artifacts\" left empty; "
+						+ "developers: python3 tools/dev.py prepare", name, String.valueOf(unlinkable));
+				continue;
+			}
 			if (!broken.isEmpty()) {
 				ForbricLog.error("[Forbric/Runtime] %s is there but the boot side calls methods it does not have: "
 						+ "%s. Boot-side call sites name these as strings, so this is not a compile error on "

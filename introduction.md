@@ -154,7 +154,9 @@ if (code != 0) System.exit(code);
 ```
 
 `CompatibilityLaunchBoundary` is the only place a compatibility refusal becomes a process exit (code `78`,
-§12.4). `KernelBoot.launch` consumes `--gameJar`, `--runtimeJar` (repeatable, and one value may carry several jars
+§12.4), and the only place a refused install does (code `2`, §3.2 step 0). Any other throwable leaving the boot is
+logged there — message and trace, into `latest.log` — before it is rethrown, because a launcher shows that file and
+not stderr. `KernelBoot.launch` consumes `--gameJar`, `--runtimeJar` (repeatable, and one value may carry several jars
 joined by the path separator — launchers such as PCL2 keep only the last occurrence of a repeated flag) and
 `--libraryPath`; everything else, and everything after `--`, is forwarded to the game's `Main.main`. The dedicated
 server rejects `--gameDir`, so `KernelBoot` strips it on that side. The game version is read from the base jar's
@@ -162,6 +164,13 @@ server rejects `--gameDir`, so `KernelBoot` strips it on that side. The game ver
 
 ### 3.2 `KernelBoot.launch`, in order
 
+0. **Launch inputs** — `LaunchInputCheck.require(gameJars, runtimeJars)`, by content and before anything is read
+   out of them: the base's `Block` must implement an extension interface from both Forge families (the merged base),
+   every `--runtimeJar` must carry one family completely (loader SPI, `ModContainer`, `FMLLoader`, its own
+   `mods.toml`), and both families must be carried by something the launch owns. A failure logs each problem and the
+   fix (rerun the installer with *Built artifacts* empty) and stops with exit code `2`; `-Dforbric.launchInputCheck=off`
+   only warns. Issue #13: empty "runtime" jars used to pass every later step with an empty answer and die in
+   `KernelRuntimeClasses.verify` on stderr, leaving five INFO lines in `latest.log`.
 1. **Cross-jar arbitration pre-scan** — `DuplicateModArbiter.arbitrate(mods/, envType)` inventories every root and
    nested candidate and fixes one selection before either ecosystem's discovery runs (§4.3).
 2. **Carrier versions** — `EcosystemVersions.record(runtimeJars)`, so a mod whose `versionRange` the carriers
