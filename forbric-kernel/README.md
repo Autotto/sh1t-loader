@@ -1,5 +1,7 @@
 # Forbric Kernel
 
+English | [简体中文](README.zh-CN.md)
+
 A **sovereign** unified Minecraft mod loader that runs **Fabric + traditional MinecraftForge + NeoForge**
 mods on one Minecraft 26.2 instance — a ground-up rewrite of the `forbric-loader` "weld".
 

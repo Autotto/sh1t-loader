@@ -1,5 +1,7 @@
 # Forbric
 
+English | [简体中文](README.zh-CN.md)
+
 **One Minecraft instance that runs Fabric mods, Forge mods and NeoForge mods at the same time.**
 
 Version 0.3.0 · Minecraft 26.2
@@ -16,8 +18,8 @@ Fabric, Forge and NeoForge mixed together, no sorting — and Forbric opens each
 it is, and loads it. All of them are running in the same world at the same time.
 
 It also gives you one list of everything you have installed. The pause menu and the title screen get a
-Forbric mods button, and from that list you can open any mod's own settings screen, whichever of the
-three it belongs to.
+Forbric mods button, and from that list you can open a mod's own settings screen, whichever of the
+three it belongs to (for Fabric mods, only when Mod Menu is installed too).
 
 **You may have heard of Kilt or Sinytra Connector.** Those are mods you add to a normal loader, and they
 re-create one side's features inside the other — a translator in the room. Forbric is the loader itself.
@@ -36,13 +38,19 @@ Forbric is for the cases it cannot reach.
 
 ### Before you start
 
-- A Minecraft launcher.
+- **A launcher that starts versions from your `.minecraft/versions` folder.** Forbric has been tested
+  with **PCL2** on Windows. HMCL reads the same files and should work, but has not been tested yet. The
+  official Minecraft Launcher has not been tested either (see step 6). Prism Launcher and MultiMC keep
+  their own instances and will not see Forbric.
 - **Java.** If you can already play Minecraft, you have it. The installer finds the copy your launcher
   downloaded, even if you never installed Java yourself.
 - **An internet connection**, and about 730 MB of free disk while it works (about 190 MB is kept
   afterwards).
 
 You do **not** need to install Minecraft 26.2 first. If you do not have it, the installer downloads it.
+You also do **not** need Fabric, Forge or NeoForge, and you do not need to find any other files: the
+installer downloads and builds everything Forbric needs. Your mods still need their own prerequisites as
+usual, for example Fabric API for most Fabric mods.
 
 ### Install
 
@@ -56,28 +64,41 @@ You do **not** need to install Minecraft 26.2 first. If you do not have it, the 
    | macOS | `forbric-kernel-installer-0.3.0.jar` **and** `Forbric-Installer.command` |
    | Linux | `forbric-kernel-installer-0.3.0.jar` (run it with `java -jar`) |
 
-3. **Double-click the `.bat` or `.command` — not the jar.** On Windows, double-clicking the jar sometimes
-   just flashes a black window and does nothing, because maybe Windows tends to remember a broken setting for `.jar` files. The script starts Java itself and does not depend on that setting. If you Double-click the `.jar` file and it ran successfully with GUI, you don't need to use `.command` and `.bat` files. But it the problem on my PC :(
+3. **Double-click the `.bat` (Windows) or the `.command` (macOS).** It looks for Java, including the copy
+   a launcher keeps in the usual Minecraft folder, and starts the installer with it. On some Windows PCs,
+   double-clicking the jar itself only flashes a black window, because Windows was once told to open
+   `.jar` files in a way that does not work; the script avoids that. If double-clicking the jar does open
+   the installer window, that is fine too: it is the same installer.
 
    On macOS the first time, you may need to right-click the file and choose **Open**, then confirm. That
    is macOS being careful about downloads, not an error.
 
-4. **A window opens.** The only field that matters is **Game directory** — This is the directory where you will install the game, the default is:
+4. **A window opens.** The only field that matters is **Game directory** — the `.minecraft` folder your
+   launcher uses. It starts out filled in with the usual place for your system:
 
    - Windows — `C:\Users\<your name>\AppData\Roaming\.minecraft`
    - macOS — `~/Library/Application Support/minecraft`
    - Linux — `~/.minecraft`
 
-   Leave everything else alone.
+   If your launcher keeps `.minecraft` somewhere else (PCL2 and HMCL can keep it in the same folder as the
+   launcher program), press **Browse…** next to Game directory and choose that folder.
 
-5. **Press install and wait.** The first install takes several minutes. It is downloading Minecraft's,
+   Leave everything else alone. In particular, leave **Built artifacts** empty — it is only for developers
+   who built Forbric's game files from source.
+
+5. **Press Install and wait.** The first install takes several minutes. It is downloading Minecraft's,
    Forge's and NeoForge's own files and putting them together on your computer, because those files
    cannot legally be handed out ready-made. Stay connected while it runs. Installing again later reuses
    what is already on disk and is quick.
 
-6. **Open your Minecraft launcher.** A new version called **`26.2-forbric`** its in the list. It might be identified as fabric, start it like any other version.
+6. **Open your launcher.** A new version called **`26.2-forbric`** is in the list. Start it like any
+   other version. PCL2 shows it as a Fabric version; that is expected (see the next section).
 
-> Want to check your computer first? Run this — it looks only, and writes nothing:
+   The installer does not add it to the official Minecraft Launcher's list of installations. There you
+   would probably have to create a new installation and pick `26.2-forbric` yourself.
+
+> Want to check your computer before you press Install? Run this in the folder with the jar. It only
+> looks, and writes nothing:
 >
 > ```bash
 > java -jar forbric-kernel-installer-0.3.0.jar --doctor
@@ -85,11 +106,32 @@ You do **not** need to install Minecraft 26.2 first. If you do not have it, the 
 
 ### Where to put mods
 
-The directory you selected during installation, The `/mods` folder in this directory.
+**Fabric, Forge and NeoForge mods all go in the same `mods` folder.** Which folder that is depends on
+your launcher, not on Forbric:
 
-**Fabric, Forge and NeoForge mods all go in the same folder.**
+- If your launcher keeps each version separate (often called version isolation; PCL2 and HMCL can do
+  this): `.minecraft/versions/26.2-forbric/mods/`
+- Otherwise the shared `.minecraft/mods/` in the Game directory you chose. Every version that does not keep
+  its own folder uses this one, so Forbric will also try to load any mods already in it.
 
-One thing to watch: If mods for two different loaders depend on the same prerequisite mod, it is best to download the versions of that prerequisite mod for both loaders.
+The installer names both when it finishes. Not sure which one your launcher uses? Start the game once:
+a folder called `.forbric-kernel` appears next to the right `mods` folder.
+
+Your launcher may call `26.2-forbric` a Fabric version. That is on purpose: a launcher shows only one mod
+loader per version, so Forbric's version tells it Fabric. PCL2 reads this, treats `26.2-forbric` as a
+modded version and suggests Fabric builds first in its mod browser. Other launchers may show it as plain
+Minecraft. Either way, Forbric loads Fabric, Forge and NeoForge mods from the `mods` folder.
+
+One thing to watch: many mods come as a Fabric build, a Forge build and a NeoForge build. Put **one**
+build of each mod in the folder. If you add more than one, Forbric still runs only one of them. The first
+time this happens it writes its choice to `forbric-mods.txt` next to your `mods` folder, where you can pick
+the other build.
+
+The same goes for a prerequisite (library) mod that several of your mods need: one build is usually
+enough, because a Forge or NeoForge mod can normally use the Fabric build of its prerequisite and the
+other way round. Adding the prerequisite for both loaders does not give each mod its own copy: Forbric
+still runs only one. If one mod plugs straight into another (Iris into Sodium, for example), use the same
+loader's build of both. For Sodium, also see *A known crash* below.
 
 ### Did it work?
 
@@ -97,19 +139,24 @@ Open the pause menu. There is a button with **three overlapping squares**, and t
 *Mods (Forbric)*. It opens one list of every mod you installed, each row labelled with the kind it is.
 Select a mod and press **Config**, or double-click the row, to open that mod's own settings.
 
+Fabric mods hand their settings screens to Mod Menu, so a Fabric mod gets a **Config** button in this list
+only when Mod Menu is installed too. With Mod Menu there are **two** mods buttons, on the title screen and in
+the pause menu. Use the one with three squares: it opens settings for all three kinds, while Mod Menu's own
+button opens settings only for Fabric mods.
+
 ### If something goes wrong
 
 | What you see | What to do |
 | --- | --- |
 | **A window says a mod is missing something it needs** | It names the mod and what to install. Install it, or press **Launch anyway**. |
 | **A window says required mod features are unavailable** | Some part of a mod could not start. You can continue playing, or quit and remove that mod. |
-| **The game crashes** | Look in `crash-reports/`. Next to the crash report there is a `crash-analysis.txt` that names the mods most likely to blame. Remove those and try again. |
-| **A mod is installed but does nothing** | Open the Forbric mods list — a mod that did not finish loading is marked there. The same list is in `.forbric-kernel/load-report.txt` in your game folder. Often the mod was built for a different Minecraft version, or you have two builds of it. |
+| **The game crashes** | Open the `.forbric-kernel` folder next to your `mods` folder. The `crash-analysis.txt` there names the mods most likely to blame; the full crash report is in `crash-reports/`. Remove those mods and try again. Using the NeoForge build of Sodium? See *A known crash* below. |
+| **A mod is installed but does nothing** | Open the Forbric mods list — a mod that did not finish loading is marked there. The same list is in `load-report.txt`, in the `.forbric-kernel` folder next to your `mods` folder. Often the mod was built for a different Minecraft version, or you have two builds of it. |
 | **A dedicated server will not start** and the log says the compatibility policy stopped it | A server has no screen to ask you on, so it stops instead. Remove the mod it names, or add `-Dforbric.compatibilityPolicy=continue` to the server's start command to run anyway. |
-| **Continuity loads, but glass still has borders between blocks** | In **Options → Resource Packs**, enable **Default Connected Textures** (included with Continuity). Its built-in packs are optional and are not enabled just by installing the mod. Use the Fabric build with Fabric API, or a native NeoForge build matching your Minecraft version. |
-| **The install seems stuck** | Usually a proxy or VPN sitting between you and Mojang's servers. Run `--doctor`, then try with it off. |
+| **Continuity loads, but glass still has borders between blocks** | In **Options → Resource Packs**, enable **Default Connected Textures** (included with Continuity). Its built-in packs are optional and are not enabled just by installing the mod. On 0.3.0 the Fabric build of Continuity can still leave the borders after that. That is a Forbric bug. It is fixed in the 0.3.1 beta, a pre-release on the Releases page, but not yet in a regular release. A NeoForge build of Continuity made for your Minecraft version is the other choice. |
+| **The install seems stuck** | Usually a proxy or VPN sitting between you and Mojang's servers. Run the `--doctor` check from the end of *Install*, then try again with the proxy or VPN off. |
 
-Of course, you can report issues to me [here](https://github.com/Ray-T-r/Minecraft-Forbric-mod-loader/issues/new?template=bug_report.yml).
+Something else? You can report it [here](https://github.com/Ray-T-r/Minecraft-Forbric-mod-loader/issues/new?template=bug_report.yml).
 
 ### Updating and uninstalling
 
@@ -117,8 +164,10 @@ Of course, you can report issues to me [here](https://github.com/Ray-T-r/Minecra
 The first install after updating from 0.2.0 builds Forbric's game files again, so it takes several minutes
 once more.
 
-**To uninstall**, delete `.minecraft/versions/26.2-forbric/`. To get the disk space back as well, also
-delete `.minecraft/.forbric-build/` and `.minecraft/libraries/net/forbric/`.
+**To uninstall**, delete `.minecraft/versions/26.2-forbric/`. If your launcher keeps each version
+separate, that folder also holds this version's mods, worlds and settings, so first copy out anything you
+want to keep. To get the disk space back as well, also delete `.minecraft/.forbric-build/` and
+`.minecraft/libraries/net/forbric/`.
 
 ## What's new in 0.3.0
 
@@ -175,6 +224,11 @@ And what we do **not** promise:
 
 **We cannot promise any particular mod works.** In our own test about one mod in ten still fails on its
 own, and mods that each work alone can still clash when put together.
+
+**A known crash:** the NeoForge build of Sodium crashes at startup unless Fabric API is also installed,
+and so do mods that need it, such as the NeoForge builds of Iris and Sodium Extra. This is a Forbric bug,
+not a mistake in how you installed them. Until it is fixed, put Fabric API in your `mods` folder as well, or
+use the Fabric builds of Sodium and of the mods that plug into it.
 
 **This is a research project at version 0.3.0.** There is no support, no roadmap, and things will change.
 

@@ -1,5 +1,7 @@
 # Forbric — architecture and internals
 
+English | [简体中文](introduction.zh-CN.md)
+
 For mod and loader developers. This document is precise rather than gentle: it states what Forbric does, in the
 order it does it, naming the real types and files. It describes the **`main` branch**, not a release; for what a
 release contains and how a player installs it, read the [README](README.md).
