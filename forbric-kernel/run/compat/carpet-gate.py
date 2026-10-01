@@ -77,11 +77,18 @@ def main():
         failed = {c['name'] for c in cases if not c['pass']}
         results[phase] = {'passed': len(cases) - len(failed), 'failed': sorted(failed)}
         if phase == 'baseline':
+            # Exactly the checks that need the adapter fail without it. Vanilla's own lava/water reactions
+            # (fluid.sourceStaysObsidian, fluid.aboveZeroStaysCobblestone, fluid.basaltPrecedesBlackstone,
+            # fluid.deepslate.false) failed here too until FluidInteractionsInjector: placement asked MinecraftForge's
+            # neutered registry, and only Carpet's adapter happened to fall back to NeoForge's. They must pass now.
             expected = {'fill.shape.false', 'fluid.blackstone.true', 'fluid.deepslate.true',
                         'fluid.blackstone.neighbor', 'fluid.deepslate.neighbor',
-                        'swap.scarpetCancel.true', 'break.creative.scarpetCancel.true', 'break.survival.scarpetCancel.true'}
-            if not expected <= failed or 'swap.nativeVeto' in failed or 'break.nativeVeto' in failed:
-                raise RuntimeError(f'Negative control failed: {failed}')
+                        'swap.scarpetCancel.true', 'swap.scarpetCancel.false',
+                        'break.creative.scarpetCancel.true', 'break.creative.scarpetCancel.false',
+                        'break.survival.scarpetCancel.true', 'break.survival.scarpetCancel.false'}
+            if failed != expected:
+                raise RuntimeError(f'Negative control failed: unexpected {sorted(failed - expected)}, '
+                                   f'did not fail {sorted(expected - failed)}')
         else:
             compatibility = json.loads((run / '.forbric-kernel/compatibility-report.json').read_text())
             confirmed = [f for f in compatibility['findings'] if f.get('modId') == 'carpet' and f.get('confidence') == 'CONFIRMED']

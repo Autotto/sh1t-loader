@@ -10,7 +10,7 @@ python3 forbric-kernel/run/compat/carpet-gate.py \
   --staged-root /path/to/forbric-loader/run
 ```
 
-The gate compiles this probe, runs the same 22 behavior checks with `forbric.carpetMixins=off`, then runs them with the repair enabled under **strict** compatibility policy. It requires the negative control to fail the repaired behaviors, the fixed run to pass every check, both servers to save and stop normally, and the fixed compatibility report to contain no confirmed Carpet losses. Logs, test worlds, reports and input hashes are kept under the printed output directory. `--output` can select a new directory explicitly.
+The gate compiles this probe, runs the same 22 behavior checks with `forbric.carpetMixins=off`, then runs them with the repair enabled under **strict** compatibility policy. It requires the negative control to fail exactly the repaired behaviors (and so to pass vanilla's own lava/water reactions, which no longer depend on the adapter), the fixed run to pass every check, both servers to save and stop normally, and the fixed compatibility report to contain no confirmed Carpet losses. Logs, test worlds, reports and input hashes are kept under the printed output directory. `--output` can select a new directory explicitly.
 
 Coverage:
 
