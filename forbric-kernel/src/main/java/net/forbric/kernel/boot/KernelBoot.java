@@ -1447,6 +1447,15 @@ public final class KernelBoot {
 	private static void collectForgeFamily(ForbricModDiscoverer discoverer, Path jar, List<Path> jars,
 			List<KernelForgeFamilyMixins.ForgeMixinConfig> configs) throws IOException {
 		boolean forgeFamily = false;
+		java.util.Map<Ecosystem, net.forbric.kernel.metadata.forge.ForgeModsToml> tomls = new java.util.HashMap<>();
+		try (java.util.jar.JarFile zip = new java.util.jar.JarFile(jar.toFile())) {
+			for (Ecosystem family : List.of(Ecosystem.NEOFORGE, Ecosystem.FORGE)) {
+				var entry = zip.getJarEntry(family == Ecosystem.NEOFORGE ? "META-INF/neoforge.mods.toml" : "META-INF/mods.toml");
+				if (entry != null) try (var in = zip.getInputStream(entry)) {
+					tomls.put(family, net.forbric.kernel.metadata.forge.ModsTomlParser.parse(in));
+				}
+			}
+		}
 		java.util.Set<String> seen = new java.util.LinkedHashSet<>();
 		for (DiscoveredMod mod : discoverer.discoverJar(jar)) {
 			if (!mod.getEcosystem().isForgeFamily()) continue;
@@ -1459,7 +1468,8 @@ public final class KernelBoot {
 				// unambiguously and report the file name instead of a name that might be the wrong one.
 				if (seen.add(mod.getEcosystem() + "\0" + mod.getId() + "\0" + config)) {
 					configs.add(new KernelForgeFamilyMixins.ForgeMixinConfig(config, mod.getId(), jar,
-							mod.getEcosystem()));
+							mod.getEcosystem(), tomls.containsKey(mod.getEcosystem())
+									? tomls.get(mod.getEcosystem()).getMixinRequiredMods(config) : List.of()));
 				}
 			}
 		}

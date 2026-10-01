@@ -80,6 +80,19 @@ public final class ForgeModsToml {
 		return mixinConfigs;
 	}
 
+	/** A conditional mixin config is enabled only when all its declared required mods are present. */
+	public List<String> getMixinRequiredMods(String configName) {
+		Object rows = configElements.get("mixins");
+		if (!(rows instanceof List<?> list)) return List.of();
+		for (Object row : list) {
+			if (!(row instanceof com.electronwill.nightconfig.core.UnmodifiableConfig config)) continue;
+			if (!configName.equals(config.get("config"))) continue;
+			Object required = config.get("requiredMods");
+			if (required instanceof List<?> mods) return mods.stream().map(String::valueOf).toList();
+		}
+		return List.of();
+	}
+
 	/** Top-level {@code [[accessTransformers]] file="..."} entries (NeoForge declares its ATs here). */
 	public List<String> getAccessTransformers() {
 		return accessTransformers;
