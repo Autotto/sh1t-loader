@@ -68,7 +68,7 @@ You do **not** need to install Minecraft 26.2 first. If you do not have it, the 
    cannot legally be handed out ready-made. Stay connected while it runs. Installing again later reuses
    what is already on disk and is quick.
 
-6. **Open your Minecraft luncher.** A new version called **`26.2-forbric`** its in the list. It might be identified as fabric, start it like any other version.
+6. **Open your Minecraft launcher.** A new version called **`26.2-forbric`** its in the list. It might be identified as fabric, start it like any other version.
 
 > Want to check your computer first? Run this — it looks only, and writes nothing:
 >
