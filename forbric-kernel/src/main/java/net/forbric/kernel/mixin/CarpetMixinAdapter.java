@@ -4,6 +4,8 @@ package net.forbric.kernel.mixin;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
+import org.objectweb.asm.ClassReader;
+import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.tree.*;
 import net.forbric.kernel.util.ForbricLog;
@@ -49,15 +51,41 @@ public final class CarpetMixinAdapter {
 	public static boolean enabled() { return !"off".equalsIgnoreCase(System.getProperty(PROPERTY, "on")); }
 
 	public static int adapt(ClassNode mixin, Function<String, ClassNode> targets) {
+		int changed = repair(mixin, targets);
+		if (changed > 0) ForbricLog.info("[Forbric/Carpet] restored %d callback(s) in %s", changed, mixin.name);
+		return changed;
+	}
+
+	static int repair(ClassNode mixin, Function<String, ClassNode> targets) {
 		if (!enabled() || !mixin.name.startsWith(PREFIX)) return 0;
-		int changed = switch (mixin.name.substring(PREFIX.length())) {
+		return switch (mixin.name.substring(PREFIX.length())) {
 			case "Level_fillUpdatesMixin" -> fill(mixin, targets.apply(LEVEL));
 			case "ServerGamePacketListenerImpl_scarpetEventsMixin" -> swap(mixin, targets.apply("net/minecraft/server/network/ServerGamePacketListenerImpl"));
 			case "ServerPlayerGameMode_scarpetEventsMixin" -> blockBreak(mixin, targets.apply(GAME_MODE));
 			default -> 0;
 		};
-		if (changed > 0) ForbricLog.info("[Forbric/Carpet] restored %d callback(s) in %s", changed, mixin.name);
-		return changed;
+	}
+
+	/**
+	 * What the preflight census judges: {@code bytes} as Mixin will receive it once this adapter and
+	 * {@link CarpetFluidMixinAdapter} have run, or {@code bytes} itself when neither changes it. Both run when Mixin loads
+	 * the class, after the census read the original, so every anchor they repair read as missing there: two "applies only
+	 * partially" lines, and a SUSPECTED row the final class could not clear (its handler takes @Local sugar). Writes
+	 * nothing to the log; the adapters say what they did when Mixin loads the class.
+	 */
+	public static byte[] asLoaded(byte[] bytes, Function<String, byte[]> resource) {
+		if (!enabled()) return bytes;
+		try {
+			ClassReader reader = new ClassReader(bytes);
+			if (!reader.getClassName().startsWith(PREFIX)) return bytes;
+			ClassNode mixin = new ClassNode(); reader.accept(mixin, 0);
+			Function<String, ClassNode> targets = name -> { byte[] b = resource.apply(name + ".class"); if (b == null) return null;
+				ClassNode t = new ClassNode(); new ClassReader(b).accept(t, 0); return t; };
+			if (repair(mixin, targets) + CarpetFluidMixinAdapter.repair(mixin, targets) == 0) return bytes;
+			ClassWriter out = new ClassWriter(0); mixin.accept(out); return out.toByteArray();
+		} catch (RuntimeException unreadable) {
+			return bytes;
+		}
 	}
 
 	private static int fill(ClassNode mixin, ClassNode target) {

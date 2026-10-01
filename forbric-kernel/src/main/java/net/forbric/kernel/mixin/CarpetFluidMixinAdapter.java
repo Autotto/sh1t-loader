@@ -26,6 +26,15 @@ public final class CarpetFluidMixinAdapter {
 	private CarpetFluidMixinAdapter() { }
 
 	public static int adapt(ClassNode mixin, Function<String, ClassNode> targets) {
+		int changed = repair(mixin, targets);
+		if (changed > 0) ForbricLog.info(mixin.name.endsWith("DeepslateMixin")
+				? "[Forbric/Carpet] renewable deepslate now runs at the chosen native lava/water interaction"
+				: "[Forbric/Carpet] renewable blackstone now runs after unhandled native fluid interactions");
+		return changed;
+	}
+
+	/** The rewrite alone; {@link CarpetMixinAdapter#asLoaded} also runs it for the preflight census. */
+	static int repair(ClassNode mixin, Function<String, ClassNode> targets) {
 		if (!CarpetMixinAdapter.enabled() || mixin.methods.stream().anyMatch(m -> m.name.endsWith("$forbricOriginal"))) return 0;
 		return switch (mixin.name) {
 			case "carpet/mixins/LiquidBlock_renewableBlackstoneMixin" -> blackstone(mixin, targets);
@@ -85,7 +94,6 @@ public final class CarpetFluidMixinAdapter {
 			code.add(handled);code.add(new FrameNode(Opcodes.F_SAME,0,null,0,null));code.add(new InsnNode(Opcodes.ICONST_1));code.add(new InsnNode(Opcodes.IRETURN));
 			wrap.maxStack=6;wrap.maxLocals=5;mixin.methods.add(wrap);
 		}
-		ForbricLog.info("[Forbric/Carpet] renewable blackstone now runs after unhandled native fluid interactions");
 		return 2;
 	}
 
@@ -151,7 +159,6 @@ public final class CarpetFluidMixinAdapter {
 		code.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL,CALLBACK,"setReturnValue","(Ljava/lang/Object;)V",false));
 		code.add(done);code.add(new FrameNode(Opcodes.F_SAME,0,null,0,null));code.add(new InsnNode(Opcodes.RETURN));outer.maxStack=6;outer.maxLocals=5;
 		mixin.methods.add(outer);
-		ForbricLog.info("[Forbric/Carpet] renewable deepslate now runs at the chosen native lava/water interaction");
 		return 1;
 	}
 

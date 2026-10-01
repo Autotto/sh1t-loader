@@ -7,6 +7,10 @@ import java.util.*;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.zip.ZipFile;
+import net.forbric.api.CompatibilityFinding;
+import net.forbric.api.CompatibilityFindings;
+import net.forbric.api.Ecosystem;
+import net.forbric.api.ModCatalog;
 import net.forbric.kernel.TestFixtures;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.parallel.ResourceLock;
@@ -16,6 +20,7 @@ import org.objectweb.asm.tree.analysis.*;
 
 /** Reads the exact released Carpet handlers and real carrier bytecode; none of the injector bodies is a mock. */
 @ResourceLock("system-properties")
+@ResourceLock("ModCatalog")
 class CarpetMixinAdapterTest {
 	static final List<String> NAMES=List.of("Level_fillUpdatesMixin","ServerGamePacketListenerImpl_scarpetEventsMixin",
 			"ServerPlayerGameMode_scarpetEventsMixin","LiquidBlock_renewableBlackstoneMixin","LiquidBlock_renewableDeepslateMixin");
@@ -32,6 +37,13 @@ class CarpetMixinAdapterTest {
 	}
 	static ClassNode target(String name) {
 		try{return from(jarOf(name),name);}
+		catch(Exception e){throw new AssertionError(e);}
+	}
+	/** MixinFit's resolver over the staged jars ("net/…/Foo.class"); null for a class none of them carries. */
+	static byte[] staged(String path) {
+		if(!path.endsWith(".class"))return null;
+		String name=path.substring(0,path.length()-".class".length());
+		try(ZipFile zip=new ZipFile(jarOf(name).toFile())){var e=zip.getEntry(path);return e==null?null:zip.getInputStream(e).readAllBytes();}
 		catch(Exception e){throw new AssertionError(e);}
 	}
 	static ClassNode from(Path jar,String name)throws Exception {
@@ -156,6 +168,40 @@ class CarpetMixinAdapterTest {
 		}
 	}
 
+	/** The preflight census reads a mixin before Mixin loads it; it must judge what the adapters will hand Mixin. */
+	@Test void censusJudgesTheMixinsAsTheAdaptersHandThemToMixin()throws Exception {
+		for(String name:List.of(NAMES.get(0),NAMES.get(2))){
+			byte[] raw=bytes(mixin(name));
+			assertEquals(MixinFit.Verdict.PARTIAL,MixinFit.evaluate(raw,CarpetMixinAdapterTest::staged).verdict(),"premise, as compiled: "+name);
+			MixinFit.Result loaded=MixinFit.evaluate(CarpetMixinAdapter.asLoaded(raw,CarpetMixinAdapterTest::staged),CarpetMixinAdapterTest::staged);
+			assertEquals(MixinFit.Verdict.FIT,loaded.verdict(),name+": "+loaded.reason());
+		}
+		for(String name:NAMES){byte[] raw=bytes(mixin(name));assertNotSame(raw,CarpetMixinAdapter.asLoaded(raw,CarpetMixinAdapterTest::staged),name);}
+		withAdapters("off",()->{for(String name:NAMES)try{byte[] raw=bytes(mixin(name));assertSame(raw,CarpetMixinAdapter.asLoaded(raw,CarpetMixinAdapterTest::staged));}catch(Exception e){throw new AssertionError(e);}});
+	}
+	/** End to end through the census over carpet.mixins.json: no stale suspicion with the adapters, the old ones without. */
+	@Test void censusReportsNoRepairedAnchorAsMissing()throws Exception {
+		assumeTrue(Files.isRegularFile(CARPET),"real fixture required: "+CARPET);
+		byte[] config;try(ZipFile zip=new ZipFile(CARPET.toFile())){config=zip.getInputStream(zip.getEntry("carpet.mixins.json")).readAllBytes();}
+		Function<String,byte[]> resource=path->{if(!path.startsWith("carpet/"))return path.startsWith("net/")?staged(path):null;
+			try(ZipFile zip=new ZipFile(CARPET.toFile())){var e=zip.getEntry(path);return e==null?null:zip.getInputStream(e).readAllBytes();}catch(Exception e){throw new AssertionError(e);}};
+		List<ModCatalog.Entry> previous=ModCatalog.everything();
+		Map<String,Map<String,CompatibilityFinding.Confidence>> seen=new HashMap<>();
+		try{
+			MixinConfigOwners.publish(List.of(new MixinConfigOwners.Owned("carpet.mixins.json","carpet",Ecosystem.FABRIC)));
+			ModCatalog.publish(List.of(new ModCatalog.Entry(Ecosystem.FABRIC,"carpet","Carpet","26.2+v260616","",List.of(),CARPET.toString(),"","")));
+			for(String state:List.of("on","off"))withAdapters(state,()->{
+				CompatibilityFindings.reset();MixinCompatibility.reset();
+				KernelGuestMixinAdapter.unfitMixins("carpet.mixins.json",config,resource);
+				Map<String,CompatibilityFinding.Confidence> rows=new HashMap<>();
+				for(String name:NAMES)CompatibilityFindings.all().stream().filter(f->f.id().equals(MixinCompatibility.id("carpet.mixins.json","carpet.mixins."+name)))
+						.forEach(f->rows.put(name,f.confidence()));
+				seen.put(state,rows);});
+		}finally{CompatibilityFindings.reset();MixinCompatibility.reset();MixinConfigOwners.reset();ModCatalog.publish(previous);}
+		assertEquals(Map.of(),seen.get("on"),"with the adapters no repaired Carpet mixin is suspected");
+		assertEquals(CompatibilityFinding.Confidence.SUSPECTED,seen.get("off").get(NAMES.get(2)),"negative control: "+seen.get("off"));
+		assertEquals(CompatibilityFinding.Confidence.SUSPECTED,seen.get("off").get(NAMES.get(0)),"negative control: "+seen.get("off"));
+	}
 	@Test void vanillaAndDisabledRepairLeaveAllReleasedHandlersUntouched()throws Exception {
 		Path vanilla=TestFixtures.vanillaJar();
 		for(String name:NAMES){ClassNode c=mixin(name);byte[] before=bytes(c);java.util.function.Function<String,ClassNode> resolver=n->{try{return n.startsWith("net/minecraft/")?from(vanilla,n):null;}catch(Exception e){throw new AssertionError(e);}};

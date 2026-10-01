@@ -212,8 +212,20 @@ public final class KernelGuestMixinAdapter {
 				// What the mixins Mixin applies first add to the same targets: a @Shadow of one of those members binds,
 				// on Fabric and here (moreculling's shadow of the mesh field fabric-renderer-api adds).
 				MixinAddedMembers.View added = MixinAddedMembers.before(configName, mixin, resource);
-				MixinFit.Result fit = MixinFit.evaluate(classBytes, resource,
+				// Judged as Mixin will receive it: Carpet's anchor adapters run when Mixin loads the class, after this
+				// read, so an anchor they move onto the merged game is not missing (CarpetMixinAdapter.asLoaded).
+				byte[] judged = CarpetMixinAdapter.asLoaded(classBytes, resource);
+				MixinFit.Result fit = MixinFit.evaluate(judged, resource,
 						net.forbric.kernel.classloading.DelegationPolicy::alwaysGame, added);
+				if (judged != classBytes) {
+					MixinFit.Result raw = MixinFit.evaluate(classBytes, resource,
+							net.forbric.kernel.classloading.DelegationPolicy::alwaysGame, added);
+					if (raw.verdict() != fit.verdict() || raw.unresolved().size() != fit.unresolved().size()) {
+						ForbricLog.info("[Forbric/Mixin] guest mixin %s:%s is judged as its anchor adapter hands it to Mixin — "
+								+ "verdict %s→%s (%s)", MixinConfigOwners.describe(configName), mixin, raw.verdict(),
+								fit.verdict(), fit.reason());
+					}
+				}
 				if (!fit.shouldSuppress()) {
 					if (!fit.foreign().isEmpty()) {
 						// A DIFFERENT thing from the line below, and the reason the two are separated. An anchor
@@ -249,9 +261,9 @@ public final class KernelGuestMixinAdapter {
 						// explicit descriptor to a merge-added delegating stub whose body moved. If rebinding it to
 						// the delegate makes the mixin fit, remember the plan; Mixin receives the rewritten
 						// annotation from the bytecode provider.
-						MixinRetarget.Plan plan = MixinRetarget.plan(MixinFit.parse(classBytes), resource);
+						MixinRetarget.Plan plan = MixinRetarget.plan(MixinFit.parse(judged), resource);
 						MixinFit.Result after = plan.isEmpty() ? null : MixinFit.evaluate(
-								MixinRetarget.rewritten(classBytes, plan), resource,
+								MixinRetarget.rewritten(judged, plan), resource,
 								net.forbric.kernel.classloading.DelegationPolicy::alwaysGame, added);
 						if (after != null && after.unresolved().size() < fit.unresolved().size()) {
 							MixinRetarget.remember(plan);
