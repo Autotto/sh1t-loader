@@ -349,8 +349,10 @@ class LaunchInputCheckTest {
 	}
 
 	/**
-	 * The definition above, held to the jars it describes. Both MinecraftForge carrier spellings, because both are
-	 * launched: run/launch-kernel-*.sh and tools/dev.py prefer the interop one, the installer stages the plain one.
+	 * The definition above, held to the jars it describes. Both MinecraftForge carrier spellings, because both can be
+	 * launched: the installer and tools/dev.py use the interop one (the installer stages forge-runtime-interop.jar
+	 * under the forge-runtime coordinate, as forge-runtime-26.2.jar), and run/launch-kernel-*.sh fall back to the plain
+	 * forge-runtime.jar when the interop one has not been built.
 	 */
 	@Test
 	void theStagedMergedBaseAndBothStagedCarrierSpellingsPass() {
