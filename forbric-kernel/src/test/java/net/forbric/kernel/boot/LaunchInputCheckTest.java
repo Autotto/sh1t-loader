@@ -24,10 +24,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
@@ -36,8 +38,14 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.api.parallel.ResourceLock;
+import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.Opcodes;
+import org.objectweb.asm.tree.AbstractInsnNode;
+import org.objectweb.asm.tree.ClassNode;
+import org.objectweb.asm.tree.MethodInsnNode;
+import org.objectweb.asm.tree.MethodNode;
+import org.objectweb.asm.tree.TryCatchBlockNode;
 
 import net.forbric.api.Ecosystem;
 
@@ -265,6 +273,72 @@ class LaunchInputCheckTest {
 				() -> LaunchInputCheck.require(List.of(merged(dir)), List.of(forge))));
 
 		assertTrue(said.contains(forge.toString()), said);
+	}
+
+	// --- where the launch asks ------------------------------------------------------------------------------
+
+	/** The steps of {@link KernelBoot#launch} that read the jars or the mods folder, each an empty answer for #13. */
+	private static final String[][] READERS = {
+			{"net/forbric/kernel/boot/KernelBoot", "detectGameVersion"},
+			{"net/forbric/kernel/boot/DuplicateModArbiter", "arbitrate"},
+			{"net/forbric/kernel/metadata/forge/EcosystemVersions", "record"},
+			{"net/forbric/kernel/boot/KernelBoot", "discoverForgeFamilyModJars"},
+			{"net/forbric/kernel/boot/PassiveSeeder", "arbitratedForgeFamilyMods"},
+			{"net/forbric/kernel/boot/KernelFabricEcosystem", "scan"},
+	};
+
+	/**
+	 * Everything above is worth something only if the launch asks, and the asking is one line in
+	 * {@link KernelBoot#launch}. With that line gone every other test here still passes and issue #13 is back exactly:
+	 * each reader in {@link #READERS} gives an empty answer for an empty carrier, and the boot dies later on stderr
+	 * with five lines in latest.log. So the compiled launch is held to it: one call, ahead of the first call to every
+	 * reader, and no handler around it that could catch the stop it throws.
+	 */
+	@Test
+	void theLaunchChecksItsJarsBeforeAnythingReadsThem() throws IOException {
+		MethodNode launch = launchMethod();
+		List<Integer> checks = callSites(launch, "net/forbric/kernel/boot/LaunchInputCheck", "require");
+		assertEquals(1, checks.size(), "KernelBoot.launch must call LaunchInputCheck.require exactly once: " + checks);
+		int check = checks.get(0);
+
+		for (String[] reader : READERS) {
+			String name = reader[0].substring(reader[0].lastIndexOf('/') + 1) + "." + reader[1];
+			List<Integer> sites = callSites(launch, reader[0], reader[1]);
+			// Required, so a renamed reader fails here rather than silently dropping out of the comparison.
+			assertFalse(sites.isEmpty(), "KernelBoot.launch no longer calls " + name + "; bring READERS up to date");
+			assertTrue(check < sites.get(0), "KernelBoot.launch calls " + name + " before LaunchInputCheck.require; "
+					+ "a jar with nothing in it is read before anyone has said so");
+		}
+		for (TryCatchBlockNode block : launch.tryCatchBlocks) {
+			int start = launch.instructions.indexOf(block.start);
+			int end = launch.instructions.indexOf(block.end);
+			assertFalse(start <= check && check < end, "LaunchInputCheck.require sits inside a handler for "
+					+ (block.type == null ? "any throwable" : block.type) + ", which can catch the stop it throws");
+		}
+	}
+
+	/** Read from the class file the tests run against, so the check is of the launch that actually ships. */
+	private static MethodNode launchMethod() throws IOException {
+		String resource = "net/forbric/kernel/boot/KernelBoot.class";
+		ClassNode node = new ClassNode();
+		try (InputStream in = LaunchInputCheckTest.class.getClassLoader().getResourceAsStream(resource)) {
+			assertTrue(in != null, "compiled class missing from the test classpath: " + resource);
+			new ClassReader(in).accept(node, 0);
+		}
+		List<MethodNode> launches = node.methods.stream().filter(m -> m.name.equals("launch")).toList();
+		assertEquals(1, launches.size(), "expected one KernelBoot.launch");
+		return launches.get(0);
+	}
+
+	/** Instruction indexes of every call to {@code owner.name} in {@code method}, in order. */
+	private static List<Integer> callSites(MethodNode method, String owner, String name) {
+		List<Integer> sites = new ArrayList<>();
+		for (AbstractInsnNode insn : method.instructions) {
+			if (insn instanceof MethodInsnNode call && call.owner.equals(owner) && call.name.equals(name)) {
+				sites.add(method.instructions.indexOf(insn));
+			}
+		}
+		return sites;
 	}
 
 	// --- the real artifacts ---------------------------------------------------------------------------------
