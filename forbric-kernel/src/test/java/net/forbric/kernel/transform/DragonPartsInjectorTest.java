@@ -72,7 +72,7 @@ class DragonPartsInjectorTest {
 	}
 
 	@Test void theClientsTrackingCallbacksAreLeftToThePartTrackingRepairs() throws Exception {
-		// KernelBoot runs this repair before ClientPartTrackingInjector and ForgePartTrackingInjector. When it retyped these
+		// KernelBoot runs this repair with ClientPartTrackingInjector and ForgePartTrackingInjector. When it retyped these
 		// callbacks to NeoForge's parts, the first lost its anchor: a MinecraftForge mod's parts threw on sight, and
 		// NeoForge's stayed in partEntities, where the second's Level.getEntities casts them to MinecraftForge's PartEntity.
 		byte[] merged = NativeCoremodParityTest.read(MERGED, ClientPartTrackingInjector.CALLBACKS_INTERNAL);
@@ -80,6 +80,28 @@ class DragonPartsInjectorTest {
 		assertSame(merged, out, "the client's tracking callbacks are left as merged");
 		assertNotSame(out, new ClientPartTrackingInjector().transform(ClientPartTrackingInjector.CALLBACKS, out, null),
 				"the client part tracking still finds its anchor after this repair");
+	}
+
+	@Test void theThreePartRepairsComeOutTheSameInAnyOrder() throws Exception {
+		// TransformerRegistrationOrderTest pins that KernelBoot registers each of them, not in which order. That is safe
+		// only while every class any of them edits comes out byte for byte the same whichever runs first.
+		List<List<Integer>> orders = List.of(List.of(0, 1, 2), List.of(0, 2, 1), List.of(1, 0, 2), List.of(1, 2, 0),
+				List.of(2, 0, 1), List.of(2, 1, 0));
+		for (String name : List.of(PART, DRAGON, HITBOXES, ClientPartTrackingInjector.CALLBACKS_INTERNAL,
+				ForgePartTrackingInjector.SERVER_CALLBACKS_INTERNAL, ForgePartTrackingInjector.LEVEL_INTERNAL)) {
+			byte[] merged = NativeCoremodParityTest.read(MERGED, name);
+			byte[] first = null;
+			for (List<Integer> order : orders) {
+				byte[] bytes = merged;
+				for (int which : order) bytes = repair(which).transform(name.replace('/', '.'), bytes, null);
+				if (first == null) {
+					assertNotSame(merged, bytes, name + " is edited by one of them");
+					first = bytes;
+				} else {
+					assertArrayEquals(first, bytes, name + " comes out differently in the order " + order);
+				}
+			}
+		}
 	}
 
 	@Test void theSwitchLeavesAllThreeAlone() throws Exception {
@@ -98,5 +120,19 @@ class DragonPartsInjectorTest {
 
 	private static MethodNode method(ClassNode node, String name, String desc) {
 		return node.methods.stream().filter(m -> m.name.equals(name) && m.desc.equals(desc)).findFirst().orElseThrow(() -> new AssertionError(name + desc));
+	}
+
+	private static ClassTransformer repair(int which) {
+		return switch (which) {
+			case 0 -> new DragonPartsInjector();
+			case 1 -> new ClientPartTrackingInjector();
+			default -> new ForgePartTrackingInjector(name -> {
+				try {
+					return NativeCoremodParityTest.read(MERGED, name);
+				} catch (Exception unreadable) {
+					return null;
+				}
+			});
+		};
 	}
 }

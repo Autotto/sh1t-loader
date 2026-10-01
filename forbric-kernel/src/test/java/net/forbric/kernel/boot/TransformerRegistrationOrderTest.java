@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import org.junit.jupiter.api.Test;
@@ -28,6 +29,9 @@ import net.forbric.kernel.transform.ClassTransformer;
  * nothing used {@code predepends} — so the two constraints the comments state were held in place only by where
  * the lines happen to sit. Moving one breaks it silently: the transformer still runs, still reports applied, and
  * edits a class the other one has already rewritten (or has not yet).
+ *
+ * <p>The multipart-entity repairs are pinned here too, though not their order: for them what matters is that each
+ * one is registered at all.
  *
  * <p>Read from the compiled bytecode rather than the source. {@code KernelBoot.java} contains NUL bytes that make
  * {@code grep} treat it as binary and silently skip lines — this project has lost an afternoon to that twice —
@@ -87,5 +91,22 @@ class TransformerRegistrationOrderTest {
 		assertTrue(composition < compat,
 				"capability composition must be registered before the compat transformer, so the latter's "
 						+ "lifecycle stubs stand down on their own. Full order: " + order);
+	}
+
+	@Test
+	void eachMultipartRepairIsConstructedExactlyOnce() throws Exception {
+		List<String> order = transformerConstructionOrder();
+		assumeTrue(!order.isEmpty(), "no transformers found — launch() did not compile the way this expects");
+		// These registrations are the whole fix: without the client part tracking a NeoForge mod's multipart entity
+		// disconnects the client on sight, and without the Forge part tracking a MinecraftForge one throws in the
+		// server's tracking callbacks and the server cannot stop. Each repair's own test constructs it directly, so a
+		// merge of these lines that dropped one left every test green; one that kept both sides' copies is caught too.
+		// The order is free: all six give the same classes on the merged base.
+		for (String repair : List.of("net/forbric/kernel/transform/DragonPartsInjector",
+				"net/forbric/kernel/transform/ClientPartTrackingInjector",
+				"net/forbric/kernel/transform/ForgePartTrackingInjector")) {
+			assertEquals(1, Collections.frequency(order, repair),
+					repair + " must be constructed exactly once in launch(). Full order: " + order);
+		}
 	}
 }
