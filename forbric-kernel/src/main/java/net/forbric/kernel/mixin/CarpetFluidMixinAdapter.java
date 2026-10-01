@@ -47,7 +47,13 @@ public final class CarpetFluidMixinAdapter {
 			List<MethodInsnNode> found = new ArrayList<>();
 			for(var i:host.instructions)if(i instanceof MethodInsnNode c && REGISTRIES.contains(c.owner)
 					&& c.name.equals("canInteract") && c.desc.equals(INTERACT) && c.getOpcode()==Opcodes.INVOKESTATIC)found.add(c);
-			if(found.size()!=1)return 0; hosts.add(host);calls.add(found.getFirst());
+			if(found.size()!=1)return 0;
+			// The registry's answer decides the fluid tick: true (handled) jumps past scheduleTick. The wrap answers true
+			// for a cell Carpet converted, so it must keep meaning "handled" here.
+			String tick="L"+LEVEL+";scheduleTick("+POS+"Lnet/minecraft/world/level/material/Fluid;I)V";
+			if(count(host,tick)!=1||!(next(found.getFirst()) instanceof JumpInsnNode skip)||skip.getOpcode()!=Opcodes.IFNE
+					||index(host,skip)>index(host,first(host,tick))||index(host,first(host,tick))>index(host,skip.label))return 0;
+			hosts.add(host);calls.add(found.getFirst());
 		}
 		original.visibleAnnotations.remove(inject); original.name += "$forbricOriginal";
 		for(int i=0;i<hosts.size();i++) {
