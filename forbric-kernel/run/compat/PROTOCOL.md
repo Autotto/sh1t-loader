@@ -410,7 +410,9 @@ Run `python3 -m unittest discover -s run/compat/mac -p test_archive.py` to verif
 After all subjects finish, run `mac/mixed.py` with the same `PERMOD_MC`, `PERMOD_DATA`, `PERMOD_OUT`,
 `FORBRIC_VERSION` and `FORBRIC_JAVA`. It checks kernel/input fingerprints, combines every strictly passing
 subject and its dependencies, tests 6,000 world ticks, then reloads the saved world. Its full pack manifest,
-reports and screenshots go to `mixed/`. A partial or failed first load leaves reload explicitly NOT_RUN.
+reports and screenshots go to `mixed/`. `PERMOD_MIXED_OUT` and `PERMOD_MIXED_INSTANCE` select fresh
+evidence/instance names for a later candidate. Save verification requires both level data and a region file
+to have been written during that run. A partial or failed first load leaves reload explicitly NOT_RUN.
 The runner clears only directories bearing its `.forbric-sweep-instance` marker. Use a new evidence folder
 for a new candidate; unfinished or differently fingerprinted individual results cannot feed a mixed test.
 

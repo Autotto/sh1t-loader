@@ -11,11 +11,11 @@ import time
 
 DATA = Path(os.environ['PERMOD_DATA']).resolve()
 TOOLS = Path(__file__).resolve().parent
-os.environ['PERMOD_INSTANCE'] = str(DATA / 'mixed-inst')
+os.environ['PERMOD_INSTANCE'] = str(DATA / os.environ.get('PERMOD_MIXED_INSTANCE', 'mixed-inst'))
 spec = importlib.util.spec_from_file_location('permod', TOOLS / 'per-mod.py')
 permod = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(permod)
-OUT = DATA / 'mixed'
+OUT = DATA / os.environ.get('PERMOD_MIXED_OUT', 'mixed')
 
 
 def run(label, ticks):
@@ -43,7 +43,7 @@ def run(label, ticks):
     bad = [row for row in report.get('mods', []) if row.get('status') != 'OK']
     missing = [name for name in subjects if permod.mod_status(name, report)[0] != 'OK']
     world = permod.INST / 'saves' / 'compat-world'
-    saved = (world / 'level.dat').is_file() and bool(list((world / 'region').glob('*.mca')))
+    saved = (world / 'level.dat').is_file() and (world / 'level.dat').stat().st_mtime >= start and any(p.stat().st_mtime >= start for p in (world / 'region').glob('*.mca'))
     strict = process.returncode == 0 and verdict == 'PASS' and bool(report.get('mods')) and not bad and not missing and saved and not report.get('catalogFailures') and report.get('confirmedRequired', 0) == 0
     result = dict(run=verdict, strict=strict, bad_mods=bad, missing_subjects=missing, saved=saved, world_ticks=ticks, seconds=int(time.time() - start))
     (evidence / 'result.json').write_text(json.dumps(result, indent=2) + '\n')
