@@ -65,11 +65,12 @@ output directory; `--output` selects a new directory explicitly. See
 
 ## Fabric menu codec verification
 
-`menu-codec-gate.py --farmers-delight <FarmersDelight-26.2-3.6.26+refabricated.jar> --staged-root <forbric-loader/run>`
+`menu-codec-gate.py --farmers-delight <FarmersDelight-26.2-3.6.26+refabricated.jar>`
 compiles the menu probe and opens Farmer's Delight's cooking pot through a real `ServerboundUseItemOnPacket` in
 isolated dedicated-server worlds with Fabric API 0.155.2+26.2. The baseline runs with
 `forbric.wrapperEntryEvents=off` and must reproduce "Codec for farmersdelight:cooking_pot is not registered!";
-the fixed run must record the codec, open the menu and send fabric-menu-api's `open_screen` payload. Both runs
+the fixed run uses strict compatibility policy and must record the codec, open the menu and send fabric-menu-api's
+`open_screen` payload, with no confirmed Farmer's Delight or fabric-menu-api losses. Both runs
 must save and shut down normally. See [the menu probe instructions](../../canary/menu-codec/README.md).
 
 ## Run and collect

@@ -16,15 +16,23 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--farmers-delight', type=Path, required=True,
                         help="Unmodified FarmersDelight-26.2-3.6.26+refabricated.jar (the Fabric build)")
-    parser.add_argument('--fabric-api', type=Path, help='fabric-api-0.155.2+26.2.jar (default: the compatibility pack\'s)')
-    parser.add_argument('--staged-root', type=Path, help='The shared forbric-loader/run directory')
+    parser.add_argument('--fabric-api', type=Path,
+                        help='fabric-api-0.155.2+26.2.jar (default: tools/dev.py prepare\'s, else the compatibility pack\'s)')
+    parser.add_argument('--staged-root', type=Path, help='The staged run/ directory (default: FORBRIC_OLD, .dev/staged, forbric-loader)')
     parser.add_argument('--output', type=Path, help='A new directory for logs, worlds and reports')
     args = parser.parse_args()
     kernel = Path(__file__).resolve().parents[2]
-    stage = (args.staged_root or Path(os.environ.get('FORBRIC_OLD', kernel.parent / 'forbric-loader')) / 'run').resolve()
-    mc = Path(os.environ.get('MC_DIR', Path.home() / 'Library/Application Support/minecraft'))
+    # The same defaults as the kernel build: FORBRIC_OLD, then tools/dev.py prepare's tree, then the substrate's.
+    dev = kernel / '.dev'
+    staged = os.environ.get('FORBRIC_OLD') or (dev / 'staged' if (dev / 'staged/run/merged-base').is_dir() else kernel.parent / 'forbric-loader')
+    stage = (args.staged_root or Path(staged) / 'run').resolve()
+    mc = Path(os.environ.get('MC_DIR') or (dev / 'minecraft' if (dev / 'minecraft').is_dir()
+                                         else Path.home() / 'Library/Application Support/minecraft')).resolve()
     delight = args.farmers_delight.resolve()
-    api = (args.fabric_api or kernel / 'run/client-merged-pack/mods/fabric-api-0.155.2+26.2.jar').resolve()
+    api = args.fabric_api or next((path for path in (dev / 'api/fabric-api-0.155.2+26.2.jar',
+                                                     kernel / 'run/client-merged-pack/mods/fabric-api-0.155.2+26.2.jar')
+                                   if path.is_file()), kernel / 'run/client-merged-pack/mods/fabric-api-0.155.2+26.2.jar')
+    api = api.resolve()
     with zipfile.ZipFile(delight) as jar:
         metadata = json.loads(jar.read('fabric.mod.json'))
         if metadata.get('id') != 'farmersdelight' or metadata.get('version') != '26.2-3.6.26+refabricated':
@@ -75,7 +83,8 @@ def main():
             'server-ip=127.0.0.1\nserver-port=0\nlevel-name=world\nlevel-type=minecraft:flat\n'
             'generate-structures=false\nonline-mode=false\nmax-tick-time=-1\npause-when-empty-seconds=0\n'
             'view-distance=2\nsimulation-distance=2\nspawn-protection=0\n')
-        env = dict(os.environ, FORBRIC_OLD=str(stage.parent), RUNDIR=str(run), FORBRIC_COMPAT_POLICY='continue',
+        env = dict(os.environ, FORBRIC_OLD=str(stage.parent), MC_DIR=str(mc), RUNDIR=str(run),
+                   FORBRIC_COMPAT_POLICY='strict' if phase == 'fixed' else 'continue',
                    FORBRIC_JVM='-Xmx2G' + (' -Dforbric.wrapperEntryEvents=off' if phase == 'baseline' else ''))
         with (run / 'console.log').open('w') as log:
             subprocess.run([str(kernel / 'run/launch-kernel-server.sh')], env=env,
@@ -92,8 +101,12 @@ def main():
             # The issue's own failure: the type is registered, fabric-menu-api never heard of it, and opening throws.
             if failed != ['menu.codec', 'pot.opens'] or 'Codec for farmersdelight:cooking_pot is not registered!' not in cases['pot.opens']['detail']:
                 raise RuntimeError(f'Negative control failed: {cases}')
-        elif failed:
-            raise RuntimeError(f'Fixed run failed: {[cases[name] for name in failed]}')
+        else:
+            compatibility = json.loads((run / '.forbric-kernel/compatibility-report.json').read_text())
+            confirmed = [f for f in compatibility['findings']
+                         if f.get('modId') in ('farmersdelight', 'fabric-menu-api-v1') and f.get('confidence') == 'CONFIRMED']
+            if failed or confirmed or compatibility['policy'] != 'STRICT':
+                raise RuntimeError(f'Fixed run failed: cases={[cases[name] for name in failed]}, compatibility={confirmed}')
         print(f'{phase}: {len(cases) - len(failed)}/{len(cases)} menu checks passed', flush=True)
     for name, path in (('farmers_delight', delight), ('fabric_api', api),
                        ('kernel', kernel / 'build/libs/forbric-kernel-0.1.0-SNAPSHOT.jar')):
