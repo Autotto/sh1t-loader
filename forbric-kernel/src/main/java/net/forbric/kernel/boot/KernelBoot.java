@@ -615,6 +615,7 @@ public final class KernelBoot {
 		// EntityFluidInteraction turns tags into types, instead of the IllegalArgumentException fabric-api hit every tick.
 		chain.register(TransformPhase.COREMOD, new net.forbric.kernel.transform.FabricFluidBehaviorInjector());
 		chain.register(TransformPhase.COREMOD, new net.forbric.kernel.transform.UntrackedFluidEyeQueryInjector());
+		chain.register(TransformPhase.COREMOD, new net.forbric.kernel.transform.AxeStripCallbacksInjector());
 		// MinecraftForge's ParticleEngine.registerParticleGroup against NeoForge's engine: its statics, merged in on build.
 		chain.register(TransformPhase.COREMOD, new net.forbric.kernel.transform.ParticleGroupsInjector());
 		// MinecraftForge's Hurt, Damage and player-Attack events have no NeoForge event at their positions to bridge
