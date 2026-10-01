@@ -65,6 +65,16 @@ must save and shut down normally. Reports, logs, test worlds and input hashes st
 output directory; `--output` selects a new directory explicitly. See
 [the Carpet probe instructions](../../canary/carpet/README.md) for prerequisites and coverage.
 
+## Vanilla fluid parity
+
+`fluid-parity-gate.py [--output DIR] [--unfixed]` runs one datapack, unchanged, on a vanilla 26.2 dedicated server
+(`launch-vanilla-server.sh`, the player's own jar) and on the kernel with zero mods (`launch-kernel-server.sh`): lava set
+beside water (source and flowing), water set beside lava, lava set on soul soil beside blue ice, lava flowing into a
+cell under water, water flowing to lava, lava flowing down into water, and a cobblestone and a basalt generator emptied
+every tick for 600 ticks. The scores the console prints and the blocks in the saved region files must be identical on
+both sides, and vanilla itself must show every reaction (so a scenario that measured nothing cannot pass). `--unfixed`
+runs the kernel with `-Dforbric.fluidInteractions=off` and must go RED. Needs Java 25 on `PATH`, like gate M31.
+
 ## Fabric menu codec verification
 
 `menu-codec-gate.py --farmers-delight <FarmersDelight-26.2-3.6.26+refabricated.jar>`

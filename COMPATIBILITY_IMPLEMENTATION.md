@@ -1186,3 +1186,30 @@ them turned up a loss every player had.
   all 53 gates GREEN in one run (M51–M53 new); at b17d0eb 52/53, M9 red only on two log checks that named which
   adapter moves fabric-transfer's `setItem` injectors (now the rebind, before the retarget; same destination) — fixed
   in the gate and re-run GREEN. Kernel tests 2182, none skipped.
+
+## Lava placement and the two fluid-interaction registries (2026-10-02)
+
+- With no mods, lava set beside water stayed lava (and water then flowed over it), flowing lava that reached water
+  never became cobblestone, and lava over soul soil beside blue ice never became basalt; only water arriving next to
+  lava reacted. The merged `LiquidBlock.onPlace` is MinecraftForge's and asks MinecraftForge's
+  `FluidInteractionRegistry.canInteract`, which KernelBoot had neutered to `return false` since the baseline (its
+  lookup once ended in an AbstractMethodError; the merged fluids have answered MinecraftForge's `getFluidType()` since
+  the per-class bridge and `ForeignFluidTypeInjector`, and the merged `FluidState` implements `IForgeFluidState`). Carpet's
+  fluid adapter happened to cover it whenever Carpet was installed.
+- `FluidInteractionsInjector` (`-Dforbric.fluidInteractions=off` puts the neuter back): `onPlace` asks NeoForge's
+  registry as `neighborChanged` does (vanilla's two rules first, in vanilla's order, then NeoForge mods'); NeoForge's
+  `canInteract` ends by asking MinecraftForge's (`KernelFluidInteractions`) instead of `return false`, so a
+  MinecraftForge mod's rules run from both entry points, after NeoForge's own match has had its chance; MinecraftForge's
+  `addInteraction` reports its registry in use, and until then it is never asked or loaded.
+- Evidence: `FluidInteractionsInjectorTest` (shapes on the staged jars, and a real JVM over the merged LiquidBlock, both
+  registries and FluidState with the as-merged control; each repair removed makes it fail); the new
+  `fluid-parity-gate.py` (vanilla and the kernel with zero mods identical on every score and saved block, two generators
+  20 blocks each; `--unfixed` RED with 14 scores and 6 blocks off); a NeoForge and a MinecraftForge canary mod each
+  adding one rule fire exactly once from placement, neighbour update and flowing lava, and where both rules match only
+  NeoForge's runs. The Carpet gate's negative control now fails exactly the 11 adapter checks (7/22 → 11/22 passing).
+- Not done: vanilla's reactions post NeoForge's `FluidPlaceBlockEvent`, not MinecraftForge's (an ore-generator mod
+  listening on MinecraftForge's bus still sees nothing, as before). NeoForge 26.2.0.88's own `onPlace` runs only
+  vanilla's rules; here a NeoForge mod's rule also fires on placement, as MinecraftForge's always did. Once a
+  MinecraftForge mod uses its registry, MinecraftForge's copies of vanilla's two rules are asked again after
+  NeoForge's missed; they can only differ for a fluid whose two families' types disagree (a NeoForge mod's own fluid
+  tagged `minecraft:water`, which vanilla's tag-based rule would also treat as water).
