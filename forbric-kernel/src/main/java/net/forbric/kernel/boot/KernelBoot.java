@@ -824,16 +824,7 @@ public final class KernelBoot {
 		// merged fluids answered MinecraftForge's getFluidType() (the per-class bridge, ForeignFluidTypeInjector), and the
 		// "vanilla fluid behaviour proceeds" it promised did not: the merged LiquidBlock.onPlace asks exactly this method,
 		// so placing lava next to water never reacted. FluidInteractionsInjector replaces it; off, it is put back.
-		MethodBodyNeuter neuter = new MethodBodyNeuter();
-		if (!fluidInteractions) {
-			neuter.add(new MethodBodyNeuter.Target("net.minecraftforge.fluids.FluidInteractionRegistry",
-					"canInteract", "(Lnet/minecraft/world/level/Level;Lnet/minecraft/core/BlockPos;)Z",
-					"MinecraftForge fluid-interaction hook calls its own getFluidType() (net.minecraftforge FluidType) "
-					+ "but the merged Fluid implements only NeoForge's IFluidExtension (getFluidType returns the "
-					+ "neoforged FluidType) → AbstractMethodError on WaterFluid.getFluidType during worldgen fluid "
-					+ "ticking. Return false so vanilla fluid behavior proceeds (Forge/Neo FluidType ABI split)"));
-		}
-		addSideNeuters(side, neuter);
+		MethodBodyNeuter neuter = neuters(side, fluidInteractions);
 		chain.register(TransformPhase.COREMOD, neuter);
 
 		// A NeoForge mod adds constants to vanilla enums by declaring them in META-INF/enumextensions.json; FML
@@ -1016,6 +1007,26 @@ public final class KernelBoot {
 
 		Method main = mainClass.getMethod("main", String[].class);
 		main.invoke(null, (Object) gameArgs.toArray(new String[0]));
+	}
+
+	/**
+	 * Every method the kernel empties on {@code side}: built here, outside {@link #launch}, so a test can read the list
+	 * KernelBoot really registers. MinecraftForge's {@code FluidInteractionRegistry.canInteract} is on it only with
+	 * {@code -Dforbric.fluidInteractions=off} ({@code fluidInteractions} false): with the repair on, a MinecraftForge
+	 * mod's fluid rules run through exactly that method, and a neuter there silences them with every test still green.
+	 */
+	static MethodBodyNeuter neuters(Side side, boolean fluidInteractions) {
+		MethodBodyNeuter neuter = new MethodBodyNeuter();
+		if (!fluidInteractions) {
+			neuter.add(new MethodBodyNeuter.Target("net.minecraftforge.fluids.FluidInteractionRegistry",
+					"canInteract", "(Lnet/minecraft/world/level/Level;Lnet/minecraft/core/BlockPos;)Z",
+					"MinecraftForge fluid-interaction hook calls its own getFluidType() (net.minecraftforge FluidType) "
+					+ "but the merged Fluid implements only NeoForge's IFluidExtension (getFluidType returns the "
+					+ "neoforged FluidType) → AbstractMethodError on WaterFluid.getFluidType during worldgen fluid "
+					+ "ticking. Return false so vanilla fluid behavior proceeds (Forge/Neo FluidType ABI split)"));
+		}
+		addSideNeuters(side, neuter);
+		return neuter;
 	}
 
 	/**
