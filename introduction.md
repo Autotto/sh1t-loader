@@ -46,10 +46,12 @@ and so are Fabric's (`KernelMappingResolver`'s javadoc records a constant-pool s
 no intermediary symbols). The kernel runs identity mapping: `TransformContext(…, "named")`, and
 `KernelMappingResolver` answers every lookup with its input.
 
-Nor are mod APIs. Forbric does not re-implement Fabric API, MinecraftForge or NeoForge: a mod calls the genuine
-Fabric API mod it installed, and the genuine MinecraftForge/NeoForge classes from the carriers. What the kernel
-owns is the part a loader owns — class loading, discovery, the lifecycle, the registration window — plus the
-repairs the merge makes necessary.
+Nor are mod APIs. Forbric does not re-implement the Fabric API, MinecraftForge or NeoForge APIs: a mod calls the
+genuine Fabric API mod it installed, and the genuine MinecraftForge/NeoForge classes from the carriers. What the
+kernel owns is the part a loader owns — class loading, discovery, the lifecycle, the registration window, and
+Fabric Loader's own API (§5.1) — plus the repairs the merge makes necessary. Two of those repairs reproduce
+behaviour instead of calling it: NeoForge's coremod rewrites, which the kernel performs itself (§5.2), and events
+whose hook lost the merge, which it re-emits (§8).
 
 ## 2. Shape of the solution
 

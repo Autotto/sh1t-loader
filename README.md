@@ -20,10 +20,17 @@ Forbric mods button, and from that list you can open any mod's own settings scre
 three it belongs to.
 
 **You may have heard of Kilt or Sinytra Connector.** Those are mods you add to a normal loader, and they
-re-create one side's features inside the other — a translator in the room. Forbric is the loader itself:
-the real Forge and the real NeoForge are running inside the game, next to Fabric, so nothing is being
-translated. Connector is mature and Forbric is not, so if Connector already runs the mods you want, use
-Connector. Forbric is for the cases it cannot reach.
+re-create one side's features inside the other — a translator in the room. Forbric is the loader itself.
+Your mods call the real Fabric API and the real Forge and NeoForge code; that part is not re-created.
+
+But Forge and NeoForge both change Minecraft, often in the same spots, and one game can hold only one
+version of each spot, so Forbric mostly keeps NeoForge's. Its own glue then keeps the other mods working:
+it passes game events on to Forge mods, moves Fabric mods' changes to where the code now sits, and lets
+mods from different loaders hand each other items, fluids and energy. That glue is translation too, and
+it is not finished, which is one reason some mods still fail.
+
+Connector is mature and Forbric is not, so if Connector already runs the mods you want, use Connector.
+Forbric is for the cases it cannot reach.
 
 ## How to install
 
@@ -116,8 +123,9 @@ delete `.minecraft/.forbric-build/` and `.minecraft/libraries/net/forbric/`.
 ## What's new in 0.3.0
 
 **More mods work.** We picked three batches of about 100 random mods from Modrinth (popular ones and
-random ones, all three kinds) and started the game with each mod on its own. **80.5% loaded cleanly on
-0.2.0, 89.0% on 0.3.0.**
+random ones, all three kinds) and started the game with each mod on its own. **80.5% loaded without errors
+on 0.2.0, 89.0% on 0.3.0** (no mod failing to load in the log). On 0.3.0, 79.1% also had no part reported
+as not working.
 
 New:
 
@@ -176,8 +184,32 @@ Forbric is not affiliated with Mojang, FabricMC, MinecraftForge or NeoForged.
 
 ### For mod developers
 
-**Your mod does not need to change.** Forbric loads it in its own ecosystem's real runtime — nothing is
-re-implemented, so there is no compatibility layer to code against.
+**Your mod does not need to change.** It calls the genuine Fabric API, MinecraftForge or NeoForge classes,
+so there is no compatibility layer to code against. What Forbric re-implements is the loader: class
+loading, mod discovery, load order, the lifecycle, the Mixin service, and Fabric Loader's API (Forbric
+carries Fabric Loader's public API types, which keep FabricMC's copyright, and implements them; Fabric
+Loader itself never runs). The game is different too: the installer builds one merged game jar from both
+Forge families' patches. What this means for your mod:
+
+- **The game is one merged jar.** Where MinecraftForge and NeoForge patched the same method (about a
+  thousand of them), only one version was kept: NeoForge's in all but five, MinecraftForge's in those
+  five. An event whose call was lost that way — nearly always a MinecraftForge one, plus a few NeoForge
+  ones such as item tooltips and screen opening — reaches your listener only if Forbric re-emits it, and
+  one without a bridge never fires ([introduction.md §8](introduction.md#8-event-bridges)). Events whose
+  call survived the merge fire as usual. The coremods NeoForge itself ships are not loaded; Forbric
+  applies their rewrites itself.
+- **Mixins are applied to that merged code.** Forbric relaxes mods' mixin configs (`required: false`,
+  `defaultRequire: 0`), so an injector whose target is missing does nothing instead of failing, unless it
+  sets `require` itself. It moves an injector whose target moved, and drops a whole mixin when none of its
+  targets exist ([§7](introduction.md#7-mixin-on-the-merged-base)).
+- **Start-up runs in Forbric's order**, close to but not the same as each loader's native order
+  ([§3](introduction.md#3-boot-order)).
+- **Start-up extensions are not supported:** MinecraftForge's ModLauncher services
+  (`ITransformationService`, `ILaunchPluginService`) and `coremods.json`, NeoForge's
+  `ClassProcessorProvider`, and custom mod or dependency locators. Today they are skipped without a
+  warning.
+
+More detail:
 
 - [introduction.md](introduction.md) — how Forbric works inside, for developers: boot order, how the
   three kinds of mods are loaded together, what the installer builds, and how it is tested.
