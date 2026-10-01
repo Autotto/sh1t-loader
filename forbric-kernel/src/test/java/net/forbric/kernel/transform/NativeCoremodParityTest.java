@@ -27,7 +27,7 @@ class NativeCoremodParityTest {
 	private static final Path STAGED = Path.of(System.getProperty("forbric.stagedRoot", "../forbric-loader/run"));
 	private static final Path MERGED = STAGED.resolve("merged-base/patched-mc-merged-26.2.jar");
 	private static final Path FORGE = STAGED.resolve("merged-base/forge-runtime-interop.jar");
-	private static final Path VANILLA = Path.of(System.getProperty("user.home"), "Library/Application Support/minecraft/versions/26.2/26.2.jar");
+	private static final Path VANILLA = TestFixtures.vanillaJar();
 	private static final Path NEO_COREMODS = Path.of("build/journeymap-native/instance/.cache/jij");
 	private static final String POT = "net/minecraft/world/level/block/FlowerPotBlock";
 	private static final String BIOME = "net/minecraft/world/level/biome/Biome";

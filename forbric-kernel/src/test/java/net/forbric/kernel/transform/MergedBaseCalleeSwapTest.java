@@ -37,6 +37,7 @@ import java.util.TreeSet;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
+import net.forbric.kernel.TestFixtures;
 import org.junit.jupiter.api.Test;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.Opcodes;
@@ -429,8 +430,6 @@ class MergedBaseCalleeSwapTest {
 	}
 
 	private static Path vanillaJar() {
-		String env = System.getenv("MC_DIR");
-		return Path.of(env != null && !env.isBlank() ? env : System.getProperty("user.home") + "/Library/Application Support/minecraft")
-				.resolve("versions/26.2/26.2.jar");
+		return TestFixtures.vanillaJar();
 	}
 }

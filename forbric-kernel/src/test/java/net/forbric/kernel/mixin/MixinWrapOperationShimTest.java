@@ -8,6 +8,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.zip.ZipFile;
 
+import net.forbric.kernel.TestFixtures;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
@@ -64,8 +65,7 @@ class MixinWrapOperationShimTest {
 	}
 
 	@Test void vanillasBodyBindsAsWritten() throws Exception {
-		ClassNode mixin = fabric(), target = game(Path.of(System.getProperty("user.home"),
-				"Library/Application Support/minecraft/versions/26.2/26.2.jar"));
+		ClassNode mixin = fabric(), target = game(TestFixtures.vanillaJar());
 		assertEquals(0, MixinWrapOperationShim.adapt(mixin, name -> target));
 	}
 

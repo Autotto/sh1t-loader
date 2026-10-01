@@ -2,6 +2,7 @@ package net.forbric.kernel.mixin;
 
 import static org.junit.jupiter.api.Assertions.*;
 import java.util.List;
+import net.forbric.kernel.TestFixtures;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.parallel.ResourceLock;
 import org.junit.jupiter.api.parallel.Resources;
@@ -16,7 +17,7 @@ class FabricSectionCompilerMixinAdapterTest {
 	}
 
 	private ClassNode target(boolean vanilla) throws Exception {
-		var path = vanilla ? java.nio.file.Path.of(System.getProperty("user.home"), "Library/Application Support/minecraft/versions/26.2/26.2.jar")
+		var path = vanilla ? TestFixtures.vanillaJar()
 				: java.nio.file.Path.of(System.getProperty("forbric.stagedRoot"), "merged-base/patched-mc-merged-26.2.jar");
 		org.junit.jupiter.api.Assumptions.assumeTrue(java.nio.file.Files.isRegularFile(path));
 		try (var zip = new java.util.zip.ZipFile(path.toFile())) {

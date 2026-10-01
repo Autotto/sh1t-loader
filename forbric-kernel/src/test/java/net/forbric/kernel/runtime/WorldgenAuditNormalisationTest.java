@@ -27,6 +27,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 
+import net.forbric.kernel.TestFixtures;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -100,8 +101,7 @@ class WorldgenAuditNormalisationTest {
 	}
 
 	private static Path newestUnder(String pattern) throws Exception {
-		Path libraries = Path.of(System.getProperty("user.home"), "Library", "Application Support", "minecraft",
-				"libraries", pattern.replace('/', java.io.File.separatorChar));
+		Path libraries = TestFixtures.minecraftDir().resolve("libraries").resolve(pattern.replace('/', java.io.File.separatorChar));
 		if (!Files.isDirectory(libraries)) {
 			libraries = Path.of(System.getenv().getOrDefault("FORBRIC_OLD", System.getProperty("user.dir") + "/../forbric-loader"), "run", "downloads").normalize();
 			if (!Files.isDirectory(libraries)) return null;

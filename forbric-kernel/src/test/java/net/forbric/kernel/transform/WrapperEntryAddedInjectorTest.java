@@ -25,6 +25,7 @@ import java.util.function.Function;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
+import net.forbric.kernel.TestFixtures;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.parallel.ResourceLock;
@@ -52,7 +53,7 @@ class WrapperEntryAddedInjectorTest {
 	private static final Path MERGED = STAGED.resolve("merged-base/patched-mc-merged-26.2.jar");
 	private static final Path NEO_CARRIER = STAGED.resolve("neoforge-runtime/neoforge-runtime.jar");
 	private static final Path FORGE_CARRIER = STAGED.resolve("merged-base/forge-runtime-interop.jar");
-	private static final Path FABRIC_API = Path.of("run/client-merged-pack/mods/fabric-api-0.155.2+26.2.jar");
+	private static final Path FABRIC_API = TestFixtures.fabricApi();
 	private static final String WRAPPER = "net/minecraftforge/registries/NamespacedWrapper";
 	private static final String FORGE_REGISTRY = "net/minecraftforge/registries/ForgeRegistry";
 	private static final String FIXTURE_REGISTRY = "net/minecraftforge/registries/FixtureForgeRegistry";
@@ -450,8 +451,7 @@ class WrapperEntryAddedInjectorTest {
 	}
 
 	private static Path newestUnder(String pattern) throws java.io.IOException {
-		String env = System.getenv("MC_DIR");
-		Path root = Path.of(env != null ? env + "/libraries" : System.getProperty("user.home") + "/Library/Application Support/minecraft/libraries");
+		Path root = TestFixtures.minecraftDir().resolve("libraries");
 		Path under = root.resolve(pattern);
 		if (!Files.isDirectory(under)) return null;
 		try (var stream = Files.walk(under)) {

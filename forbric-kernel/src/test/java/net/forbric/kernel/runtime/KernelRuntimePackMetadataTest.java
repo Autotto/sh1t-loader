@@ -31,6 +31,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.zip.ZipFile;
 
+import net.forbric.kernel.TestFixtures;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -105,9 +106,7 @@ class KernelRuntimePackMetadataTest {
 	private static URLClassLoader gameLoader() throws Exception {
 		Path merged = merged();
 		assumeTrue(Files.isRegularFile(merged), "the staged merged game is absent");
-		String env = System.getenv("MC_DIR");
-		Path libraries = Path.of(env != null ? env + "/libraries"
-				: System.getProperty("user.home") + "/Library/Application Support/minecraft/libraries");
+		Path libraries = TestFixtures.minecraftDir().resolve("libraries");
 		Path versionJson = libraries.getParent().resolve("versions/26.2/26.2.json");
 		assumeTrue(Files.isRegularFile(versionJson), "no 26.2 version JSON beside the local Minecraft libraries");
 		List<URL> urls = new ArrayList<>(List.of(merged.toUri().toURL()));

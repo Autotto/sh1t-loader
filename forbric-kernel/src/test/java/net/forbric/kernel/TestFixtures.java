@@ -13,6 +13,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Locale;
 import org.junit.jupiter.api.Assumptions;
 
 /**
@@ -41,5 +42,54 @@ public final class TestFixtures {
 	/** {@link #require} for a directory, such as a local mod pack. */
 	public static void requireDirectory(String what, Path directory) {
 		require(Files.isDirectory(directory), what + ": " + directory);
+	}
+
+	/**
+	 * The Minecraft directory the game-side compile read its libraries from. Gradle hands it to every test task as
+	 * {@code MC_DIR} (tools/dev.py's {@code .dev/minecraft} when prepared); outside Gradle it falls back to the
+	 * launcher's usual location on this platform, the same default build.gradle uses.
+	 */
+	public static Path minecraftDir() {
+		String env = System.getenv("MC_DIR");
+		if (env != null && !env.isBlank()) return Path.of(env);
+		String home = System.getProperty("user.home");
+		String os = System.getProperty("os.name", "").toLowerCase(Locale.ROOT);
+		if (os.contains("windows")) {
+			String appData = System.getenv("APPDATA");
+			return Path.of(appData != null ? appData : home + "/AppData/Roaming", ".minecraft");
+		}
+		if (os.contains("mac")) return Path.of(home, "Library", "Application Support", "minecraft");
+		return Path.of(home, ".minecraft");
+	}
+
+	/** Minecraft 26.2's own client jar inside {@link #minecraftDir()}. */
+	public static Path vanillaJar() {
+		return minecraftDir().resolve("versions/26.2/26.2.jar");
+	}
+
+	/**
+	 * Netty's codec library under {@link #minecraftDir()}: 26.2 ships netty 4.2's split {@code netty-codec-base},
+	 * which a launcher directory that also holds older versions keeps beside their {@code netty-codec}.
+	 */
+	public static String nettyCodecLibrary() {
+		return Files.isDirectory(minecraftDir().resolve("libraries/io/netty/netty-codec-base"))
+				? "io/netty/netty-codec-base" : "io/netty/netty-codec";
+	}
+
+	/** The Fabric API build the real-bytecode tests are written against. */
+	public static final String FABRIC_API_JAR = "fabric-api-0.155.2+26.2.jar";
+
+	/**
+	 * {@link #FABRIC_API_JAR}: the local merged pack's copy when there is one, else the jar the game side compiled
+	 * against ({@code forbric.fabricApi}, which tools/dev.py fills with the same pinned file). Another build passed
+	 * there is not used: these tests read classes and mixins of this exact one.
+	 */
+	public static Path fabricApi() {
+		Path pack = Path.of("run/client-merged-pack/mods", FABRIC_API_JAR);
+		if (Files.isRegularFile(pack)) return pack;
+		String configured = System.getProperty("forbric.fabricApi");
+		if (configured == null || configured.isBlank()) return pack;
+		Path compiled = Path.of(configured);
+		return compiled.getFileName().toString().equals(FABRIC_API_JAR) ? compiled : pack;
 	}
 }

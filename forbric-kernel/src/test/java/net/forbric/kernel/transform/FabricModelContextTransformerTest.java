@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 import java.nio.file.*;
 import java.util.zip.*;
+import net.forbric.kernel.TestFixtures;
 import org.junit.jupiter.api.Test;
 import org.objectweb.asm.*;
 import org.objectweb.asm.tree.*;
@@ -13,7 +14,7 @@ import org.objectweb.asm.tree.analysis.BasicVerifier;
 @org.junit.jupiter.api.parallel.ResourceLock(org.junit.jupiter.api.parallel.Resources.SYSTEM_PROPERTIES)
 class FabricModelContextTransformerTest {
 	private static byte[] api() throws Exception {
-		Path jar = Path.of("run/client-merged-pack/mods/fabric-api-0.155.2+26.2.jar");
+		Path jar = TestFixtures.fabricApi();
 		assumeTrue(Files.isRegularFile(jar), "actual Fabric API fixture required");
 		try (ZipFile zip = new ZipFile(jar.toFile())) {
 			var entry = zip.stream().filter(e -> e.getName().startsWith("META-INF/jars/fabric-renderer-api-v1-")).findFirst().orElseThrow();

@@ -15,6 +15,7 @@ import java.util.TreeSet;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
+import net.forbric.kernel.TestFixtures;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.objectweb.asm.ClassReader;
@@ -32,7 +33,7 @@ import org.objectweb.asm.tree.MethodNode;
 class CarrierStubCensusTest {
 	private static final String OLD = System.getenv().getOrDefault("FORBRIC_OLD", "../forbric-loader");
 	private static final Path MERGED = Path.of(OLD, "run/merged-base/patched-mc-merged-26.2.jar");
-	private static final Path MC = Path.of(System.getProperty("user.home"), "Library/Application Support/minecraft");
+	private static final Path MC = TestFixtures.minecraftDir();
 	/**
 	 * The two jars build-merged-base.sh merges by default. Not run/forge-patched's MinecraftForge jar: it is an older
 	 * build, and its LivingEntity differs from the one the merge took.

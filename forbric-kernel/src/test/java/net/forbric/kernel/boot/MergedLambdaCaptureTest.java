@@ -63,12 +63,17 @@ import org.objectweb.asm.tree.VarInsnNode;
  * must be true is true of the jar either way. Skips when the three jars are not staged.
  */
 class MergedLambdaCaptureTest {
-	private static final Path MERGED = staged("..", "forbric-loader", "run", "merged-base",
-			"patched-mc-merged-26.2.jar");
-	private static final Path NEO = staged("run", "installed", ".forbric-build", "out",
-			"patched-mc-neoforge-26.2.jar");
-	private static final Path FORGE = staged("run", "installed", ".forbric-build", "out",
-			"patched-mc-forge-26.2.jar");
+	private static final Path STAGED = Path.of(System.getProperty("forbric.stagedRoot", "../forbric-loader/run"))
+			.toAbsolutePath().normalize();
+	private static final Path MERGED = STAGED.resolve("merged-base/patched-mc-merged-26.2.jar");
+	private static final Path NEO = patched("patched-mc-neoforge-26.2.jar", "neoforge-patched");
+	private static final Path FORGE = patched("patched-mc-forge-26.2.jar", "forge-patched");
+
+	/** The installer's own build output when this checkout ran it, else the side staged beside the merged base. */
+	private static Path patched(String jar, String stagedDirectory) {
+		Path installed = staged("run", "installed", ".forbric-build", "out", jar);
+		return Files.isRegularFile(installed) ? installed : STAGED.resolve(stagedDirectory).resolve(jar);
+	}
 
 	private static Path staged(String... parts) {
 		Path p = Path.of(System.getProperty("user.dir"));

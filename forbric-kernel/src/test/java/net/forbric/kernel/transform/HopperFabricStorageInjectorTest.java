@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
+import net.forbric.kernel.TestFixtures;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
@@ -29,7 +30,7 @@ class HopperFabricStorageInjectorTest {
 	private static final Path MERGED = STAGED.resolve("merged-base/patched-mc-merged-26.2.jar");
 	private static final Path NEO = STAGED.resolve("neoforge-patched/patched-mc-neoforge-26.2.jar");
 	private static final Path FORGE = STAGED.resolve("forge-patched/patched-mc-forge-26.2.jar");
-	private static final Path FABRIC_API = Path.of(System.getProperty("user.dir"), "run/client-merged-pack/mods/fabric-api-0.155.2+26.2.jar");
+	private static final Path FABRIC_API = TestFixtures.fabricApi().toAbsolutePath();
 	private static final String HOPPER = HopperFabricStorageInjector.HOPPER_INTERNAL;
 
 	@AfterEach void reset() { System.clearProperty(HopperFabricStorageInjector.PROPERTY); }

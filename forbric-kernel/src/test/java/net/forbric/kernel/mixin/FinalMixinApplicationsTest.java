@@ -3,6 +3,7 @@ package net.forbric.kernel.mixin;
 import static org.junit.jupiter.api.Assertions.*;
 import java.util.*;
 import net.forbric.api.*;
+import net.forbric.kernel.TestFixtures;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.parallel.ResourceLock;
 import org.objectweb.asm.*;
@@ -216,7 +217,7 @@ class FinalMixinApplicationsTest {
  private CompatibilityFinding whole(){return CompatibilityFindings.all().stream().filter(f->f.id().equals(MixinCompatibility.id(CONFIG,MIXIN))).findFirst().orElseThrow();}
  private static boolean calls(MethodNode method,String owner,String name){for(AbstractInsnNode i:method.instructions)if(i instanceof MethodInsnNode c&&c.owner.equals(owner)&&c.name.equals(name))return true;return false;}
  private static byte[] fabricApiResource(String module,String name)throws Exception{
-  java.nio.file.Path api=java.nio.file.Path.of("run/client-merged-pack/mods/fabric-api-0.155.2+26.2.jar");Assumptions.assumeTrue(java.nio.file.Files.isRegularFile(api),"actual Fabric API fixture required");
+  java.nio.file.Path api=TestFixtures.fabricApi();Assumptions.assumeTrue(java.nio.file.Files.isRegularFile(api),"actual Fabric API fixture required");
   try(java.util.zip.ZipFile z=new java.util.zip.ZipFile(api.toFile())){
    java.util.zip.ZipEntry e=z.stream().filter(x->x.getName().startsWith("META-INF/jars/"+module+"-")).findFirst().orElseThrow();
    try(java.util.zip.ZipInputStream inner=new java.util.zip.ZipInputStream(z.getInputStream(e))){for(java.util.zip.ZipEntry entry;(entry=inner.getNextEntry())!=null;)if(entry.getName().equals(name))return inner.readAllBytes();}

@@ -17,6 +17,7 @@ import java.util.Map;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
+import net.forbric.kernel.TestFixtures;
 import net.forbric.kernel.transform.CreativePagerBridgeInjector;
 import net.forbric.kernel.transform.CreativePagerFixtures;
 import org.junit.jupiter.api.Test;
@@ -161,7 +162,7 @@ class KernelCreativePagerMergedScreenTest {
 				merged.toUri().toURL()));
 		for (String pattern : List.of("com/mojang/datafixerupper", "com/google/code/gson", "com/mojang/brigadier",
 				"com/google/guava/guava", "it/unimi/dsi/fastutil", "org/slf4j/slf4j-api", "org/apache/logging/log4j/log4j-api",
-				"io/netty/netty-common", "io/netty/netty-buffer", "io/netty/netty-codec", "io/netty/netty-transport",
+				"io/netty/netty-common", "io/netty/netty-buffer", TestFixtures.nettyCodecLibrary(), "io/netty/netty-transport",
 				"io/netty/netty-handler", "org/joml/joml", "com/mojang/authlib", "org/apache/commons/commons-lang3",
 				"com/mojang/logging")) {
 			Path library = newestUnder(pattern);
@@ -220,8 +221,7 @@ class KernelCreativePagerMergedScreenTest {
 	}
 
 	private static Path newestUnder(String pattern) throws java.io.IOException {
-		String env = System.getenv("MC_DIR");
-		Path root = Path.of(env != null ? env + "/libraries" : System.getProperty("user.home") + "/Library/Application Support/minecraft/libraries");
+		Path root = TestFixtures.minecraftDir().resolve("libraries");
 		Path under = root.resolve(pattern);
 		if (!Files.isDirectory(under)) return null;
 		try (var stream = Files.walk(under)) {

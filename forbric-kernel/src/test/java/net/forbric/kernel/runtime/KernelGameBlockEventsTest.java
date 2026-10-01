@@ -30,6 +30,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
 
+import net.forbric.kernel.TestFixtures;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -257,8 +258,7 @@ class KernelGameBlockEventsTest {
 		List<URL> urls = new ArrayList<>(List.of(compiled.toUri().toURL(), merged.toUri().toURL(),
 				forgeRt.toUri().toURL(), neoRt.toUri().toURL()));
 		// The game's own libraries too: TriState holds a Codec, so translating one decision links DataFixerUpper.
-		Path libraries = Path.of(System.getProperty("user.home"), "Library", "Application Support", "minecraft",
-				"libraries");
+		Path libraries = TestFixtures.minecraftDir().resolve("libraries");
 		if (Files.isDirectory(libraries)) {
 			try (java.util.stream.Stream<Path> jars = Files.walk(libraries)) {
 				for (Path jar : jars.filter(f -> f.toString().endsWith(".jar")).toList()) {

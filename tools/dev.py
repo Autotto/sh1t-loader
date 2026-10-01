@@ -31,7 +31,9 @@ API_PINS = (
      '889afc438d3e4add5cfdac76517da7987a2c495e4731690a56f2c5dee775db59'),
 )
 STAGED_FILES = ('merged-base/patched-mc-merged-26.2.jar', 'forge-runtime/forge-runtime.jar',
-                'merged-base/forge-runtime-interop.jar', 'neoforge-runtime/neoforge-runtime.jar')
+                'merged-base/forge-runtime-interop.jar', 'neoforge-runtime/neoforge-runtime.jar',
+                # Not launched, but the bytecode tests compare the merge against both patched sides.
+                'forge-patched/patched-mc-forge-26.2.jar', 'neoforge-patched/patched-mc-neoforge-26.2.jar')
 CONSOLE_PINS = (
     ('jline-reader', '26333a275de502adf1dd9e6ea50aa0b4021412c71490df9ed5e88a648886ee89'),
     ('jline-terminal', 'c0f5d70901255da66a94e59778b265d19f9308342578e34c88fc92d1b0c65fef'),

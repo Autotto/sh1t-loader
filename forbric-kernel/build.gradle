@@ -329,6 +329,10 @@ test {
 	// reading another base, the same divergence a release capture now refuses (evidence.py stagedBuildInputs).
 	environment 'FORBRIC_OLD', stagedRoot.parentFile.absolutePath
 	systemProperty 'forbric.stagedRoot', stagedRoot.absolutePath
+	// The same for Minecraft's own jar and libraries (TestFixtures.minecraftDir): the directory the game side compiled
+	// against, so a prepared .dev/minecraft or -Pforbric.mcLibraries reaches the tests instead of a platform default.
+	environment 'MC_DIR', mcLibraries.parentFile.absolutePath
+	systemProperty 'forbric.fabricApi', stagedFabricApi.absolutePath
 	// Refused when the tests RUN, never while the build is configured: this block configures every invocation,
 	// and a root that does not exist is the documented way to build the boot jar as a machine without staged
 	// artifacts would (above). run/test-staged-root.sh checks both halves.
@@ -472,19 +476,32 @@ tasks.register('linkToolTest', Exec) {
 }
 tasks.named('check') { dependsOn 'linkToolTest' }
 def integrationExecutedSuites = Collections.synchronizedSet(new HashSet<String>())
+// Fixture file names are Unicode ("[钠] sodium-fabric-….jar"). A JVM started under the C/POSIX locale cannot encode
+// them and throws InvalidPathException; minimal Linux images and containers start there. tools/dev.py never saw it
+// because Python coerces that locale for its children, but a plain ./gradlew does not.
+def inheritedLocale = ['LC_ALL', 'LC_CTYPE', 'LANG'].collect { System.getenv(it) }.find { it }
+def utf8TestLocale = osName.contains('linux') && !(inheritedLocale ==~ /(?i).*utf-?8.*/)
 tasks.withType(Test).configureEach {
 	def suiteName = name
+	if (utf8TestLocale) environment 'LC_ALL', 'C.UTF-8'
 	inputs.property('strictIntegration', strictIntegration)
 	// A previous permissive result must never bypass the no-skips verdict of an integration invocation.
 	outputs.upToDateWhen { !strictIntegration }
+	def totals = [tests: 0, skipped: 0]
 	afterSuite { descriptor, result ->
 		if (descriptor.parent == null) {
 			if (strictIntegration) integrationExecutedSuites.add(suiteName)
+			totals.tests = result.testCount
+			totals.skipped = result.skippedTestCount
 			logger.lifecycle("${name}: ${result.testCount} tests, ${result.skippedTestCount} skipped, ${result.failedTestCount} failed")
-			if (strictIntegration && (result.testCount == 0 || result.skippedTestCount > 0)) {
-				throw new GradleException("${name}: integrationTest requires executed assertions without skips; "
-						+ "provide the fixtures reported in build/reports/tests/${name}/index.html")
-			}
+		}
+	}
+	// After the task action, not in afterSuite: throwing there stopped the task before it wrote the reports this
+	// message sends the reader to, so the skipped fixtures could not be looked up.
+	doLast {
+		if (strictIntegration && (totals.tests == 0 || totals.skipped > 0)) {
+			throw new GradleException("${suiteName}: integrationTest requires executed assertions without skips; "
+					+ "provide the fixtures reported in build/reports/tests/${suiteName}/index.html")
 		}
 	}
 }
