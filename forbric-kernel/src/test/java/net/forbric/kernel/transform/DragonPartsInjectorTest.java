@@ -71,6 +71,17 @@ class DragonPartsInjectorTest {
 		}
 	}
 
+	@Test void theClientsTrackingCallbacksAreLeftToThePartTrackingRepairs() throws Exception {
+		// KernelBoot runs this repair before ClientPartTrackingInjector and ForgePartTrackingInjector. When it retyped these
+		// callbacks to NeoForge's parts, the first lost its anchor: a MinecraftForge mod's parts threw on sight, and
+		// NeoForge's stayed in partEntities, where the second's Level.getEntities casts them to MinecraftForge's PartEntity.
+		byte[] merged = NativeCoremodParityTest.read(MERGED, ClientPartTrackingInjector.CALLBACKS_INTERNAL);
+		byte[] out = new DragonPartsInjector().transform(ClientPartTrackingInjector.CALLBACKS, merged, null);
+		assertSame(merged, out, "the client's tracking callbacks are left as merged");
+		assertNotSame(out, new ClientPartTrackingInjector().transform(ClientPartTrackingInjector.CALLBACKS, out, null),
+				"the client part tracking still finds its anchor after this repair");
+	}
+
 	@Test void theSwitchLeavesAllThreeAlone() throws Exception {
 		System.setProperty(DragonPartsInjector.PROPERTY, "off");
 		for (String name : List.of(PART, DRAGON, HITBOXES)) {
