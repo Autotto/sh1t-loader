@@ -613,6 +613,13 @@ public final class KernelBoot {
 		// The client's onTrackingStart is MinecraftForge's body: it read only MinecraftForge's getParts(), which a NeoForge
 		// mod's multipart entity leaves null, and the client disconnected on sight of one. NeoForge's parts are tracked too.
 		chain.register(TransformPhase.COREMOD, new net.forbric.kernel.transform.ClientPartTrackingInjector());
+		// The mirror image: the server's tracking callbacks, the client's onTrackingEnd and the debug hitboxes are NeoForge-
+		// typed, and a MinecraftForge mod's multipart entity leaves NeoForge's getParts() null — adding one to a world, or
+		// removing it, threw. Its parts are tracked in MinecraftForge's partEntities, and Level.getEntities finds them there.
+		chain.register(TransformPhase.COREMOD, new net.forbric.kernel.transform.ForgePartTrackingInjector(name -> {
+			try (var in = loader.getGameResourceAsStream(name + ".class")) { return in == null ? null : in.readAllBytes(); }
+			catch (java.io.IOException unavailable) { return null; }
+		}));
 		// A Fabric or MinecraftForge mod's fluid has no NeoForge type; it gets the one its fluid tags imply.
 		chain.register(TransformPhase.COREMOD, new net.forbric.kernel.transform.ForeignFluidTypeInjector());
 		// …and a tag a Fabric mod gave a fluid behaviour has that behaviour's fluid type where the merged
