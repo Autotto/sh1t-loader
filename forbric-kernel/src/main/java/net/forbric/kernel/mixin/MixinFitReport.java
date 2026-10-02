@@ -50,7 +50,10 @@ import com.electronwill.nightconfig.json.JsonFormat;
  * <p><b>Known divergence from runtime:</b> this resolves against RAW merged-jar bytes, whereas the kernel resolves
  * against post-transform-chain bytes ({@code getPreMixinClassBytes}). The chain both adds members (the
  * {@code KeyMapping.MAP} initializer) and removes them (the interface-default shadowing overrides), so a handful of
- * verdicts here can differ from the live ones. Nor does it count members another mixin adds before the judged one
+ * verdicts here can differ from the live ones. The orphaned-field rule matches writes by exact owner and descriptor,
+ * so the fields the chain first assigns read as never assigned here: fabric-registry-sync's
+ * {@code ParticleResourcesMixin} ({@code providers:Int2ObjectMap}, written by the chain's live view of the vanilla
+ * map) is HAZARD here and FIT at runtime. Nor does it count members another mixin adds before the judged one
  * ({@link MixinAddedMembers}), so a {@code @Shadow} of such a member reads as a miss here and not at runtime. Treat
  * this as the enumeration tool, not as the oracle.
  */

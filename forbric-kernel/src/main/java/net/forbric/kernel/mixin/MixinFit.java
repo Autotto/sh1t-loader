@@ -612,9 +612,13 @@ public final class MixinFit {
 		for (FieldNode f : mixin.fields) {
 			if (!has(f.visibleAnnotations, SHADOW_DESC) && !has(f.invisibleAnnotations, SHADOW_DESC)) continue;
 
-			FieldNode declared = findField(target, f.name, f.desc, resolver);
+			ClassNode declaring = hierarchy(target, resolver).stream().filter(c -> c.fields != null
+					&& c.fields.stream().anyMatch(field -> field.name.equals(f.name) && field.desc.equals(f.desc)))
+					.findFirst().orElse(null);
 			// Absent is a LOUD failure — Mixin reports it and relax soft-skips. Not this rule's business.
-			if (declared == null) continue;
+			if (declaring == null) continue;
+			FieldNode declared = declaring.fields.stream().filter(field -> field.name.equals(f.name)
+					&& field.desc.equals(f.desc)).findFirst().orElseThrow();
 			// A compile-time constant carries a ConstantValue attribute and is initialized by the JVM with no
 			// putstatic at all, so "never assigned" is meaningless for it. Missing this check false-positives on
 			// every @Shadow'd `static final int` — MAX_PAYLOAD_SIZE, FLAG_INSIDE_FACE, MAX_DESCRIPTION_WIDTH_PIXELS.
@@ -623,8 +627,8 @@ public final class MixinFit {
 			// PostMixinFixups seeds some orphans rather than letting them poison every reader; those are not
 			// hazards. This runs on pre-mixin (and therefore pre-repair) bytes, so it must be asked explicitly.
 			if (PostMixinFixups.isSeeded(target.name, f.name)) continue;
-			if (writesField(mixin, f.name)) continue;
-			if (nestWritesField(target, f.name, resolver)) continue;
+			if (writesField(mixin, f.name, f.desc, mixin.name) || writesField(mixin, f.name, f.desc, declaring.name)) continue;
+			if (nestWritesField(declaring, f.name, f.desc, resolver)) continue;
 
 			orphans.add(f.name + " (declared, never assigned)");
 		}
@@ -632,19 +636,31 @@ public final class MixinFit {
 	}
 
 	/** Whether the declaring class or any of its nestmates assigns {@code field}. */
-	private static boolean nestWritesField(ClassNode target, String field, Function<String, byte[]> resolver) {
-		if (writesField(target, field)) return true;
-		for (String member : nestMembers(target)) {
+	private static boolean nestWritesField(ClassNode target, String field, String desc, Function<String, byte[]> resolver) {
+		if (writesField(target, field, desc, target.name)) return true;
+		for (String member : nestMembers(target, resolver)) {
 			byte[] bytes = resolver.apply(member + ".class");
 			if (bytes == null) continue;
-			if (writesField(read(bytes, true), field)) return true;
+			if (writesField(read(bytes, true), field, desc, target.name)) return true;
 		}
 		return false;
 	}
 
-	private static List<String> nestMembers(ClassNode node) {
+	private static List<String> nestMembers(ClassNode node, Function<String, byte[]> resolver) {
 		Set<String> members = new LinkedHashSet<>();
 		if (node.nestMembers != null) members.addAll(node.nestMembers);
+		// A member lists only NestHost; the host owns the complete member list. Private fields may be
+		// assigned by that host or a sibling, e.g. monument rooms and fortress starts in C2ME.
+		if (node.nestHostClass != null) {
+			members.add(node.nestHostClass);
+			byte[] hostBytes = resolver.apply(node.nestHostClass + ".class");
+			if (hostBytes != null) {
+				ClassNode host = read(hostBytes, false);
+				if (host.nestMembers != null) members.addAll(host.nestMembers);
+				if (host.innerClasses != null) for (var inner : host.innerClasses)
+					if (inner.name != null && inner.name.startsWith(host.name + "$")) members.add(inner.name);
+			}
+		}
 		// Fall back to the InnerClasses attribute when NestMembers is absent (pre-11 class files, or stripped).
 		if (node.innerClasses != null) {
 			for (org.objectweb.asm.tree.InnerClassNode inner : node.innerClasses) {
@@ -655,14 +671,14 @@ public final class MixinFit {
 		return new ArrayList<>(members);
 	}
 
-	private static boolean writesField(ClassNode node, String field) {
+	private static boolean writesField(ClassNode node, String field, String desc, String owner) {
 		if (node.methods == null) return false;
 		for (MethodNode m : node.methods) {
 			if (m.instructions == null) continue;
 			for (AbstractInsnNode insn : m.instructions) {
 				if (insn instanceof FieldInsnNode fi
 						&& (fi.getOpcode() == Opcodes.PUTFIELD || fi.getOpcode() == Opcodes.PUTSTATIC)
-						&& fi.name.equals(field)) {
+						&& fi.name.equals(field) && fi.desc.equals(desc) && fi.owner.equals(owner)) {
 					return true;
 				}
 			}
