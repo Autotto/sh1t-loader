@@ -250,6 +250,11 @@ final class ReachableCandidateSelector {
 	private void structure(ISolver solver) throws ContradictionException {
 		for (var node : graph.nodes().values()) {
 			if (node.excluded()) { clause(solver, -variable(node.path())); continue; }
+			if (node.root() && node.claim() != null && node.claim().modIds().isEmpty()) {
+				// An installed runtime bundle has no identity group to require its root; its declared
+				// libraries are nevertheless requested by the user just like a mod's bundled libraries.
+				clause(solver, variable(node.path()));
+			}
 			if (!node.root()) {
 				List<Integer> reachable = new ArrayList<>(List.of(-variable(node.path())));
 				for (Path parent : parents.getOrDefault(node.path(), List.of())) reachable.add(variable(parent));
@@ -380,6 +385,8 @@ final class ReachableCandidateSelector {
 	/** An explicit non-solution: retain chosen roots and only reachable descendants, never every losing jar. */
 	private Set<Path> fallback() {
 		Set<Path> selected = new LinkedHashSet<>();
+		for (var node : graph.nodes().values()) if (node.root() && !node.excluded()
+				&& node.claim() != null && node.claim().modIds().isEmpty()) selected.add(node.path());
 		for (String id : rootIds) {
 			List<Path> candidates = new ArrayList<>(identities.get(id)); candidates.sort(candidateOrder(true, id));
 			Path choice = candidates.stream().filter(p -> graph.nodes().get(p).root())

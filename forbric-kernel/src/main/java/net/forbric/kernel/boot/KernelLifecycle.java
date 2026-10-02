@@ -769,6 +769,7 @@ public final class KernelLifecycle {
 			closeWindow = true;
 			// MOD buses only — buses.get(0) is the baseline, whose registries PassiveSeeder already registered at
 			// seed time; posting there re-collects them and fill() dies on "Attempted duplicate registration".
+			KernelFabricEcosystem.initializeSpectreConfigs();
 			postNeoNewRegistryEvent(cl, buses.subList(1, buses.size()));
 			// Isolated for the same reason KernelEventSubscribers.registerAll above is, and this one is wider.
 			// fireRegisterEvents resolves a GAME-side class reflectively, so a LinkageError inside it escapes to
@@ -1276,6 +1277,7 @@ public final class KernelLifecycle {
 			Method process = eventCls.getDeclaredMethod("process");
 			process.setAccessible(true);
 			process.invoke(event);
+			ForgeDatapackDeclarations.declare(cl, hooksCls);
 
 			// Name what landed, not just how many: on the merged pack a count alone could not distinguish "the
 			// registry a mod needs is present" from "nine OTHER registries are present", and that ambiguity cost a
@@ -2689,14 +2691,20 @@ public final class KernelLifecycle {
 	 * them the two things that window would have: the construct phase and their own RegisterEvent stream.
 	 *
 	 * <p>Not {@code KernelForgeBaseline.register}: that reconstructs ForgeMod and re-fires NewRegistryEvent, and
-	 * both already happened. Only these handles' events are posted, so no mod that constructed on time receives
-	 * anything twice.
+	 * both already happened. Newly added NewRegistryEvent listeners receive their own declaration pass;
+	 * existing listeners are excluded by identity, and only these handles receive RegisterEvent.
 	 */
 	private static void constructDeferredForgeMods(ClassLoader cl) {
+		if (!KernelForgeModContext.available(cl)) return;
 		try {
+			java.util.List<Object> earlyListeners = LateForgeRegistryDeclarations.snapshot(cl);
 			java.util.List<KernelForgeModContext.Handle> late = KernelModLoader.constructDeferredForgeMods(cl);
 			if (!late.isEmpty()) {
 				fireForgeSetupPhase(cl, late, ForeignType.FML_CONSTRUCT_MOD_EVENT, "construct");
+				LateForgeRegistryDeclarations.fire(cl, earlyListeners);
+				// A newly created vanilla-style registry may refreeze the root while declaring itself.
+				rootRegistry(cl, true);
+				unfreeze(cl);
 				int fired = KernelForgeModContext.fireRegisterEvents(cl, late);
 				ForbricLog.info("[Forbric/Lifecycle] constructed %d traditional-Forge mod(s) in the Minecraft.<init> "
 						+ "window, where MinecraftForge constructs its own, and fired RegisterEvent x%d for them",

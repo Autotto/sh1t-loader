@@ -283,6 +283,17 @@ public final class ForbricMixinService
 		// …and a single-point injector compiled with an array-valued `at` (another Mixin fork's shape) is given the
 		// shape this Mixin declares, before MixinExtras' pre-apply transformer casts it.
 		MixinAtShape.normalise(node);
+		CreateInjectionAdapters.adapt(node, this::mergedBaseNodeWithCode);
+		CreateContextualBlockAdapters.adapt(node, this::mergedBaseNodeWithCode);
+		CreateInteractionMixinAdapters.adapt(node, this::mergedBaseNodeWithCode);
+		CreateBreathingMixinAdapter.adapt(node, this::mergedBaseNodeWithCode);
+		CreateEntitySoundMixinAdapter.adapt(node, this::mergedBaseNodeWithCode);
+		CreateHudMixinAdapter.adapt(node, this::mergedBaseNodeWithCode);
+		FabricRegistryLoaderMixinAdapter.adapt(node, this::mergedBaseNodeWithCode);
+		FabricRegistryInitializationMixinAdapter.adapt(node);
+		FabricCreativePagerMixinAdapter.adapt(node);
+		KernelClientHookMixinAnchors.adapt(node, this::mergedBaseNodeWithCode);
+		GuiItemCaptureMixinAdapter.adapt(node, this::mergedBaseNodeWithCode);
 		// …and a locals capture that would throw an Error no handler sees is made to skip and warn instead.
 		MixinLocalsCapture.soften(node);
 		// …and an injection point naming a call the surviving carrier gave extra parameters is pointed at the
@@ -322,6 +333,10 @@ public final class ForbricMixinService
 		FabricClientMixinAnchors.adapt(node, this::mergedBaseNodeWithCode);
 		FabricSoundMixinAdapter.adapt(node, this::mergedBaseNodeWithCode);
 		ContinuitySpriteMixinAdapter.adapt(node, this::mergedBaseNodeWithCode);
+		FabricFluidFlowMixinAdapter.adapt(node, this::mergedBaseNodeWithCode);
+		CreateFluidMixinAdapter.adapt(node, this::mergedBaseNodeWithCode);
+		CreateKeyboardMixinAdapter.adapt(node, this::mergedBaseNodeWithCode);
+		CreateStructureMixinAdapter.adapt(node, this::mergedBaseNodeWithCode);
 		FabricSectionCompilerMixinAdapter.adapt(node, this::mergedBaseNodeWithCode);
 		CarpetMixinAdapter.adapt(node, this::mergedBaseNodeWithCode);
 		CarpetFluidMixinAdapter.adapt(node, this::mergedBaseNodeWithCode);
@@ -570,6 +585,16 @@ public final class ForbricMixinService
 
 		if (MergedBaseMixinCompat.enabled()) {
 			collectSuppressed(MergedBaseMixinCompat.SUPPRESSED_MIXINS, configName, out);
+			if (FabricRegistryLoaderMixinAdapter.enabled() && configName.equals("fabric-registry-sync-v0.mixins.json")) {
+				out.remove("RegistryDataLoaderMixin");
+			}
+			if (FabricRegistryInitializationMixinAdapter.enabled()) {
+				if (configName.equals("fabric-registry-sync-v0.mixins.json")) out.removeAll(List.of("BootstrapMixin","MainMixin"));
+				if (configName.equals("fabric-registry-sync-v0.client.mixins.json")) out.remove("MinecraftMixin");
+			}
+			if (FabricCreativePagerMixinAdapter.enabled() && configName.equals("fabric-creative-tab-api-v1.client.mixins.json")) {
+				out.remove("CreativeModeInventoryScreenMixin");
+			}
 			// The pruner trims these to the injectors that fit; switched off, the whole-mixin pin comes back so the
 			// kill switch reproduces the OLD behaviour and never the half-applied one.
 			if (!net.forbric.kernel.transform.GuestInjectorPruner.enabled()) {

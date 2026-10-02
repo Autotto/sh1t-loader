@@ -96,7 +96,7 @@ public final class KernelFmlTransformerView {
 
 	private static synchronized TransformingClassLoader build() {
 		if (view != null || gaveUp) return view;
-		IMixinTransformer weaver = MixinWeaverSlot.original();
+		IMixinTransformer weaver = MixinWeaverSlot.currentOr(MixinWeaverSlot.original());
 		if (weaver == null) {
 			// Not a failure to remember: Mixin comes up before any guest plugin can run, so this is only reachable
 			// from a class loaded before the kernel's Mixin bootstrap. A later caller may still get the view.

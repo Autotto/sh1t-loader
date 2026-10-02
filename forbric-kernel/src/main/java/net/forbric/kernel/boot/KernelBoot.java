@@ -247,6 +247,7 @@ public final class KernelBoot {
 
 		nestedJarJarJars = List.copyOf(nested);
 		modJars.addAll(nested);
+		publishNestedPresence(nested);
 
 		// THE MC LIBRARIES GO IN AHEAD OF THE MODS, and the order is the whole policy.
 		//
@@ -386,6 +387,7 @@ public final class KernelBoot {
 		// One mod's mixin config plugin must not be able to abort config preparation for every other mod. Mixin
 		// guards plugin construction but not the calls, and a throw there escapes select(). See GuestMixinPluginGuard.
 		chain.register(TransformPhase.COREMOD, new GuestMixinPluginGuard());
+		chain.register(TransformPhase.COREMOD, new net.forbric.kernel.transform.IrisEarlyGamePathTransformer());
 		chain.register(TransformPhase.COREMOD, new net.forbric.kernel.transform.CorpseNameTagAdapter(name -> {
 			try {
 				String binary = name.replace('/', '.');
@@ -532,6 +534,14 @@ public final class KernelBoot {
 		// …and the ids in that data only resolve if the Forge registry wrappers honour aliases, which their overrides
 		// of fabric-api's mixin targets silently stopped them doing.
 		chain.register(TransformPhase.COREMOD, new RegistryAliasParityInjector());
+		chain.register(TransformPhase.COREMOD, new net.forbric.kernel.transform.SoundRegistryIdentityInjector());
+		chain.register(TransformPhase.COREMOD, new net.forbric.kernel.transform.ServerReloadListenerNamesInjector());
+		chain.register(TransformPhase.COREMOD, new net.forbric.kernel.transform.CreateWorkerWaitInjector());
+		if (loader.getResource("com/zurrtum/create/mixin/LivingEntityMixin.class") != null) {
+			chain.register(TransformPhase.COREMOD, new net.forbric.kernel.transform.CreateBreathingInjector());
+			chain.register(TransformPhase.COREMOD, new net.forbric.kernel.transform.CreateSoundQueryInjector());
+			if (side == Side.CLIENT) chain.register(TransformPhase.COREMOD, new net.forbric.kernel.transform.CreateHudContextInjector());
+		}
 
 		// …and NeoForge's configuration-phase registry sync remaps a registry through MappedRegistry fields those same
 		// wrappers never fill, so the first real client to connect was dropped with "Failed to sync registries from the
@@ -626,6 +636,10 @@ public final class KernelBoot {
 		// …and a tag a Fabric mod gave a fluid behaviour has that behaviour's fluid type where the merged
 		// EntityFluidInteraction turns tags into types, instead of the IllegalArgumentException fabric-api hit every tick.
 		chain.register(TransformPhase.COREMOD, new net.forbric.kernel.transform.FabricFluidBehaviorInjector());
+		chain.register(TransformPhase.COREMOD, new net.forbric.kernel.transform.UntrackedFluidEyeQueryInjector());
+		chain.register(TransformPhase.COREMOD, new net.forbric.kernel.transform.AxeStripCallbacksInjector());
+		chain.register(TransformPhase.COREMOD, new net.forbric.kernel.transform.CompatPluginPlatformInjector());
+		chain.register(TransformPhase.COREMOD, new net.forbric.kernel.transform.SpectreConfigContractInjector());
 		// MinecraftForge's ParticleEngine.registerParticleGroup against NeoForge's engine: its statics, merged in on build.
 		chain.register(TransformPhase.COREMOD, new net.forbric.kernel.transform.ParticleGroupsInjector());
 		// MinecraftForge's Hurt, Damage and player-Attack events have no NeoForge event at their positions to bridge
@@ -642,8 +656,9 @@ public final class KernelBoot {
 				try (var in = loader.getGameResourceAsStream(name + ".class")) { return in == null ? null : in.readAllBytes(); }
 				catch (java.io.IOException unavailable) { return null; }
 			};
-			java.util.function.BooleanSupplier pinned = () -> net.forbric.kernel.mixin.MergedBaseMixinCompat.pinInForce(
-					net.forbric.kernel.mixin.MergedBaseMixinCompat.CREATIVE_PAGER_PIN);
+			java.util.function.BooleanSupplier pinned = () -> net.forbric.kernel.mixin.FabricCreativePagerMixinAdapter.enabled()
+					|| net.forbric.kernel.mixin.MergedBaseMixinCompat.pinInForce(
+							net.forbric.kernel.mixin.MergedBaseMixinCompat.CREATIVE_PAGER_PIN);
 			if (net.forbric.kernel.transform.CreativePagerBridgeInjector.enabled()) {
 				chain.register(TransformPhase.COREMOD, new net.forbric.kernel.transform.CreativePagerBridgeInjector(gameClass, pinned));
 			} else if (pinned.getAsBoolean() && gameClass.apply(net.forbric.kernel.transform.CreativePagerBridgeInjector.API) != null) {
@@ -920,7 +935,7 @@ public final class KernelBoot {
 		// The mods dir is passed explicitly (not re-derived inside the seeder) because the LoadingModList seeded here
 		// must describe the SAME jars this boot decided to load — see discoverForgeFamilyModJars above, which walks
 		// exactly this directory. Two independent derivations of "where the mods are" is how they drift apart.
-		PassiveSeeder.seedNeoForgeLoader(loader, gameDir, gameDir.resolve("mods"), side.api());
+		PassiveSeeder.seedNeoForgeLoader(loader, gameDir, gameDir.resolve("mods"), side.api(), gameVersion);
 		// MinecraftForge's FMLLoader identity, for a reason its NeoForge twin does not have: NeoForge's
 		// FMLEnvironment is stateless, so seeding it late could only THROW, which is loud. MinecraftForge's
 		// CACHES FMLLoader's answers into four public static final fields in a <clinit> that cannot throw — every
@@ -1390,6 +1405,15 @@ public final class KernelBoot {
 	}
 
 	/** The mixin configs declared by JarJar-extracted nested jars. Same pass, applied to the children. */
+	/** Publish the selected nested owners before Fabric creates presence aliases for them. */
+	static void publishNestedPresence(List<Path> nested) {
+		List<DiscoveredMod> mods = new ArrayList<>(ModPresence.forgeFamilyMods());
+		java.util.Set<String> seen = new java.util.LinkedHashSet<>();
+		for (DiscoveredMod mod : mods) seen.add(mod.getId());
+		mods.addAll(PassiveSeeder.arbitratedNestedForgeFamilyMods(nested, seen));
+		ModPresence.publishForgeFamily(mods);
+	}
+
 	static List<KernelForgeFamilyMixins.ForgeMixinConfig> discoverForgeMixinConfigs(List<Path> jars, String what) {
 		List<KernelForgeFamilyMixins.ForgeMixinConfig> configs = new ArrayList<>();
 		if (jars.isEmpty()) return configs;
@@ -1458,6 +1482,15 @@ public final class KernelBoot {
 	private static void collectForgeFamily(ForbricModDiscoverer discoverer, Path jar, List<Path> jars,
 			List<KernelForgeFamilyMixins.ForgeMixinConfig> configs) throws IOException {
 		boolean forgeFamily = false;
+		java.util.Map<Ecosystem, net.forbric.kernel.metadata.forge.ForgeModsToml> tomls = new java.util.HashMap<>();
+		try (java.util.jar.JarFile zip = new java.util.jar.JarFile(jar.toFile())) {
+			for (Ecosystem family : List.of(Ecosystem.NEOFORGE, Ecosystem.FORGE)) {
+				var entry = zip.getJarEntry(family == Ecosystem.NEOFORGE ? "META-INF/neoforge.mods.toml" : "META-INF/mods.toml");
+				if (entry != null) try (var in = zip.getInputStream(entry)) {
+					tomls.put(family, net.forbric.kernel.metadata.forge.ModsTomlParser.parse(in));
+				}
+			}
+		}
 		java.util.Set<String> seen = new java.util.LinkedHashSet<>();
 		for (DiscoveredMod mod : discoverer.discoverJar(jar)) {
 			if (!mod.getEcosystem().isForgeFamily()) continue;
@@ -1470,7 +1503,8 @@ public final class KernelBoot {
 				// unambiguously and report the file name instead of a name that might be the wrong one.
 				if (seen.add(mod.getEcosystem() + "\0" + mod.getId() + "\0" + config)) {
 					configs.add(new KernelForgeFamilyMixins.ForgeMixinConfig(config, mod.getId(), jar,
-							mod.getEcosystem()));
+							mod.getEcosystem(), tomls.containsKey(mod.getEcosystem())
+									? tomls.get(mod.getEcosystem()).getMixinRequiredMods(config) : List.of()));
 				}
 			}
 		}

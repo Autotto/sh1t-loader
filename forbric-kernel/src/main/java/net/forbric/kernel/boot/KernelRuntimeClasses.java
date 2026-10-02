@@ -266,6 +266,12 @@ public final class KernelRuntimeClasses {
 				new Call("installChatReceived", void.class, Object.class),
 				new Call("installChatSend", void.class, Object.class),
 				new Call("installKey", void.class, Object.class),
+				new Call("installScreenInitPre", void.class, Object.class),
+				new Call("installScreenInitPost", void.class, Object.class),
+				new Call("installScreenKeyPressedPre", void.class, Object.class),
+				new Call("installScreenKeyPressedPost", void.class, Object.class),
+				new Call("installScreenKeyReleasedPre", void.class, Object.class),
+				new Call("installScreenKeyReleasedPost", void.class, Object.class),
 				new Call("installMouseButtonPre", void.class, Object.class),
 				new Call("installInteractionKey", void.class, Object.class),
 				new Call("installRenderFog", void.class, Object.class),
@@ -479,6 +485,10 @@ public final class KernelRuntimeClasses {
 		// NeoForge refuses to NAME a client reload listener a mixin added, and throws inside Minecraft.<init>.
 		// Called from a REWRITTEN CALL SITE, so it carries that site's game-typed descriptor.
 		CLASSES.put("net.forbric.kernel.runtime.KernelClientReloadNames", new Entry(Origin.COMPILED, List.of()));
+		CLASSES.put("net.forbric.kernel.runtime.KernelServerReloadNames", new Entry(Origin.COMPILED, List.of()));
+		CLASSES.put("net.forbric.kernel.runtime.KernelCreateSoundQuery", new Entry(Origin.COMPILED, List.of()));
+		CLASSES.put("net.forbric.kernel.runtime.KernelCreateHudQuery", new Entry(Origin.COMPILED, List.of()));
+		CLASSES.put("net.forbric.kernel.runtime.IdentityValueBiMap", new Entry(Origin.COMPILED, List.of()));
 		// fabric-api's own two mixins for fabric:load_conditions cannot apply on the merged base, so nothing
 		// evaluated them. Wrapped into ConditionalOps' one codec factory by an inserted instruction, in Codec,
 		// which no JDK type can stand for.

@@ -331,6 +331,16 @@ class KernelEventSubscribersTest {
 	}
 
 	@Test
+	void commonAndClientEntryClassesForTheSameModHaveOneSubscriberOwner() {
+		var unnamed = new KernelEventSubscribers.Subscriber("a.AllKeys",
+				Ecosystem.NEOFORGE, Set.of("CLIENT"), null, null);
+		assertEquals("create", KernelEventSubscribers.ownerModId(unnamed, java.util.List.of(
+				new ModAnnotationScanner.ModClassInfo("a.Create", "create", Ecosystem.NEOFORGE),
+				new ModAnnotationScanner.ModClassInfo("a.CreateClient", "create", Ecosystem.NEOFORGE)),
+				() -> { throw new AssertionError("the entry classes already identify the owner"); }));
+	}
+
+	@Test
 	void aModBusSubscriberWithNoConstructedModIsSkippedNotDowngraded() {
 		// Parking a mod-bus listener on the game bus would never fire and would hide the problem.
 		assertEquals(KernelEventSubscribers.BusChoice.SKIP,

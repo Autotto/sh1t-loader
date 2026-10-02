@@ -17,8 +17,12 @@
 package net.forbric.kernel.runtime;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.IdentityHashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import com.google.common.collect.ImmutableMap;
 
@@ -27,6 +31,7 @@ import net.forbric.kernel.util.Reflect;
 import net.minecraft.client.gui.render.pip.PictureInPictureRenderer;
 import net.minecraft.client.renderer.state.gui.pip.PictureInPictureRenderState;
 import net.minecraftforge.client.event.RegisterPictureInPictureRendererEvent;
+import net.neoforged.neoforge.client.gui.PictureInPictureRendererRegistration;
 
 /**
  * Fills {@code GuiRenderer.pictureInPictureRenderers} — the map the byte merge left with no writer at all.
@@ -58,6 +63,46 @@ public final class KernelForgePipRenderers {
 
 	static boolean enabled() {
 		return !"off".equalsIgnoreCase(System.getProperty(PROPERTY, "on"));
+	}
+
+	/**
+	 * Forge/vanilla mixins (including Physics Mod) append renderer instances to the constructor's List.
+	 * NeoForge uses the same erased descriptor for a list of registrations. Preserve that list for the
+	 * plain map, but only pass registrations to createPools; a pool must never own a mod's singleton.
+	 */
+	public static List<PictureInPictureRendererRegistration<?>> poolRegistrations(List<?> mixed) {
+		List<PictureInPictureRendererRegistration<?>> registrations = new ArrayList<>();
+		for (Object value : mixed) {
+			if (value instanceof PictureInPictureRendererRegistration<?> registration) registrations.add(registration);
+			else if (!(value instanceof PictureInPictureRenderer<?>)) {
+				throw new IllegalArgumentException("Unknown picture-in-picture registration: " + value);
+			}
+		}
+		return registrations;
+	}
+
+	/** Keeps the exact renderer instances supplied by constructor mixins alongside Forge event registrations. */
+	public static Map<Class<? extends PictureInPictureRenderState>, PictureInPictureRenderer<?>> build(List<?> mixed) {
+		Map<Class<? extends PictureInPictureRenderState>, PictureInPictureRenderer<?>> renderers =
+				new LinkedHashMap<>(build());
+		int direct = 0;
+		for (Object value : mixed) {
+			if (value instanceof PictureInPictureRenderer<?> renderer) {
+				renderers.put(renderer.getRenderStateClass(), renderer);
+				direct++;
+			}
+		}
+		if (direct > 0) ForbricLog.info("[Forbric/PipRenderers] retained %d constructor-supplied renderer(s) "
+				+ "in the plain map, separate from NeoForge's pools", direct);
+		return renderers;
+	}
+
+	/** The merged close() only closes pools; plain renderers retain vanilla's whole-GuiRenderer lifetime. */
+	public static void close(Map<?, ? extends PictureInPictureRenderer<?>> renderers) {
+		Set<PictureInPictureRenderer<?>> closed = Collections.newSetFromMap(new IdentityHashMap<>());
+		for (PictureInPictureRenderer<?> renderer : renderers.values()) {
+			if (closed.add(renderer)) renderer.close();
+		}
 	}
 
 	/**

@@ -51,6 +51,9 @@ public final class MergedBaseMixinCompat {
 
 	/**
 	 * Individual mixins to drop, as {@code <config>:<MixinEntry>}. The rest of each config still applies.
+	 * The registry and creative entries below are fallback pins: ForbricMixinService lifts them while
+	 * FabricRegistryInitializationMixinAdapter, FabricRegistryLoaderMixinAdapter and
+	 * FabricCreativePagerMixinAdapter retain their callbacks on the kernel's single freeze and carrier pager.
 	 *
 	 * <ul>
 	 *   <li><b>registry-sync {@code BootstrapMixin} + {@code MainMixin}</b> — a coupled pair: the first redirects
@@ -75,7 +78,9 @@ public final class MergedBaseMixinCompat {
 	 *       wrap and reads it in another, re-binding across the async boundary in two more. The re-bind wraps do
 	 *       not match the merged base's {@code RegistryDataLoader.load}, so the read throws
 	 *       {@code NoSuchElementException: ScopedValue not bound} on a ForkJoin worker. Cost: registry-sync's
-	 *       server/client leniency during datapack registry load — a remote-sync concern, outside v1 scope.</li>
+	 *       server/client context during datapack registry load. FabricRegistryLoaderMixinAdapter now restores
+	 *       the original ScopedValue bindings and async propagation on both widened overloads; this pin returns
+	 *       only with that adapter switched off.</li>
 	 *   <li><b>loot-api-v3 {@code ReloadableServerRegistriesMixin}</b> — its generated callback loads a local slot
 	 *       the merged base's method does not have: {@code VerifyError: Bad local variable type} at
 	 *       {@code ReloadableServerRegistries.handler$…$modifyLootTable} — NeoForge swapped the last two parameters
@@ -100,7 +105,8 @@ public final class MergedBaseMixinCompat {
 	 *       regardless, so without an implementation every call is the interface default,
 	 *       {@code AssertionError("Implemented by mixin")} — owo-lib makes one each time the creative inventory
 	 *       opens. {@link net.forbric.kernel.transform.CreativePagerBridgeInjector} implements it from NeoForge's pager
-	 *       instead, so the pin costs Fabric's own page buttons and PageUp/PageDown paging, not the API. With that
+	 *       instead. FabricCreativePagerMixinAdapter keeps the original PageUp/PageDown callback and uses that
+	 *       same pager, while leaving the conflicting second page state out. With the bridge
 	 *       switched off, {@link #PINNED_CONTRACTS} has the mixin adapter leave out the mixins that rely on it.</li>
 	 *   <li><b>Shoulder Surfing {@code CapeLayerMixin} — the only entry here that arbitrates between two MODS
 	 *       rather than against the merged base.</b> Both it and CustomSkinLoader rewrite the SAME instruction:

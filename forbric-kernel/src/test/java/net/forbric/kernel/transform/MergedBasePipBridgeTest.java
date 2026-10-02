@@ -39,6 +39,7 @@ import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
+import org.objectweb.asm.tree.VarInsnNode;
 import org.objectweb.asm.tree.analysis.Analyzer;
 import org.objectweb.asm.tree.analysis.BasicVerifier;
 
@@ -105,6 +106,36 @@ class MergedBasePipBridgeTest {
 		for (MethodNode m : node.methods) {
 			new Analyzer<>(new BasicVerifier()).analyze(node.name, m);
 		}
+	}
+
+	@Test
+	void constructorSeparatesMixedInputsAndClosesPlainRenderersWithTheGui() throws Exception {
+		ClassNode node = transformedGuiRenderer();
+		String helper = "net/forbric/kernel/runtime/KernelForgePipRenderers";
+		MethodNode init = method(node, "<init>");
+		int pools = 0;
+		int plain = 0;
+		for (AbstractInsnNode insn : init.instructions) {
+			if (!(insn instanceof MethodInsnNode call)) continue;
+			if ("createPools".equals(call.name)) {
+				assertTrue(call.getPrevious() instanceof MethodInsnNode filter
+						&& helper.equals(filter.owner) && "poolRegistrations".equals(filter.name),
+						"the real pool must never receive Physics Mod's plain renderer instances");
+				pools++;
+			}
+			if (helper.equals(call.owner) && "build".equals(call.name)) {
+				assertEquals("(Ljava/util/List;)Ljava/util/Map;", call.desc);
+				assertTrue(call.getPrevious() instanceof VarInsnNode load
+						&& load.getOpcode() == Opcodes.ALOAD && load.var == 3,
+						"the plain map must receive the original constructor argument, including guest renderers");
+				plain++;
+			}
+		}
+		assertEquals(1, pools);
+		assertEquals(1, plain);
+		assertTrue(calls(method(node, "close"), helper, "close"));
+		assertTrue(!calls(method(node, "render"), helper, "close"),
+				"plain renderers must survive unused frames");
 	}
 
 	@Test

@@ -120,6 +120,17 @@ class PassiveSeederLoadingModListTest {
 		assertEquals("kerneltestmod", fileInfo.toString(), "ModFileInfo.toString() is modFile.getId()");
 	}
 
+	@Test void versionArgumentsAreReadByTheNativeNeoForgeParser() throws Exception {
+		ClassLoader game = neoForgeLoader();
+		Class<?> parser = Class.forName("net.neoforged.fml.loading.ProgramArgs", true, game);
+		for (String version : List.of("26.2", "26.2.1")) {
+			Object args = parser.getMethod("from", String[].class).invoke(null, (Object) PassiveSeeder.neoForgeVersionArguments(version));
+			assertEquals(version, parser.getMethod("remove", String.class).invoke(args, "fml.mcVersion"));
+		}
+		Object absent = parser.getMethod("from", String[].class).invoke(null, (Object) PassiveSeeder.neoForgeVersionArguments(null));
+		assertNull(parser.getMethod("remove", String.class).invoke(absent, "fml.mcVersion"));
+	}
+
 	/**
 	 * A mod reading a file out of its own jar through the seeded list (LambDynamicLights copying its default
 	 * config on the first launch) must find it. It found nothing while the seeded file's contents were empty.

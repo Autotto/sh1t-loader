@@ -26,6 +26,25 @@ class NestedCandidateSelectionTest {
 	private Path install(String name, byte[] bytes) throws Exception { Path path = mods().resolve(name); Files.write(path, bytes); return path; }
 	private DuplicateModArbiter.Decision decide() throws Exception { return DuplicateModArbiter.arbitrate(mods(), EnvType.CLIENT); }
 
+	@Test void manifestlessRuntimeBundleLoadsItsDeclaredLibrariesWithoutInventingAModIdentity() throws Exception {
+		String path = "META-INF/jarjar/stdlib.jar";
+		String metadata = "{\"jars\":[{\"path\":\"" + path + "\",\"identifier\":{\"group\":\"example\",\"artifact\":\"stdlib\"},"
+				+ "\"version\":{\"range\":\"[1,2)\",\"artifactVersion\":\"1\"}}]}";
+		Path bundle = install("runtime-all.jar", bytes(Map.of(path, bytes(Map.of("example/Runtime.class", type("example/Runtime"))),
+				"META-INF/jarjar/metadata.json", metadata.getBytes(StandardCharsets.UTF_8))));
+		install("unrelated-library.jar", bytes(Map.of("ignored.marker", new byte[] {1})));
+		String hash = NestedCandidateInventory.digest(bundle);
+		var decision = decide(); var plan = DuplicateModArbiter.currentPlan();
+		assertNotNull(plan); assertEquals(JointCandidateSelector.Status.SOLVED, plan.selection().status());
+		assertTrue(plan.selected().contains(bundle.toAbsolutePath()));
+		assertTrue(plan.inventory().nodes().get(bundle.toAbsolutePath()).claim().modIds().isEmpty());
+		assertEquals(1, plan.nestedFiles().size()); assertTrue(decision.ownerByModId().isEmpty());
+		assertEquals(hash, NestedCandidateInventory.digest(bundle)); assertTrue(plan.verify(plan.nestedFiles()));
+		try (var loader = new java.net.URLClassLoader(new java.net.URL[] {plan.nestedFiles().getFirst().toUri().toURL()}, null)) {
+			assertEquals("example.Runtime", loader.loadClass("example.Runtime").getName());
+		}
+	}
+
 	@Test void sameBasenameWithDifferentContentGetsTwoStablePhysicalFiles() throws Exception {
 		byte[] a = fabric("lib_a", "1", Map.of(), "", Map.of());
 		byte[] b = fabric("lib_b", "1", Map.of(), "", Map.of());

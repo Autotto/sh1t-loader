@@ -38,6 +38,7 @@ import net.neoforged.bus.api.IEventBus;
 import net.neoforged.neoforge.registries.GameData;
 import net.neoforged.neoforge.registries.NeoForgeRegistries;
 import net.neoforged.neoforge.registries.NewRegistryEvent;
+import net.neoforged.neoforge.registries.ModifyRegistriesEvent;
 import net.neoforged.neoforge.registries.RegisterEvent;
 
 /**
@@ -259,6 +260,18 @@ public final class KernelNeoRegistries {
 		} catch (Throwable t) {
 			ForbricLog.warn("[Forbric/Lifecycle] NewRegistryEvent.fill failed — mod-declared custom registries "
 					+ "may be missing (delivery to the mod buses itself succeeded)", Reflect.unwrap(t));
+		}
+		if (!"off".equalsIgnoreCase(System.getProperty("forbric.modifyRegistriesEvent", "on"))) {
+			Constructor<ModifyRegistriesEvent> modifyCtor = ModifyRegistriesEvent.class.getDeclaredConstructor();
+			modifyCtor.setAccessible(true);
+			ModifyRegistriesEvent modify = modifyCtor.newInstance();
+			for (Object bus : buses) {
+				try { ((IEventBus) bus).post(modify); }
+				catch (Throwable failed) {
+					ForbricLog.warn("[Forbric/Lifecycle] a NeoForge ModifyRegistriesEvent listener failed", Reflect.unwrap(failed));
+				}
+			}
+			ForbricLog.info("[Forbric/Lifecycle] posted ModifyRegistriesEvent after registry creation, before content registration");
 		}
 		return delivered;
 	}

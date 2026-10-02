@@ -13,6 +13,23 @@ import org.objectweb.asm.tree.*;
 class FinalMixinApplicationsTest {
  private static final String CONFIG="application-test.json", MIXIN="example.ProbeMixin", TARGET="game.Target";
  @BeforeEach @AfterEach void reset() {MixinCompatibility.reset();CompatibilityFindings.reset();MixinConfigOwners.publish(List.of(new MixinConfigOwners.Owned(CONFIG,"probe",Ecosystem.FABRIC)));}
+ @Test void anUncalledSugarBridgeDoesNotPretendTheInjectorAttached() {
+  setup(1,-1,false,List.of(TARGET));ClassNode node=target(false,true,"handler$000$probe","()V");
+  MethodNode bridge=new MethodNode(Opcodes.ACC_PRIVATE|Opcodes.ACC_STATIC,"handler$000$probe$mixinextras$bridge$1","()V",null,null);
+  bridge.instructions.add(new MethodInsnNode(Opcodes.INVOKESTATIC,node.name,"handler$000$probe","()V",false));bridge.instructions.add(new InsnNode(Opcodes.RETURN));node.methods.add(bridge);
+  observe(node);assertEquals(1,CompatibilityFindings.confirmedRequired().size());
+ }
+ @Test void aCalledSugarBridgeStillProvesAnAttachment() {
+  setup(1,-1,false,List.of(TARGET));ClassNode node=target(false,true,"handler$000$probe","()V");
+  MethodNode bridge=new MethodNode(Opcodes.ACC_PRIVATE|Opcodes.ACC_STATIC,"handler$000$probe$mixinextras$bridge$1","()V",null,null);
+  bridge.instructions.add(new MethodInsnNode(Opcodes.INVOKESTATIC,node.name,"handler$000$probe","()V",false));bridge.instructions.add(new InsnNode(Opcodes.RETURN));node.methods.add(bridge);
+  MethodNode host=new MethodNode(Opcodes.ACC_PUBLIC|Opcodes.ACC_STATIC,"tick","()V",null,null);host.instructions.add(new MethodInsnNode(Opcodes.INVOKESTATIC,node.name,bridge.name,bridge.desc,false));host.instructions.add(new InsnNode(Opcodes.RETURN));node.methods.add(host);
+  observe(node);assertTrue(CompatibilityFindings.confirmedRequired().isEmpty());
+ }
+ @Test void aCalledSugaredHandlerDischargesTheWholeMixinEvenWhenOrdinaryHelpersExist() {
+  config(1);ClassNode mixin=sugared(MODIFY_EXPRESSION_VALUE);mixin.methods.add(new MethodNode(Opcodes.ACC_PRIVATE,"ordinary","()V",null,null));remember(mixin);suspect();
+  observe(target(true,true,"handler$000$probe","()V"));assertEquals(CompatibilityFinding.Confidence.RESOLVED,whole().confidence());
+ }
  @Test void silentlyRelaxedNecessaryInjectorIsConfirmedOnlyAfterFinalDefinition() {
   setup(1, -1, false, List.of(TARGET));suspect();
   assertEquals(0,CompatibilityFindings.confirmedRequired().size());observe(target(false,true,"handler$000$probe","()V"));

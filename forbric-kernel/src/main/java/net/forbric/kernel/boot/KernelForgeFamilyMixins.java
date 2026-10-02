@@ -54,7 +54,11 @@ public final class KernelForgeFamilyMixins {
 	 * <p>The mod id was in scope where these are built and was being dropped. It is the only thing that lets a
 	 * failure name something a player recognises.
 	 */
-	public record ForgeMixinConfig(String config, String modId, Path jar, Ecosystem ecosystem) {
+	public record ForgeMixinConfig(String config, String modId, Path jar, Ecosystem ecosystem, List<String> requiredMods) {
+		public ForgeMixinConfig(String config, String modId, Path jar, Ecosystem ecosystem) {
+			this(config, modId, jar, ecosystem, List.of());
+		}
+		public ForgeMixinConfig { requiredMods = List.copyOf(requiredMods); }
 	}
 
 	/** Whether the Forge-family mixin path is on. Default ON — the switch exists for bisecting, not for shipping. */
@@ -93,6 +97,11 @@ public final class KernelForgeFamilyMixins {
 				disabled++;
 				ForbricLog.warn("[Forbric/Mixin] %s's mixin config %s DISABLED — that module's mixins will not "
 						+ "apply", decl.modId(), decl.config());
+				continue;
+			}
+			if (!decl.requiredMods().stream().allMatch(net.forbric.api.ModPresence::isLoaded)) {
+				ForbricLog.debug("[Forbric/Mixin] %s's optional config %s requires %s — not registered without its providers",
+						decl.modId(), decl.config(), decl.requiredMods());
 				continue;
 			}
 
