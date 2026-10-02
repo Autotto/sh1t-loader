@@ -546,6 +546,17 @@ public final class KernelBoot {
 		if (net.forbric.kernel.transform.MergedRecordOptionalDefaults.enabled()) {
 			chain.register(TransformPhase.COREMOD, new net.forbric.kernel.transform.MergedRecordOptionalDefaults());
 		}
+		// Every merged caller builds custom-payload codecs with NeoForge's overload, so a mod hooking vanilla's
+		// CustomPacketPayload.codec was never called: Carpet's carpet:hello could not be encoded and a dedicated
+		// server running it disconnected every player at login. Builds go through vanilla's overload again.
+		if (net.forbric.kernel.transform.PayloadCodecFunnelInjector.enabled()) {
+			chain.register(TransformPhase.COREMOD, new net.forbric.kernel.transform.PayloadCodecFunnelInjector());
+		}
+		// …and a payload on a channel only another ecosystem negotiated is RECEIVED down vanilla's path, where its mod
+		// listens, not by NeoForge's dispatcher, which disconnected Carpet's client on carpet:hello.
+		if (net.forbric.kernel.transform.ForeignPayloadReceiveInjector.enabled()) {
+			chain.register(TransformPhase.COREMOD, new net.forbric.kernel.transform.ForeignPayloadReceiveInjector());
+		}
 
 		// …and keep the packs it serves OUT of the player's resource-pack screen. Pack.isHidden survived the
 		// merge; the screen-side filter that reads it did not.

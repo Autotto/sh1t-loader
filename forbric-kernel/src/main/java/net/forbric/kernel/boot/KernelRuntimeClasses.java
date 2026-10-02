@@ -480,6 +480,9 @@ public final class KernelRuntimeClasses {
 		// MinecraftForge's Hurt, Damage and player Attack, from the seams ForgeDamageSeamsInjector writes into the merged
 		// actuallyHurt and Player.hurtServer; Player.<clinit> reports the attack seam in.
 		CLASSES.put("net.forbric.kernel.runtime.KernelLivingDamage", new Entry(Origin.COMPILED, List.of()));
+		// NeoForge's CustomPacketPayload.codec calls through(), and vanilla's asks protocol()/flow(): every payload codec
+		// is built through vanilla's overload again (PayloadCodecFunnelInjector). Inserted calls, game-typed descriptors.
+		CLASSES.put("net.forbric.kernel.runtime.KernelPayloadCodecs", new Entry(Origin.COMPILED, List.of()));
 		// NeoForge's ScreenEvent.Opening/Closing from the merged (MinecraftForge) Gui.setScreen; NeoScreenEventsInjector.
 		CLASSES.put("net.forbric.kernel.runtime.KernelScreenEvents", new Entry(Origin.COMPILED, List.of()));
 		// FabricCreativeModeInventoryScreen answered from NeoForge's pager: the bodies CreativePagerBridgeInjector gives
