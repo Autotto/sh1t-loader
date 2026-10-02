@@ -461,6 +461,18 @@ public final class KernelBoot {
 				return null;
 			}
 		}));
+		// Both sides: the early returns the carriers' decompile-recompile folded into each method's last return, so a
+		// Fabric mod's TAIL handler runs only where vanilla's does (TaCZ's Camera.update hook ran on the title screen,
+		// issue #31). LAST in the coremod phase (the sort index): every kernel injector still matches the folded
+		// shape it was written against, and a method one of them edited at its tail has no frame-only tail run and
+		// is left folded — its hook keeps running on every path.
+		if (net.forbric.kernel.transform.VanillaEarlyReturns.enabled()) {
+			chain.register(TransformPhase.COREMOD, new net.forbric.kernel.transform.VanillaEarlyReturns(), Integer.MAX_VALUE);
+		} else {
+			ForbricLog.warn("[Forbric/EarlyReturns] -D%s=off — merged methods keep their early returns folded into the "
+					+ "tail, and a Fabric mod's TAIL handler also runs where vanilla's body returned early",
+					net.forbric.kernel.transform.VanillaEarlyReturns.PROPERTY);
+		}
 		// Both sides: vanilla-descriptor twins beside the fields the merge re-typed (RangedBow/CrossbowAttackGoal.mob,
 		// AttributeSupplier$Builder.builder), so a vanilla-compiled reader and fabric-object-builder's accessor bind.
 		if (net.forbric.kernel.transform.WidenedFieldTwinInjector.enabled()) {
