@@ -56,6 +56,7 @@ class MergedBaseMixinCompatPinnedContractsTest {
 	/** Lifted by -Dforbric.keepMixins or -Dforbric.mergedBaseCompat=off, a pin's mixin applies and implements its interface. */
 	@Test @ResourceLock("system-properties")
 	void aPinIsInForceUntilSomethingLiftsIt() {
+		System.setProperty(FabricCreativePagerMixinAdapter.PROPERTY, "off");
 		String pin = MergedBaseMixinCompat.CREATIVE_PAGER_PIN;
 		assertTrue(MergedBaseMixinCompat.pinInForce(pin));
 		assertFalse(MergedBaseMixinCompat.pinInForce(pin.substring(0, pin.indexOf(':') + 1) + "NotPinned"));
@@ -68,6 +69,7 @@ class MergedBaseMixinCompatPinnedContractsTest {
 			System.setProperty("forbric.suppressMixins", pin);
 			assertTrue(MergedBaseMixinCompat.pinInForce(pin), "named again by hand");
 		} finally {
+			System.clearProperty(FabricCreativePagerMixinAdapter.PROPERTY);
 			System.clearProperty("forbric.keepMixins");
 			System.clearProperty("forbric.mergedBaseCompat");
 			System.clearProperty("forbric.suppressMixins");

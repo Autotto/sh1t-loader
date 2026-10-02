@@ -206,7 +206,7 @@ public final class KernelFabricEcosystem {
 		// entrypoints, no mixins, no assets, all of which the winner already provides.
 		for (DuplicateModArbiter.Alias alias : dupes.aliasesFor(Ecosystem.FABRIC)) {
 			fabric.register(KernelModContainer.presence(KernelModMetadata.builtin(alias.modId(), alias.version(),
-					alias.modId(), foreignCustomValues(alias.modId())), dupes.ownerByModId().get(alias.modId())));
+					alias.modId(), foreignCustomValues(alias.modId())), presenceSource(alias.modId(), dupes)));
 			ForbricLog.info("[Forbric/Fabric] presence alias '%s' %s — its Fabric jar lost arbitration, but the "
 					+ "winning jar supplies the classes; isModLoaded now answers", alias.modId(), alias.version());
 		}
@@ -672,6 +672,14 @@ public final class KernelFabricEcosystem {
 	 * Invokes one entrypoint key, isolating failures per mod: a mod whose {@code onInitialize} throws is reported
 	 * and skipped rather than aborting the remaining mods' initialization (and with them the whole server boot).
 	 */
+	/** Spectre's NeoForge global-load phase does not discover Fabric's custom config entries. */
+	static void initializeSpectreConfigs() {
+		if (!net.forbric.kernel.transform.SpectreConfigContractInjector.needed()) return;
+		int count = invoke("spectrelib-config", net.forbric.kernel.interop.SpectreConfigInitializer.class,
+				net.forbric.kernel.interop.SpectreConfigInitializer::onInitializeConfig);
+		if (count > 0) ForbricLog.info("[Forbric/Spectre] initialized %d Fabric config entrypoint(s) before the selected NeoForge library loads global configs", count);
+	}
+
 	private static <T> int invoke(String key, Class<T> type, java.util.function.Consumer<T> action) {
 		int count = 0;
 
@@ -794,6 +802,20 @@ public final class KernelFabricEcosystem {
 		ForbricLog.warn("[Forbric/Fabric] %s declares %s, but the build that loaded never registers a Fabric renderer "
 				+ "— not forwarding it, so Indigo takes the slot instead of leaving it empty", mod.getId(), CONTAINS_RENDERER);
 		return false;
+	}
+
+	/**
+	 * Cross-jar winners are recorded by the arbiter; a single universal jar has no contested id and hence
+	 * no owner-map entry. Its presence alias must still read the loaded family's jar (LambDynamicLights
+	 * reads its default config this way through Yumi), before the later foreign-mod loop skips that alias.
+	 */
+	static Path presenceSource(String id, DuplicateModArbiter.Decision dupes) {
+		Path winner = dupes.ownerByModId().get(id);
+		if (winner != null) return winner;
+		for (DiscoveredMod mod : ModPresence.forgeFamilyMods()) {
+			if (id.equals(mod.getId())) return loadedFrom(mod);
+		}
+		return null;
 	}
 
 	/** The jar a Forge-family mod was discovered in, when it is one this machine can read. */

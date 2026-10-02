@@ -183,7 +183,7 @@ public final class DependencyDialog {
 			return true;
 		}
 		boolean dryRun = DRY_RUN.equalsIgnoreCase(mode);
-		if (java.awt.GraphicsEnvironment.isHeadless()) {
+		if (java.awt.GraphicsEnvironment.isHeadless() && !net.forbric.kernel.boot.MacAwtBootstrap.usesHeadlessFonts()) {
 			// Measured safe to ask: on a JVM started with -XstartOnFirstThread this returns in ~12ms and starts
 			// no AWT thread, so the guard cannot be the thing that breaks the window it is guarding.
 			ForbricLog.info("[Forbric/Deps] headless — %d finding(s) reported in the log only", findings);

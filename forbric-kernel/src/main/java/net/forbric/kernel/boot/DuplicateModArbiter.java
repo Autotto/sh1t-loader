@@ -993,6 +993,18 @@ public final class DuplicateModArbiter {
 
 		for (Path jar : jars) {
 			Claim claim = claimOf(discoverer, jar, envType, universalAliases);
+			// Language/runtime bundles (notably kotlinforforge's -all jar) have JarJar metadata but no
+			// mod manifest. Keep their physical root in the plan so their declared children are discovered.
+			// An empty identity claims no mod id and cannot compete with a real mod or invent its presence.
+			if (claim == null && MultiLoaderArbiter.ownerOf(jar) == null) {
+				try (JarFile zip = new JarFile(jar.toFile())) {
+					if (zip.getEntry("META-INF/jarjar/metadata.json") != null) {
+						claim = new Claim(jar, Ecosystem.NEOFORGE, List.of(), Map.of());
+					}
+				} catch (Exception e) {
+					ForbricLog.warn("[Forbric/DupeId] could not inspect library bundle %s: %s", jar.getFileName(), String.valueOf(e));
+				}
+			}
 			if (claim != null) claims.add(claim);
 		}
 		return claims;

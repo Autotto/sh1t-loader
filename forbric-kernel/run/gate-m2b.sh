@@ -134,11 +134,12 @@ step "the merged-base concessions are EXACTLY the documented ones (must PASS)"
 # nothing at all, so an unflagged `grep -c` here yields an EMPTY count rather than a number.
 SUPPRESSED=$(grep -aoE 'suppressed mixin .*' "$LOG" | sort -u)
 [ -n "$SUPPRESSED" ] && echo "$SUPPRESSED" | sed 's/^/[kernel]   /'
-# Exactly the server-side entries of MergedBaseMixinCompat.SUPPRESSED_MIXINS that this mod set reaches. Each one
-# costs a real feature and is justified where it is declared. Re-derive the set with run/mixin-inventory.sh
-# before changing this number — never bump it to match a new log, which is how a ledger of debts turns into a
-# record of whatever happened last.
-assert_eq "suppressed mixins are the documented set" 4 "$(printf '%s' "$SUPPRESSED" | grep -c .)"
+# RegistryDataLoaderMixin is restored by FabricRegistryLoaderMixinAdapter; BootstrapMixin/MainMixin are
+# restored by FabricRegistryInitializationMixinAdapter. ForbricMixinService.suppressedMixinsFor removes those
+# pins only while the adapters are enabled (covered by ForbricMixinServiceTest). Loot remains kernel-owned.
+assert_eq "suppressed mixins are the documented set" \
+  "suppressed mixin ReloadableServerRegistriesMixin from fabric-loot-api-v3 (fabric-loot-api-v3.mixins.json)" \
+  "$SUPPRESSED"
 # DISABLED_CONFIGS ships EMPTY on purpose (a whole-config entry hides which single mixin is at fault) and this
 # gate passes no -Dforbric.disableMixinConfigs, so zero is the only correct answer and a count was never the
 # right assertion. `.*` and not `[^ ]+`: the Fabric path renders the config through MixinConfigOwners.describe,

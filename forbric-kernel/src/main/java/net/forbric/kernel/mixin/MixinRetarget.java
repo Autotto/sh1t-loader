@@ -180,6 +180,10 @@ public final class MixinRetarget {
 				}
 				// Neither moved nor split: the method kept its body and the call its place, and only the callee changed.
 				if (oneTarget && own.isEmpty()) own.addAll(substitutedCalls(mixin.name, handler, injector, selectors, target, resolver));
+				if (oneTarget && own.isEmpty()) {
+					Rewrite blockUpdate = C2meBlockUpdateRetarget.plan(mixin.name, handler, injector, selectors, target);
+					if (blockUpdate != null) own.add(blockUpdate);
+				}
 				rewrites.addAll(own);
 			}
 		}

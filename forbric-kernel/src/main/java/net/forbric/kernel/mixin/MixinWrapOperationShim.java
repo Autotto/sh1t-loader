@@ -72,12 +72,39 @@ public final class MixinWrapOperationShim {
 	private static final String GROUP = "Lorg/spongepowered/asm/mixin/injection/Group;";
 
 	/** {@code mixin#handler} → why binding it to the merged call is right. */
-	static final Map<String, String> REVIEWED = Map.of(
-			"net/fabricmc/fabric/mixin/event/interaction/ServerGamePacketListenerImplMixin#onPickItemFromBlock",
+	static final Map<String, String> REVIEWED = Map.ofEntries(
+			Map.entry("net/fabricmc/fabric/mixin/event/interaction/ServerGamePacketListenerImplMixin#onPickItemFromBlock",
 			"fabric-api's PlayerPickItemEvents.BLOCK never fired: nothing else posts it, and NeoForge's getCloneItemStack "
-					+ "only adds the player its block hook reads; the handler's own call still runs NeoForge's form");
+					+ "only adds the player its block hook reads; the handler's own call still runs NeoForge's form"),
+			Map.entry("com/zurrtum/create/mixin/BlockItemMixin#checkSound", "Create placement sound context must receive the live context-aware sound query"),
+			Map.entry("com/zurrtum/create/mixin/BlockItemMixin#getGroup", "Create placement sounds must preserve the native world, position and player arguments"),
+			Map.entry("com/zurrtum/create/mixin/LivingEntityMixin#getBlockFallSound", "Create landing sounds must wrap the native contextual sound query"),
+			Map.entry("com/zurrtum/create/mixin/EntityMixin#getStepSound", "Create step sounds must wrap the native contextual sound query"),
+			Map.entry("com/zurrtum/create/client/mixin/MultiPlayerGameModeMixin#getHitSound", "Create hit sounds must wrap the native contextual sound query"),
+			Map.entry("com/zurrtum/create/client/mixin/LevelEventHandlerMixin#getBreakSound", "Create break sounds must wrap the native contextual sound query"),
+			Map.entry("com/zurrtum/create/client/mixin/ModelBlockRendererMixin#getLuminance", "Create block luminance must preserve native world and position"),
+			Map.entry("com/zurrtum/create/client/mixin/LightCoordsUtilMixin#getLuminance", "Create light coordinates must preserve native world and position"),
+			Map.entry("com/zurrtum/create/client/mixin/ModelBlockRendererMixin#collectParts", "Create model part collection must retain the native block rendering context"));
 
 	private MixinWrapOperationShim() {
+	}
+
+	/** A call rename reviewed by a specific adapter; the old argument contract is still checked here. */
+	static int adaptExplicit(ClassNode mixin, MethodNode handler, MethodInsnNode live) {
+		AnnotationNode injector=MixinFit.injectorOf(handler);
+		if(injector==null||!WRAP_OPERATION.equals(injector.desc)||MixinFit.atNodes(injector).size()!=1)return 0;
+		AnnotationNode at=MixinFit.atNodes(injector).getFirst();
+		MixinAtWidenedCall.Member old=MixinAtWidenedCall.parse(MixinFit.asString(MixinFit.value(at,"target")));
+		if(old==null||!old.owner().equals(live.owner)||!Type.getReturnType(old.descriptor()).equals(Type.getReturnType(live.desc)))return 0;
+		if(old.name().equals(live.name)&&old.descriptor().equals(live.desc))return 0;
+		Type[] wanted=Type.getArgumentTypes(old.descriptor()), available=Type.getArgumentTypes(live.desc);
+		if(Arrays.equals(wanted,available)){CarpetMixinAdapter.set(at,"target","L"+live.owner+";"+live.name+live.desc);return 1;}
+		int[] mapping=embedding(wanted,available);if(mapping==null)return 0;
+		Type[] params=Type.getArgumentTypes(handler.desc);int receiver=live.getOpcode()==Opcodes.INVOKESTATIC?0:1;
+		if(params.length<receiver+wanted.length+1||!params[receiver+wanted.length].equals(Type.getObjectType(OPERATION)))return 0;
+		for(int i=0;i<wanted.length;i++)if(!params[receiver+i].equals(wanted[i]))return 0;
+		var renamed=new MixinAtWidenedCall.Member(live.owner,live.name,old.descriptor());
+		mixin.methods.add(wrap(mixin,handler,new Plan(injector,at,renamed,live.desc,mapping,receiver==0)));return 1;
 	}
 
 	static boolean enabled() {
@@ -312,7 +339,7 @@ public final class MixinWrapOperationShim {
 
 	/** The handler's parameter annotations moved to the outer's positions: the call's shape is unannotated, trailing ones shift. */
 	@SuppressWarnings("unchecked")
-	private static List<AnnotationNode>[] shifted(List<AnnotationNode>[] original, int handlerParams, int shift, int head, int outerParams) {
+	static List<AnnotationNode>[] shifted(List<AnnotationNode>[] original, int handlerParams, int shift, int head, int outerParams) {
 		if (original == null) return null;
 		List<AnnotationNode>[] moved = new List[outerParams];
 		for (int i = head; i < Math.min(original.length, handlerParams); i++) {

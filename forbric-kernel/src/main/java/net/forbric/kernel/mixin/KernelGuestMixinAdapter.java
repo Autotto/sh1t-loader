@@ -296,6 +296,12 @@ public final class KernelGuestMixinAdapter {
 					continue;
 				}
 				suppress.add(mixin);
+				String optional = OptionalMixinDependencies.absent(MixinFit.parse(classBytes), net.forbric.api.ModPresence::isLoaded);
+				if (optional != null) {
+					ForbricLog.info("[Forbric/Mixin] %s:%s is an optional %s integration; that mod is absent, so the "
+							+ "integration is not applicable on this boot", MixinConfigOwners.describe(configName), mixin, optional);
+					continue;
+				}
 				ForbricLog.info("[Forbric/Mixin] auto-suppressing guest mixin %s:%s — %s on the merged base (%s)",
 						MixinConfigOwners.describe(configName), mixin, fit.verdict(), fit.reason());
 				report(MixinCompatibility.id(configName, pkg + "." + mixin), configName, pkg, mixin, pluginClass, classBytes,
@@ -402,6 +408,9 @@ public final class KernelGuestMixinAdapter {
 					"the kernel leaves out its mixin " + mixin + " on the merged game",
 					CompatibilityFinding.Confidence.CONFIRMED, false,
 					List.of("kernel suppressed this mixin by name", "source=" + e.getValue(), "config required=" + required));
+			if (SupersededMixins.replacementFor(pkg + "." + mixin) != null) {
+				SupersededMixins.awaitProof(configName, pkg + "." + mixin);
+			}
 		}
 	}
 
