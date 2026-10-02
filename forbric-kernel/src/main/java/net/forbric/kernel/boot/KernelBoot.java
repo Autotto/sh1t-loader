@@ -336,6 +336,8 @@ public final class KernelBoot {
 		// on its own platform — and a universal jar answers as the ONE ecosystem it was arbitrated to. Plain
 		// libraries declare no manifest and stay unowned. See LoaderProbePolicy.
 		loader.setJarFamilies(probeFamilies(fabricJars, modJars));
+		// …and a universal jar's ServiceLoader lists only the providers that loader could link, as on its own.
+		loader.setUniversalJars(universalJars(fabricJars, modJars));
 		LoaderProbePolicy.bindGuestLoader(loader);
 
 		// A mod that unpacks its real payload at preLaunch has no public API for adding it to the classpath and
@@ -1165,6 +1167,17 @@ public final class KernelBoot {
 			}
 		}
 		return families;
+	}
+
+	/** The mod jars that declare more than one loader; each runs as the one {@code MultiLoaderArbiter} chose. */
+	private static java.util.Set<Path> universalJars(List<Path> fabricJars, List<Path> modJars) {
+		java.util.Set<Path> universal = new java.util.LinkedHashSet<>();
+		for (List<Path> group : List.of(fabricJars, modJars)) {
+			for (Path jar : group) {
+				if (MultiLoaderArbiter.declaredBy(jar).size() > 1 && MultiLoaderArbiter.ownerOf(jar) != null) universal.add(jar);
+			}
+		}
+		return universal;
 	}
 
 	/** The version log alone cannot distinguish the supplied library from a guest's older copy. */
