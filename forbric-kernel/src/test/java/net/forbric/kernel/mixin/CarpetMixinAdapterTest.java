@@ -37,6 +37,7 @@ class CarpetMixinAdapterTest {
 	}
 	static ClassNode target(String name) {
 		try{return from(jarOf(name),name);}
+		catch(org.opentest4j.TestAbortedException e){throw e;}
 		catch(Exception e){throw new AssertionError(e);}
 	}
 	/** MixinFit's resolver over the staged jars ("net/…/Foo.class"); null for a class none of them carries. */
