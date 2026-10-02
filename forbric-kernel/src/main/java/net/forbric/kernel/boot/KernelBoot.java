@@ -511,6 +511,11 @@ public final class KernelBoot {
 					+ "again (constructor arity)", net.forbric.kernel.transform.SnippetConstructorFunnel.PROPERTY);
 		}
 
+		// The title screen and F3 name Forbric's release (forbric-v0.3.1-beta), not NeoForge's or the launcher's
+		// profile id; display only, the brand sent to servers stays NeoForge's.
+		if (net.forbric.kernel.transform.ForbricBrandingInjector.enabled()) {
+			chain.register(TransformPhase.COREMOD, new net.forbric.kernel.transform.ForbricBrandingInjector());
+		}
 		chain.register(TransformPhase.COREMOD, new net.forbric.kernel.transform.ForgeBlockTintInjector());
 		chain.register(TransformPhase.COREMOD, new net.forbric.kernel.transform.ForgeOptionsInjector());
 
