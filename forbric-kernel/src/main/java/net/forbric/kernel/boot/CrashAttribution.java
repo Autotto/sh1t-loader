@@ -94,6 +94,19 @@ public final class CrashAttribution {
 	/** Mixin's own words, in the exception message rather than in a frame: {@code from mod sodium}. */
 	private static final Pattern FROM_MOD = Pattern.compile("from mod ([A-Za-z0-9_\\-]+)");
 
+	/**
+	 * An error naming the mods that clashed: Sodium's config API refuses two mods overriding one option with
+	 * {@code Multiple overrides for option 'sodium:general.fullscreen_mode'! Sources: chloride and cwb}.
+	 *
+	 * <p>Those mods are the answer, and the frame below them is not: the throw happens inside Sodium, under one of
+	 * Sodium's mixin handlers, which on its own would tell the player to remove Sodium. Read only from the
+	 * exception's message lines, and only ids the catalogue has, like every other signal here.
+	 */
+	private static final Pattern CLASHING = Pattern.compile("Sources?: ([A-Za-z0-9_\\-]+(?:(?:, and |, ?| and )[A-Za-z0-9_\\-]+)+)");
+
+	/** The reason a suspect carries when the error names it as one side of a clash. */
+	static final String CLASH = "the error names it as clashing with another mod";
+
 	private static volatile Path rundir;
 
 	/**
@@ -220,6 +233,12 @@ public final class CrashAttribution {
 			while (fromMod.find()) {
 				remember(byId, fromMod.group(1), "Mixin named it", depth);
 			}
+			if (!line.startsWith("\tat ")) {
+				Matcher clashing = CLASHING.matcher(line);
+				while (clashing.find()) {
+					for (String id : clashing.group(1).split(", and |, ?| and ")) remember(byId, id.strip(), CLASH, depth);
+				}
+			}
 			Matcher jar = FRAME_JAR.matcher(line);
 			while (jar.find()) {
 				for (ModCatalog.Entry entry : ModCatalog.everything()) {
@@ -278,7 +297,11 @@ public final class CrashAttribution {
 				sb.append("完整的报错在 crash-reports/").append(reportName).append(" 里。\n");
 				return sb.toString();
 			}
-			sb.append(suspects.size() == 1 ? "可能是这个 mod 的问题：\n\n" : "可能是这几个 mod 的问题，越靠前越可能：\n\n");
+			if (clashing(suspects) >= 2) {
+				sb.append("这几个 mod 互相冲突 —— 报错里把它们点名放在了一起：\n\n");
+			} else {
+				sb.append(suspects.size() == 1 ? "可能是这个 mod 的问题：\n\n" : "可能是这几个 mod 的问题，越靠前越可能：\n\n");
+			}
 			for (Suspect s : suspects) {
 				sb.append("  ").append(s.name());
 				if (!s.version().isEmpty()) sb.append(' ').append(s.version());
@@ -287,7 +310,11 @@ public final class CrashAttribution {
 			}
 			sb.append("怎么办\n");
 			sb.append("------\n");
-			sb.append("先把最上面那个 mod 从 mods 文件夹里拿出来再开一次。还是崩就换下一个。\n");
+			if (clashing(suspects) >= 2) {
+				sb.append(clashNames(suspects, "、")).append(" 不能装在一起：只留其中一个，把其余的从 mods 文件夹里拿出来再开一次。\n");
+			} else {
+				sb.append("先把最上面那个 mod 从 mods 文件夹里拿出来再开一次。还是崩就换下一个。\n");
+			}
 			sb.append("这只是个猜测：它说的是这些 mod 出现在了报错里，不是说它们一定有毛病。\n");
 			sb.append("完整的报错在 crash-reports/").append(reportName).append(" 里。\n");
 			return sb.toString();
@@ -299,8 +326,12 @@ public final class CrashAttribution {
 			sb.append("be a mod at all. The full error is in crash-reports/").append(reportName).append(".\n");
 			return sb.toString();
 		}
-		sb.append(suspects.size() == 1 ? "This mod might be the one:\n\n"
-				: "It might be one of these, likeliest first:\n\n");
+		if (clashing(suspects) >= 2) {
+			sb.append("These mods clash with each other — the error names them together:\n\n");
+		} else {
+			sb.append(suspects.size() == 1 ? "This mod might be the one:\n\n"
+					: "It might be one of these, likeliest first:\n\n");
+		}
 		for (Suspect s : suspects) {
 			sb.append("  ").append(s.name());
 			if (!s.version().isEmpty()) sb.append(' ').append(s.version());
@@ -309,14 +340,32 @@ public final class CrashAttribution {
 		}
 		sb.append("What to do\n");
 		sb.append("----------\n");
-		sb.append("Take the first one out of your mods folder and start again. If it still crashes, try the next.\n");
+		if (clashing(suspects) >= 2) {
+			sb.append(clashNames(suspects, ", ")).append(" cannot be installed together: keep one of them, take the\n");
+			sb.append("other").append(clashing(suspects) > 2 ? "s" : "").append(" out of your mods folder and start again.\n");
+		} else {
+			sb.append("Take the first one out of your mods folder and start again. If it still crashes, try the next.\n");
+		}
 		sb.append("This is a guess: it says these mods were in the error, not that they are at fault.\n");
 		sb.append("The full error is in crash-reports/").append(reportName).append(".\n");
 		return sb.toString();
 	}
 
+	/** The display names of the mods the error named as clashing, joined by {@code separator}. */
+	private static String clashNames(List<Suspect> suspects, String separator) {
+		List<String> names = new ArrayList<>();
+		for (Suspect s : suspects) if (CLASH.equals(s.reason())) names.add(s.name());
+		return String.join(separator, names);
+	}
+
+	/** How many suspects the error named as sides of one clash. */
+	private static long clashing(List<Suspect> suspects) {
+		return suspects.stream().filter(s -> CLASH.equals(s.reason())).count();
+	}
+
 	private static String zhReason(String reason) {
 		return switch (reason) {
+			case CLASH -> "报错里把它和另一个 mod 列为冲突的双方";
 			case "its mixin was running" -> "它改过的代码正在运行";
 			case "Mixin named it" -> "报错里直接点了它的名字";
 			default -> "报错里有它的代码";

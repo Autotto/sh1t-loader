@@ -136,6 +136,45 @@ class CrashAttributionTest {
 	}
 
 	@Test
+	void modsTheErrorNamesAsClashingComeBeforeTheModWhoseCodeThrew() {
+		// Verbatim head of a real report: chloride + Cubes Without Borders + sodium-neoforge on this loader. Both
+		// override Sodium's fullscreen option and Sodium refuses the pair; its own handler frame is the first one.
+		ModCatalog.publish(List.of(
+				mod("chloride", "Chloride", "chloride-NEOFORGE-mc26.2-v1.8.1.jar"),
+				mod("cwb", "Cubes Without Borders", "cwb-4.1.0+26.2.jar"),
+				mod("sodium", "Sodium", "sodium-neoforge-0.9.2+mc26.2.jar")));
+		String report = "---- Minecraft Crash Report ----\n"
+				+ "Description: Failed to build config options\n\n"
+				+ "java.lang.IllegalArgumentException: Multiple overrides for option 'sodium:general.fullscreen_mode'! "
+				+ "Sources: chloride and cwb\n"
+				+ "\tat forbric/net.caffeinemc.mods.sodium.client.config.structure.Config.applyOptionChanges(Config.java:131) "
+				+ "~[net.caffeinemc.sodium-neoforge-0.9.2+mc26.2-mod.jar:?] {}\n"
+				+ "\tat forbric/net.minecraft.client.Minecraft.handler$zca000$sodium$postInit(Minecraft.java:5117) "
+				+ "[patched-mc-merged-26.2.jar:?] {}\n";
+
+		List<CrashAttribution.Suspect> suspects = CrashAttribution.suspects(report);
+
+		assertEquals(List.of("chloride", "cwb", "sodium"), suspects.stream().map(CrashAttribution.Suspect::modId).toList());
+		assertEquals(CrashAttribution.CLASH, suspects.get(0).reason());
+		assertEquals(CrashAttribution.CLASH, suspects.get(1).reason());
+		String en = CrashAttribution.render(false, "crash.txt", suspects);
+		assertTrue(en.contains("clash with each other") && en.contains("Chloride, Cubes Without Borders cannot be installed together"), en);
+		assertFalse(en.contains("Take the first one out"), en);
+		String zh = CrashAttribution.render(true, "crash.txt", suspects);
+		assertTrue(zh.contains("互相冲突") && zh.contains("Chloride、Cubes Without Borders 不能装在一起"), zh);
+	}
+
+	@Test
+	void aSourcesListNamingOnlyOneInstalledModIsNotAClash() {
+		ModCatalog.publish(List.of(mod("cwb", "Cubes Without Borders", "cwb.jar")));
+		List<CrashAttribution.Suspect> suspects = CrashAttribution.suspects(
+				"java.lang.IllegalArgumentException: Multiple overrides for option 'x'! Sources: somethingelse and cwb\n");
+		assertEquals(List.of("cwb"), suspects.stream().map(CrashAttribution.Suspect::modId).toList());
+		assertFalse(CrashAttribution.render(false, "crash.txt", suspects).contains("clash with each other"),
+				"one named side is not a pair the player can choose between");
+	}
+
+	@Test
 	void aHandlerWhoseTokenIsNotAModIdSaysNothing() {
 		// About half the handler frames in run/ carry a method name in that position rather than a mod id --
 		// handler$zpf000$mutableSpecialElementRenderers. The token is Mixin's convention, not a guarantee, so
