@@ -558,6 +558,18 @@ public final class PayloadInterop {
 	private static final class CodecInvocationHandler implements InvocationHandler {
 		private final CandidateSet candidates;
 
+		/**
+		 * The codec's own exception, not reflection's wrapper of it: an encoder failure used to surface as
+		 * UndeclaredThrowableException → InvocationTargetException → the real cause, three frames deep.
+		 */
+		private static Object forward(Method method, Object codec, Object[] args) throws Throwable {
+			try {
+				return method.invoke(codec, args);
+			} catch (java.lang.reflect.InvocationTargetException thrown) {
+				throw thrown.getCause() == null ? thrown : thrown.getCause();
+			}
+		}
+
 		private CodecInvocationHandler(CandidateSet candidates) {
 			this.candidates = candidates;
 		}
@@ -568,12 +580,12 @@ public final class PayloadInterop {
 			if ("encode".equals(name) && args != null && args.length == 2) {
 				Object codec = candidates.selectEncode(args[1]);
 				if (codec == null) throw new IllegalStateException("No custom payload codec for " + candidates.id);
-				return method.invoke(codec, args);
+				return forward(method, codec, args);
 			}
 			if ("decode".equals(name) && args != null && args.length == 1) {
 				Object codec = candidates.selectDecode();
 				if (codec == null) throw new IllegalStateException("No custom payload codec for " + candidates.id);
-				return method.invoke(codec, args);
+				return forward(method, codec, args);
 			}
 			if ("cast".equals(name) && (args == null || args.length == 0)) return proxy;
 			if ("toString".equals(name) && (args == null || args.length == 0)) {

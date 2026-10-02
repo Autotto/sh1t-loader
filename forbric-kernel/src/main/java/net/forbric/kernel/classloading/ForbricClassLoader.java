@@ -469,6 +469,48 @@ public final class ForbricClassLoader extends URLClassLoader {
 	}
 
 	/**
+	 * Declares which owned jars are universal — carrying more than one loader's manifest — so their
+	 * {@code META-INF/services} files are served as the arbitrated loader would read them. See {@link UniversalJarServices}.
+	 */
+	public void setUniversalJars(java.util.Collection<java.nio.file.Path> jars) {
+		universalJars.clear();
+		for (java.nio.file.Path jar : jars) {
+			try {
+				universalJars.add("jar:" + jar.toUri().toURL());   // setJarFamilies' spelling
+			} catch (java.net.MalformedURLException impossible) {
+				// a jar already on this loader's URL list cannot fail to spell itself
+			}
+		}
+	}
+
+	/**
+	 * A universal jar's services file lists one provider per loader and counts on the foreign ones failing to link;
+	 * here they all link, so the file is narrowed to what the jar's arbitrated loader could use. See
+	 * {@link UniversalJarServices}.
+	 */
+	@Override
+	public java.util.Enumeration<URL> findResources(String name) throws IOException {
+		java.util.Enumeration<URL> found = super.findResources(name);
+		if (universalJars.isEmpty() || !name.startsWith(UniversalJarServices.PREFIX) || !UniversalJarServices.enabled()) return found;
+		java.util.List<URL> served = new java.util.ArrayList<>();
+		while (found.hasMoreElements()) {
+			URL resource = found.nextElement();
+			String url = resource.toString();
+			int bang = url.indexOf("!/");
+			String jar = bang < 0 ? null : url.substring(0, bang);
+			LoaderProbePolicy.Family owner = jar == null || !universalJars.contains(jar) ? null : jarFamilies.get(jar);
+			served.add(owner == null ? resource : UniversalJarServices.serve(resource, name, owner, internal -> {
+				try (java.io.InputStream in = new URL(jar + "!/" + internal + ".class").openStream()) {
+					return in.readAllBytes();
+				} catch (IOException absent) {
+					return null;
+				}
+			}));
+		}
+		return java.util.Collections.enumeration(served);
+	}
+
+	/**
 	 * The loader family of the jar {@code binaryName} is being defined from, or {@code null} if it is unowned —
 	 * the merged base, a runtime carrier, an MC library, a jar declaring no loader, or a kernel class. A universal jar
 	 * answers the ecosystem {@code MultiLoaderArbiter} chose for it.
@@ -543,6 +585,8 @@ public final class ForbricClassLoader extends URLClassLoader {
 
 	// Owned single-family jars, keyed by "jar:file:…!"-prefix; and the per-class answer derived from them.
 	private final ConcurrentHashMap<String, LoaderProbePolicy.Family> jarFamilies = new ConcurrentHashMap<>();
+	// The owned jars that carry more than one loader's manifest, same keys. See setUniversalJars.
+	private final java.util.Set<String> universalJars = ConcurrentHashMap.newKeySet();
 	// Jars a launcher API added after boot, same keys; consulted by familyOfResource only (see addRuntimeJarFamily).
 	private final ConcurrentHashMap<String, LoaderProbePolicy.Family> runtimeJarFamilies = new ConcurrentHashMap<>();
 	private final ConcurrentHashMap<String, LoaderProbePolicy.Family> classFamilies = new ConcurrentHashMap<>();

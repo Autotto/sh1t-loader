@@ -336,6 +336,8 @@ public final class KernelBoot {
 		// on its own platform — and a universal jar answers as the ONE ecosystem it was arbitrated to. Plain
 		// libraries declare no manifest and stay unowned. See LoaderProbePolicy.
 		loader.setJarFamilies(probeFamilies(fabricJars, modJars));
+		// …and a universal jar's ServiceLoader lists only the providers that loader could link, as on its own.
+		loader.setUniversalJars(universalJars(fabricJars, modJars));
 		LoaderProbePolicy.bindGuestLoader(loader);
 
 		// A mod that unpacks its real payload at preLaunch has no public API for adding it to the classpath and
@@ -461,6 +463,18 @@ public final class KernelBoot {
 				return null;
 			}
 		}));
+		// Both sides: the early returns the carriers' decompile-recompile folded into each method's last return, so a
+		// Fabric mod's TAIL handler runs only where vanilla's does (TaCZ's Camera.update hook ran on the title screen,
+		// issue #31). LAST in the coremod phase (the sort index): every kernel injector still matches the folded
+		// shape it was written against, and a method one of them edited at its tail has no frame-only tail run and
+		// is left folded — its hook keeps running on every path.
+		if (net.forbric.kernel.transform.VanillaEarlyReturns.enabled()) {
+			chain.register(TransformPhase.COREMOD, new net.forbric.kernel.transform.VanillaEarlyReturns(), Integer.MAX_VALUE);
+		} else {
+			ForbricLog.warn("[Forbric/EarlyReturns] -D%s=off — merged methods keep their early returns folded into the "
+					+ "tail, and a Fabric mod's TAIL handler also runs where vanilla's body returned early",
+					net.forbric.kernel.transform.VanillaEarlyReturns.PROPERTY);
+		}
 		// Both sides: vanilla-descriptor twins beside the fields the merge re-typed (RangedBow/CrossbowAttackGoal.mob,
 		// AttributeSupplier$Builder.builder), so a vanilla-compiled reader and fabric-object-builder's accessor bind.
 		if (net.forbric.kernel.transform.WidenedFieldTwinInjector.enabled()) {
@@ -517,6 +531,11 @@ public final class KernelBoot {
 		// Polymer's ingredient codec does for every recipe — got null and the recipe packet failed to encode.
 		chain.register(TransformPhase.COREMOD,
 				new net.forbric.kernel.transform.SplitterPacketContextInjector());
+		// NeoForge syncs recipes by type, so one recipe whose serializer cannot encode it (Enchant Craft's) used to
+		// disconnect every player on join once any mod asked for crafting recipes; it is left out with a warning.
+		if (net.forbric.kernel.transform.RecipeSyncFailSoftInjector.enabled()) {
+			chain.register(TransformPhase.COREMOD, new net.forbric.kernel.transform.RecipeSyncFailSoftInjector());
+		}
 
 		// …and keep the packs it serves OUT of the player's resource-pack screen. Pack.isHidden survived the
 		// merge; the screen-side filter that reads it did not.
@@ -1153,6 +1172,17 @@ public final class KernelBoot {
 			}
 		}
 		return families;
+	}
+
+	/** The mod jars that declare more than one loader; each runs as the one {@code MultiLoaderArbiter} chose. */
+	private static java.util.Set<Path> universalJars(List<Path> fabricJars, List<Path> modJars) {
+		java.util.Set<Path> universal = new java.util.LinkedHashSet<>();
+		for (List<Path> group : List.of(fabricJars, modJars)) {
+			for (Path jar : group) {
+				if (MultiLoaderArbiter.declaredBy(jar).size() > 1 && MultiLoaderArbiter.ownerOf(jar) != null) universal.add(jar);
+			}
+		}
+		return universal;
 	}
 
 	/** The version log alone cannot distinguish the supplied library from a guest's older copy. */

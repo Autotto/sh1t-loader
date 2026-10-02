@@ -323,6 +323,8 @@ public final class KernelRuntimeClasses {
 				new Call("init", void.class))));
 		// A MinecraftForge brewing recipe as NeoForge's registry reads it; wrapped in PotionBrewing.Builder.add.
 		CLASSES.put("net.forbric.kernel.runtime.KernelBrewing", new Entry(Origin.COMPILED, List.of()));
+		// NeoForge's recipe-sync payload without the recipes their own serializer cannot encode; CommonHooks.sendRecipes.
+		CLASSES.put("net.forbric.kernel.runtime.KernelRecipeSync", new Entry(Origin.COMPILED, List.of()));
 		// MinecraftForge's attack, shield, knockback and fall events off NeoForge's at the same positions.
 		CLASSES.put("net.forbric.kernel.runtime.KernelGameDamageEvents", new Entry(Origin.COMPILED, List.of(
 				new Call("installLivingAttack", void.class, Object.class),

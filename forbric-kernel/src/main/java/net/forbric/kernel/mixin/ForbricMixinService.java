@@ -350,6 +350,9 @@ public final class ForbricMixinService
 		// Last so every specific adapter above has had its say: FabricEntityMixinAnchors moves fabric-api's elytra
 		// check onto NeoForge's gliding attribute read, and a rebind first would have changed the selector it matches.
 		MixinStubRebind.adapt(node, this::mergedBaseNodeWithCode);
+		// …and a NeoForge or MinecraftForge mod's TAIL on a method whose early returns the kernel restored keeps every
+		// return its own loader's folded body sent there. After the rebind: it reads the injector's final target.
+		MixinNativeTail.adapt(node, this::mergedBaseNodeWithCode);
 		FinalMixinApplications.remember(node);
 		// …and, after remember has the author's own counts, an injector-level require/allow on a relaxed guest mixin
 		// stops being able to abandon the whole target class: the mod is reported, the class is defined.
