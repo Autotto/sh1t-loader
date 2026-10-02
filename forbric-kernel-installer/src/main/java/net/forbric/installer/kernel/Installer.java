@@ -78,13 +78,19 @@ public final class Installer {
 
 		log.accept("Minecraft directory: " + mcDir);
 
+		// A supplied set is judged first, before the base version is downloaded or anything is written: it needs
+		// no vanilla jar (that is an input only when the installer builds), and someone who picked the wrong
+		// files should hear so at once, not after a download from Mojang.
+		Map<String, Path> artifacts = artifactDir == null ? null
+				: obtainGameArtifacts(mcDir, mcVersion, artifactDir, explicitJdk);
+
 		// The vanilla base has to exist before the artifacts are built, not after: its jar is one of the merge's
 		// three inputs, and NFRT reuses the client and server the launcher already fetched.
 		Map<String, Object> baseJson = ensureBaseVersion(versions, mcVersion);
 		List<String> mcLibraries = minecraftLibraryPaths(baseJson);
 		log.accept(mcLibraries.size() + " Minecraft libraries the kernel will own");
 
-		Map<String, Path> artifacts = obtainGameArtifacts(mcDir, mcVersion, artifactDir, explicitJdk);
+		if (artifacts == null) artifacts = obtainGameArtifacts(mcDir, mcVersion, null, explicitJdk);
 
 		List<Map<String, Object>> libraryEntries = new ArrayList<>();
 		libraryEntries.addAll(stageBundledJars(libraries, remote));
@@ -337,25 +343,45 @@ public final class Installer {
 	}
 
 	/**
-	 * Gets the three game artifacts: from {@code --artifacts} when a complete set is there, otherwise built.
+	 * Gets the three game artifacts: built here when no directory is given, which is what every player gets;
+	 * otherwise taken from {@code --artifacts} ("Built artifacts" in the window), and refused unless that
+	 * directory holds a complete set whose files are what their names say.
 	 *
-	 * <p>A supplied directory is a fast path, not a requirement. It used to be the only path — the installer
-	 * looked for prebuilt jars and refused to continue without them, which worked on the machine that had built
-	 * them and nowhere else.
+	 * <p>A supplied directory is a fast path for developers, not a requirement. It used to be the only path —
+	 * the installer looked for prebuilt jars and refused to continue without them, which worked on the machine
+	 * that had built them and nowhere else — and the window still described it that way long after, which is
+	 * how a player came to fill it with three unrelated jars (#13).
 	 *
-	 * <p>A supplied set is link-checked exactly as a built one is, against the same packaged baseline, before the
-	 * profile can be written. It used to be staged unchecked: a merged base with a new dangling reference, or
-	 * one built with {@code LINK_CHECK=warn}, installed without a verdict and failed in game instead.
+	 * <p>A supplied set is opened and checked for content ({@link GameArtifacts#verifyContents}), then
+	 * link-checked exactly as a built one is, against the same packaged baseline, before the profile can be
+	 * written. It used to be staged unchecked: a merged base with a new dangling reference, or one built with
+	 * {@code LINK_CHECK=warn}, installed without a verdict and failed in game instead.
 	 */
 	Map<String, Path> obtainGameArtifacts(Path mcDir, String mcVersion, Path artifactDir, Path explicitJdk)
 			throws IOException {
 		if (artifactDir != null) {
-			Map<String, Path> found = GameArtifacts.locate(mcVersion, artifactDir).all();
+			log.accept("Built artifacts: using the game files in " + artifactDir + " instead of building them");
+			GameArtifacts supplied = GameArtifacts.locate(mcVersion, artifactDir);
+			Map<String, Path> found = supplied.all();
 			for (Map.Entry<String, Path> e : found.entrySet()) log.accept("  using " + e.getValue());
+			// Content before links: the link check cannot tell a real merged base from any jar that refers to
+			// nothing outside itself, and that is how #13 installed three unrelated jars "successfully".
+			supplied.verifyContents(mcVersion);
+			log.accept("  each file holds what its name says");
 			JdkLocator.Jvm jvm = JdkLocator.locate(mcDir, explicitJdk, line -> log.accept("link-check JVM: " + line));
-			new MergedBaseTool(mcDir.resolve(".forbric-build").resolve("tools"), log).linkCheck(jvm,
-					found.get(ArtifactBuilder.MERGED), found.get(ArtifactBuilder.NEOFORGE_RUNTIME),
-					found.get(ArtifactBuilder.FORGE_RUNTIME));
+			try {
+				new MergedBaseTool(mcDir.resolve(".forbric-build").resolve("tools"), log).linkCheck(jvm,
+						found.get(ArtifactBuilder.MERGED), found.get(ArtifactBuilder.NEOFORGE_RUNTIME),
+						found.get(ArtifactBuilder.FORGE_RUNTIME));
+			} catch (MergedBaseTool.Failed doNotLink) {
+				// Each file is the right kind of file, or the content check would have said so; together they still
+				// do not make one game — one of them damaged, or the three from different builds. This used to
+				// reach the player as the link checker's own output, a stack trace with no way out in it.
+				throw new IOException("Built artifacts: the files in " + artifactDir + " do not fit together: each"
+						+ " is the right kind of file, but the link check of the three failed (one may be damaged, or"
+						+ " they come from different builds).\n" + GameArtifacts.LEAVE_EMPTY + "\n"
+						+ doNotLink.getMessage(), doNotLink);
+			}
 			return found;
 		}
 		JdkLocator.Jvm jvm = JdkLocator.locate(mcDir, explicitJdk, line -> log.accept("build JVM: " + line));

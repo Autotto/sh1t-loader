@@ -46,11 +46,22 @@ public final class MergedBaseLinkGateTest {
 		}
 		System.out.println("PASS installer gate: valid build, new defect rejected, empty scan rejected");
 		suppliedArtifacts(work, classes, target, logs);
+		// The content check that runs before this link check on a supplied set; here so every runner of this gate
+		// (gradle linkGateTest, run/test-link-gate.py, CI) exercises it too.
+		SuppliedArtifactContentTest.main(new String[] { work.resolve("content").toString() });
+		// And the window's way into the same install: what a player pastes into its path fields.
+		InstallerWindowInputTest.main(new String[] { work.resolve("window").toString() });
 	}
 
 	/**
 	 * {@code --artifacts DIR}: the supplied set is link-checked like a built one, the interop jar is what stands for
 	 * the Forge runtime, and a failed check leaves no profile behind.
+	 *
+	 * <p>The set has to look like a real one first, or the content check refuses it before any link check runs:
+	 * the game jar is Minecraft 26.2 whose client refers to both families, each carrier holds its family's core
+	 * class and mod loader and names the pinned version in its manifest, and the Forge carrier has the interop
+	 * bridge. Those are real bytecode, so they are resolved like any other — and the bridge, compiled by javac,
+	 * is a real class file for the content check's class-file reader.
 	 */
 	private static void suppliedArtifacts(Path work, Path classes, Path target, List<String> logs) throws Exception {
 		Path supplied = Files.createDirectories(work.resolve("supplied"));
@@ -58,9 +69,34 @@ public final class MergedBaseLinkGateTest {
 		Path interop = supplied.resolve("merged-base").resolve("forge-runtime-interop.jar");
 		Path raw = Files.createDirectories(supplied.resolve("forge-runtime")).resolve("forge-runtime.jar");
 		Path neo = Files.createDirectories(supplied.resolve("neoforge-runtime")).resolve("neoforge-runtime.jar");
-		for (Path carrier : List.of(interop, raw, neo)) {
-			try (JarOutputStream ignored = new JarOutputStream(Files.newOutputStream(carrier))) { }
-		}
+		Path carriers = Files.createDirectories(work.resolve("src/carriers"));
+		Path forgeClasses = Files.createDirectories(work.resolve("forge-classes"));
+		Path neoClasses = Files.createDirectories(work.resolve("neo-classes"));
+		String hook = "{ public static void hook() { } }";
+		compileWith(forgeClasses, null,
+				source(carriers, "net.minecraftforge.common", "public class MinecraftForge " + hook),
+				source(carriers, "net.minecraftforge.fml.loading", "public class FMLLoader { }"),
+				source(carriers, "net.minecraftforge.forgespi.language", "public interface IModInfo { }"),
+				source(carriers, "net.minecraftforge.registries", "public class NamespacedWrapper$3 { "
+						+ "java.util.Map<String, Object> bindings = java.util.Map.of(); "
+						+ "public java.util.Map<String, Object> contents() { return bindings; } }"));
+		compileWith(neoClasses, null,
+				source(carriers, "net.neoforged.neoforge.common", "public class NeoForge " + hook),
+				source(carriers, "net.neoforged.fml.loading", "public class FMLLoader { }"),
+				source(carriers, "net.neoforged.neoforgespi.language", "public interface IModInfo { }"));
+		Files.writeString(Files.createDirectories(forgeClasses.resolve("META-INF")).resolve("MANIFEST.MF"),
+				"Manifest-Version: 1.0\r\nImplementation-Title: MinecraftForge\r\nImplementation-Version: 65.0.1\r\n\r\n");
+		Files.writeString(Files.createDirectories(neoClasses.resolve("META-INF")).resolve("MANIFEST.MF"),
+				"Manifest-Version: 1.0\r\nImplementation-Title: NeoForge\r\nImplementation-Version: " + Pins.NEOFORGE
+						+ "\r\n\r\n");
+		jar(forgeClasses, interop);
+		jar(forgeClasses, raw);
+		jar(neoClasses, neo);
+		compileWith(classes, forgeClasses + java.io.File.pathSeparator + neoClasses,
+				source(work.resolve("src"), "net.minecraft.client", "public class Minecraft { void run() { "
+						+ "net.minecraftforge.common.MinecraftForge.hook(); "
+						+ "net.neoforged.neoforge.common.NeoForge.hook(); } }"));
+		Files.writeString(classes.resolve("version.json"), "{\"id\": \"26.2\"}");
 		Path mc = Files.createDirectories(work.resolve("minecraft/versions/26.2"));
 		Files.writeString(mc.resolve("26.2.json"), "{\"id\":\"26.2\",\"libraries\":[]}");
 		Files.write(mc.resolve("26.2.jar"), new byte[] { 'P', 'K', 5, 6, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 });
@@ -83,9 +119,22 @@ public final class MergedBaseLinkGateTest {
 			new Installer(logs::add).install(mcDir, "26.2", supplied, jdk);
 			throw new AssertionError("installer published a supplied merged base with a new dangling reference");
 		} catch (IOException expected) {
-			require(expected.getMessage().contains("game/Target.value"), "lost the underlying evidence: " + expected);
+			requireDoNotFit(expected, supplied, "game/Target.value");
 		}
 		require(!Files.exists(mcDir.resolve("versions/26.2-forbric/26.2-forbric.json")), "a profile was written");
+
+		// A damaged copy of a runtime is still the right kind of file (the content check reads only what it needs),
+		// and the link checker dies reading it. The way out first, then the checker's own words.
+		Files.writeString(target, "package game; public class Target { public static int value = 3; }");
+		compile(classes, target);
+		jar(classes, game);
+		SuppliedArtifactContentTest.damage(interop, "net/minecraftforge/fml/loading/FMLLoader.class");
+		try {
+			new Installer(logs::add).obtainGameArtifacts(mcDir, "26.2", supplied, jdk);
+			throw new AssertionError("a supplied set with a damaged runtime passed the link check");
+		} catch (IOException expected) {
+			requireDoNotFit(expected, supplied, "merged base failed the reviewed link baseline");
+		}
 
 		Files.delete(interop);
 		try {
@@ -94,13 +143,36 @@ public final class MergedBaseLinkGateTest {
 		} catch (IOException expected) {
 			require(expected.getMessage().contains("forge-runtime-interop.jar"), "missing interop not named: " + expected);
 		}
-		System.out.println("PASS installer --artifacts: link-checked, interop staged, broken set refused with no profile");
+		System.out.println("PASS installer --artifacts: link-checked, interop staged, broken or damaged set refused"
+				+ " with the way out and no profile");
+	}
+
+	/** A supplied set whose link check failed: said to be the supplied files', the way out, then the evidence. */
+	private static void requireDoNotFit(IOException refusal, Path supplied, String evidence) {
+		String message = refusal.getMessage();
+		require(message.startsWith("Built artifacts: the files in " + supplied + " do not fit together"),
+				"not said to be the supplied files: " + message);
+		int wayOut = message.indexOf(GameArtifacts.LEAVE_EMPTY);
+		require(wayOut >= 0 && wayOut < message.indexOf(evidence), "no way out before the evidence: " + message);
 	}
 
 	private static void compile(Path classes, Path... sources) {
+		compileWith(classes, null, sources);
+	}
+
+	private static void compileWith(Path classes, String classpath, Path... sources) {
 		List<String> args = new ArrayList<>(List.of("--release", "17", "-d", classes.toString()));
+		if (classpath != null) args.addAll(List.of("-cp", classpath));
 		for (Path source : sources) args.add(source.toString());
 		require(ToolProvider.getSystemJavaCompiler().run(null, null, null, args.toArray(String[]::new)) == 0, "javac failed");
+	}
+
+	/** Writes {@code body} as the one top-level type of {@code pkg}, named after the type it declares. */
+	private static Path source(Path root, String pkg, String body) throws IOException {
+		String name = body.replaceFirst("^public (?:class|interface) ([\\w$]+).*$", "$1");
+		Path file = Files.createDirectories(root.resolve(pkg.replace('.', '/'))).resolve(name + ".java");
+		Files.writeString(file, "package " + pkg + "; " + body);
+		return file;
 	}
 
 	private static void jar(Path classes, Path dest) throws IOException {

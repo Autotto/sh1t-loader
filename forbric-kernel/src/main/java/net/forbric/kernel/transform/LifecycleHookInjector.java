@@ -24,6 +24,7 @@ import org.objectweb.asm.tree.InsnList;
 import org.objectweb.asm.tree.InsnNode;
 import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
+import org.objectweb.asm.tree.VarInsnNode;
 
 import net.forbric.api.Ecosystem;
 import net.forbric.api.ForeignType;
@@ -65,6 +66,14 @@ import net.forbric.kernel.util.ForbricLog;
  * as "every mod has initialised" (owo freezes its channels right after it). It goes after the kernel's window, not at
  * Fabric's literal spot after {@code Bootstrap.validate}, because only here is that post-condition true in the
  * kernel; see {@code net.fabricmc.loader.impl.game.minecraft.Hooks}. {@code -Dforbric.fabricHooks=off} leaves it out.
+ *
+ * <p><b>The client's first failure.</b> The client's {@code Main.main} opens with three steps in handlers of their
+ * own -- {@code SharedConstants.tryDetectVersion()}, {@code new OptionParser()} and {@code parser.parse(args)} --
+ * each of which calls {@code logEarlyException}, which prints the throwable to stderr, and then exits (status 249,
+ * 252, 251). Nothing leaves {@code main}, so {@code CompatibilityLaunchBoundary} never sees it, and a launcher shows
+ * {@code latest.log}, not stderr. {@code logEarlyException} therefore hands the throwable to {@code KernelLifecycle.onEarlyStartupFailure}
+ * first; the print and the exit are vanilla's and stay. The dedicated server needs nothing: its
+ * {@code tryDetectVersion} is outside any handler, and what it throws leaves {@code main} for the boundary.
  */
 public final class LifecycleHookInjector implements ClassTransformer {
 
@@ -74,6 +83,12 @@ public final class LifecycleHookInjector implements ClassTransformer {
 	public static final String CLIENT_MAIN = "net.minecraft.client.main.Main";
 
 	private static final String KERNEL_HOOK_OWNER = "net/forbric/kernel/boot/KernelLifecycle";
+
+	/** The client {@code Main}'s handler for its first three steps: {@code private static (Throwable)V}. */
+	static final String EARLY_FAILURE = "logEarlyException";
+	static final String EARLY_FAILURE_DESC = "(Ljava/lang/Throwable;)V";
+	/** The kernel hook {@link #EARLY_FAILURE} calls first, with the same descriptor. */
+	static final String EARLY_FAILURE_HOOK = "onEarlyStartupFailure";
 
 	/** Fabric Loader's hook class, whose calls mods anchor on. Shipped by the kernel, parent-loaded. */
 	static final String FABRIC_HOOKS = "net/fabricmc/loader/impl/game/minecraft/Hooks";
@@ -130,31 +145,34 @@ public final class LifecycleHookInjector implements ClassTransformer {
 	 * {@code ClientEntrypointHookInjector}.
 	 */
 	private final boolean fabricServerHook;
+	/** Whether {@link #EARLY_FAILURE} reports to the kernel first. Client only; see the class comment. */
+	private final boolean reportsEarlyFailures;
 
 	private volatile boolean transformedRequiredEntry;
 	private volatile boolean redirectedAtRequiredEntry;
 
 	private LifecycleHookInjector(String transformClass, String transformMethod, Trigger[] triggers,
-			boolean fabricServerHook) {
+			boolean fabricServerHook, boolean reportsEarlyFailures) {
 		this.transformClass = transformClass;
 		this.transformMethod = transformMethod;
 		this.triggers = triggers;
 		this.fabricServerHook = fabricServerHook;
+		this.reportsEarlyFailures = reportsEarlyFailures;
 	}
 
 	/** The injector for the dedicated-server entry ({@code Main.main}). */
 	public static LifecycleHookInjector forServer() {
-		return new LifecycleHookInjector(SERVER_MAIN, "main", SERVER_TRIGGERS, true);
+		return new LifecycleHookInjector(SERVER_MAIN, "main", SERVER_TRIGGERS, true, false);
 	}
 
 	/** The injector for the client ({@code net.minecraft.client.main.Main.main}). */
 	public static LifecycleHookInjector forClient() {
-		return new LifecycleHookInjector(CLIENT_MAIN, "main", CLIENT_TRIGGERS, false);
+		return new LifecycleHookInjector(CLIENT_MAIN, "main", CLIENT_TRIGGERS, false, true);
 	}
 
 	/** Backwards-compatible default: the server entry (existing callers/tests). */
 	public LifecycleHookInjector() {
-		this(SERVER_MAIN, "main", SERVER_TRIGGERS, true);
+		this(SERVER_MAIN, "main", SERVER_TRIGGERS, true, false);
 	}
 
 	@Override
@@ -218,6 +236,8 @@ public final class LifecycleHookInjector implements ClassTransformer {
 			}
 		}
 
+		if (reportsEarlyFailures) reportEarlyFailures(node);
+
 		if (redirected == 0) {
 			ForbricLog.error("[Forbric/Lifecycle] %s.%s contained NO known genuine-loader trigger — the merged "
 					+ "base's entry shape changed; refusing to boot on an un-hooked lifecycle", transformClass,
@@ -231,6 +251,29 @@ public final class LifecycleHookInjector implements ClassTransformer {
 		byte[] out = writer.toByteArray();
 
 		return out;
+	}
+
+	/**
+	 * Has {@code logEarlyException} pass its throwable to the kernel before printing it: {@code aload_0; invokestatic}
+	 * at the head. One slot deep, which the method's own {@code aload_0; invokevirtual printStackTrace} already needs,
+	 * and no branch moves. A base without the method keeps vanilla's stderr-only handler and loses nothing else.
+	 */
+	private static void reportEarlyFailures(ClassNode node) {
+		for (MethodNode m : node.methods) {
+			if (!EARLY_FAILURE.equals(m.name) || !EARLY_FAILURE_DESC.equals(m.desc)
+					|| (m.access & Opcodes.ACC_STATIC) == 0 || m.instructions.size() == 0) {
+				continue;
+			}
+			InsnList report = new InsnList();
+			report.add(new VarInsnNode(Opcodes.ALOAD, 0));
+			report.add(new MethodInsnNode(Opcodes.INVOKESTATIC, KERNEL_HOOK_OWNER, EARLY_FAILURE_HOOK,
+					EARLY_FAILURE_DESC, false));
+			m.instructions.insert(report);
+			m.maxStack = Math.max(m.maxStack, 1);
+			return;
+		}
+		ForbricLog.debug("[Forbric/Lifecycle] %s has no static %s%s; a failure in its first steps stays on "
+				+ "stderr only", node.name, EARLY_FAILURE, EARLY_FAILURE_DESC);
 	}
 
 	private Trigger matchTrigger(MethodInsnNode call) {

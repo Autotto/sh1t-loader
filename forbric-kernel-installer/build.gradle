@@ -97,7 +97,12 @@ tasks.register('devToolsJar', Jar) {
 
 def linkGateClasses = tasks.register('compileLinkGateTest', JavaCompile) {
 	dependsOn 'compileJava'
-	source = fileTree('src/test/java') { include '**/MergedBaseLinkGateTest.java' }
+	// The supplied-artifact content check and the window's path fields ride along: the gate's main calls both, so
+	// every runner of linkGateTest (CI, the kernel's linkToolTest) exercises them too.
+	source = fileTree('src/test/java') {
+		include '**/MergedBaseLinkGateTest.java', '**/SuppliedArtifactContentTest.java',
+				'**/InstallerWindowInputTest.java'
+	}
 	classpath = files(sourceSets.main.output.classesDirs)
 	destinationDirectory = layout.buildDirectory.dir('link-gate-classes')
 }
@@ -116,6 +121,9 @@ tasks.register('linkGateTest', JavaExec) {
 	}
 }
 tasks.named('check') { dependsOn 'linkGateTest' }
+// This module's tests are main() programs run by linkGateTest above, not a JUnit suite, so the stock test task
+// finds nothing to run -- which Gradle 9 makes a failure, and with it every `check` of this module.
+tasks.named('test') { failOnNoDiscoveredTests = false }
 
 tasks.register('bundleForbric') {
 	description = "Copy Forbric's own jars into the installer's resources, with a manifest describing them."

@@ -154,7 +154,9 @@ if (code != 0) System.exit(code);
 ```
 
 `CompatibilityLaunchBoundary` is the only place a compatibility refusal becomes a process exit (code `78`,
-§12.4). `KernelBoot.launch` consumes `--gameJar`, `--runtimeJar` (repeatable, and one value may carry several jars
+§12.4), and the only place a refused install does (code `2`, §3.2 step 0). Any other throwable leaving the boot is
+logged there — message and trace, into `latest.log` — before it is rethrown, because a launcher shows that file and
+not stderr. `KernelBoot.launch` consumes `--gameJar`, `--runtimeJar` (repeatable, and one value may carry several jars
 joined by the path separator — launchers such as PCL2 keep only the last occurrence of a repeated flag) and
 `--libraryPath`; everything else, and everything after `--`, is forwarded to the game's `Main.main`. The dedicated
 server rejects `--gameDir`, so `KernelBoot` strips it on that side. The game version is read from the base jar's
@@ -162,6 +164,15 @@ server rejects `--gameDir`, so `KernelBoot` strips it on that side. The game ver
 
 ### 3.2 `KernelBoot.launch`, in order
 
+0. **Launch inputs** — `LaunchInputCheck.require(gameJars, runtimeJars)`, by content and before anything is read
+   out of them: the base's `Block` must implement an extension interface from both Forge families (the merged base),
+   every `--runtimeJar` must carry one family completely (loader SPI, `ModContainer`, `FMLLoader`, `FMLEnvironment`,
+   its own `mods.toml`; a jar with only the `mods.toml` is reported as one of that family's mods), and both families
+   must be carried by something the launch owns. A failure logs each problem and the fix (rerun the installer with
+   *Built artifacts* empty) and stops with exit code `2`; `-Dforbric.launchInputCheck=off` only warns. Issue #13:
+   empty "runtime" jars used to pass every later step with an empty answer and die in `KernelRuntimeClasses.verify`
+   on stderr, leaving five INFO lines in `latest.log`. The check reads names, not every class; the class javadoc lists
+   what it leaves to later steps.
 1. **Cross-jar arbitration pre-scan** — `DuplicateModArbiter.arbitrate(mods/, envType)` inventories every root and
    nested candidate and fixes one selection before either ecosystem's discovery runs (§4.3).
 2. **Carrier versions** — `EcosystemVersions.record(runtimeJars)`, so a mod whose `versionRange` the carriers
@@ -221,6 +232,11 @@ descriptor) one `invokestatic` in each:
 The client's later calls into both families' `ClientModLoader` (`finish`, `completeModLoading`) are stubbed by
 `MethodBodyNeuter`; `setupModResourcePacks` is redirected to `KernelLifecycle.onClientResourcePacks` instead
 (§9.2).
+
+On the client the same injector also makes `Main.logEarlyException` call `KernelLifecycle.onEarlyStartupFailure`
+first. That is vanilla's handler for the first three steps of `Main.main` (detecting the version, building and
+running the argument parser): it prints to stderr and `main` exits (249, 252, 251) without throwing, so without the
+hook the error that ended the game never reached `latest.log`.
 
 ### 3.4 The native registration window — `KernelLifecycle.driveNativeRegistration`
 
@@ -739,6 +755,15 @@ forge-runtime ──────────────────────
 - `MergedBaseTool` unpacks `forbric-merge-tools.jar` from the installer's resources and runs
   `net.forbric.tools.MergedBaseBuilder` (`-Xmx4g`), `RuntimeInteropPatcher`, then `MergedLinkChecker` against the
   packaged reviewed baseline. **An install fails unless the link check reports `new 0`.**
+- `--artifacts DIR` ("Built artifacts (leave empty)" in the window) is for developers only and skips the build.
+  `GameArtifacts` takes the three jars from that directory alone and opens each before anything is downloaded or
+  written: the merged base must be Minecraft 26.2 whose `net/minecraft/` classes refer to both
+  `net/minecraftforge/` and `net/neoforged/`; each runtime must hold its family's core class and its mod loader
+  (`FMLLoader`, `IModInfo`), and name the pinned version as its manifest's main `Implementation-Version`
+  (`Pins.NEOFORGE`; for MinecraftForge the FML half of `Pins.FORGE`, `65.0.1`); and the MinecraftForge runtime
+  must be the interop-patched one, whose `NamespacedWrapper$3` declares `contents()`. Only then the link check,
+  which on its own passes any jar that refers to nothing outside itself (issue #13); a supplied set that fails it
+  is reported as files that do not fit together, with the same way out.
 - `Pins`: `MINECRAFT = "26.2"` (the only supported version), `FORGE = "26.2-65.0.1"`, `NEOFORGE = "26.2.0.88"`,
   `NFRT = "2.0.18"`, `NFRT_RESULT = "gameJarNoRecomp"`, each with its reason in the source. `BuildStamp` keys every
   cached artifact to the pin set, so a pin bump cannot be served from cache.

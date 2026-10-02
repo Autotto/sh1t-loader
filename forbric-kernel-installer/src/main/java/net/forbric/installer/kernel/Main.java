@@ -25,7 +25,7 @@ import java.nio.file.Path;
  *   java -jar forbric-kernel-installer.jar                       # window
  *   java -jar forbric-kernel-installer.jar --dir DIR [options]   # install, no window
  *       --mc 26.2            the base version (default 26.2)
- *       --artifacts DIR      where the locally built game jars are
+ *       --artifacts DIR      developers only: game jars already built from source, used instead of building
  *       --jdk PATH           a JVM to build the game artifacts with
  *       --remote             take Forbric's jars from the release even if they are carried here
  *       --release TAG        install a specific release (this discards the compiled-in manifest pin)
@@ -156,7 +156,9 @@ public final class Main {
 		out.println();
 		out.println("  --dir DIR        the Minecraft directory to install into");
 		out.println("  --mc " + Pins.MINECRAFT + "        the base version (default " + Pins.MINECRAFT + ")");
-		out.println("  --artifacts DIR  where prebuilt game jars are, instead of building them");
+		out.println("  --artifacts DIR  developers only: a merged game base and both runtimes you built from");
+		out.println("                   source, used instead of building them. Leave it out: the installer");
+		out.println("                   downloads and builds everything it needs.");
 		out.println("  --jdk PATH       a JVM (Java " + JdkLocator.MINIMUM_FEATURE
 				+ "+) to build the game artifacts with");
 		out.println("  --doctor         report whether an install would work here, and write nothing");

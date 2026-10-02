@@ -148,6 +148,7 @@ public final class KernelBoot {
 		List<URL> owned = new ArrayList<>();
 		List<String> gameArgs = new ArrayList<>();
 		List<Path> runtimeJars = new ArrayList<>();
+		List<Path> gameJars = new ArrayList<>();
 		Path gameJar = null;
 		String libraryPath = null;
 		boolean afterSep = false;
@@ -162,6 +163,7 @@ public final class KernelBoot {
 				case "--gameJar" -> {
 					Path jar = new File(req(args, ++i, a)).toPath();
 					if (gameJar == null) gameJar = jar;
+					gameJars.add(jar);
 					owned.add(jar.toUri().toURL());
 				}
 				case "--runtimeJar" -> {
@@ -191,6 +193,11 @@ public final class KernelBoot {
 			System.exit(2);
 			return;
 		}
+
+		// The jars ARE the install, so they are checked by what is in them before anything is read out of them. A
+		// "runtime" jar holding no Forge or NeoForge used to pass every step below with an empty answer and take the
+		// boot down at KernelRuntimeClasses.verify, on stderr, with nothing in latest.log (issue #13).
+		LaunchInputCheck.require(gameJars, runtimeJars);
 
 		Path gameDir = extractGameDir(gameArgs, side.stripGameDir);
 		String gameVersion = detectGameVersion(gameJar);

@@ -18,6 +18,8 @@ with tempfile.TemporaryDirectory(prefix="forbric-installer-links-") as temporary
     classes.mkdir()
     sources = sorted((project / "src/main/java").rglob("*.java"))
     sources += sorted((project / "src/test/java").rglob("*LinkGateTest.java"))
+    sources += sorted((project / "src/test/java").rglob("SuppliedArtifactContentTest.java"))
+    sources += sorted((project / "src/test/java").rglob("InstallerWindowInputTest.java"))
     subprocess.run(["javac", "--release", "17", "-d", str(classes), *map(str, sources)], check=True)
     resource = classes / "forbric/tools/forbric-merge-tools.jar"
     resource.parent.mkdir(parents=True)
