@@ -1260,7 +1260,9 @@ them turned up a loss every player had.
 - The preflight census judged Carpet's mixins as compiled, but the adapters rewrite them later, when Mixin loads the
   class. So a fully repaired run still printed two "applies only partially" lines and kept a SUSPECTED row for
   `ServerPlayerGameMode_scarpetEventsMixin`. The final class could not clear that row, because the handler takes
-  `@Local` sugar. `CarpetMixinAdapter.asLoaded` gives the census what Mixin will receive.
+  `@Local` sugar. (That was `FinalMixinApplications` as this branch found it. Since the merge of #25 it can discharge
+  a mixin whose sugared handler the final class calls, but only once that class is defined; the census's two lines
+  and its row come first either way.) `CarpetMixinAdapter.asLoaded` gives the census what Mixin will receive.
 - Evidence: `CarpetMixinAdapterTest` (11): eight reshaped hosts each refuse the whole retarget, and removing any order
   check makes that test fail. The census through `unfitMixins` over the real `carpet.mixins.json` reports nothing
   with the adapters on and both stale rows with them off. A/B, kernel e0aa078c (a79061ff): 14/14 probe results equal

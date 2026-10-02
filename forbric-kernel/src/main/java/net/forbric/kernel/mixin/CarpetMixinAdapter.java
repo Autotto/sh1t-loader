@@ -70,8 +70,8 @@ public final class CarpetMixinAdapter {
 	 * What the preflight census judges: {@code bytes} as Mixin will receive it once this adapter and
 	 * {@link CarpetFluidMixinAdapter} have run, or {@code bytes} itself when neither changes it. Both run when Mixin loads
 	 * the class, after the census read the original, so every anchor they repair read as missing there: two "applies only
-	 * partially" lines, and a SUSPECTED row the final class could not clear (its handler takes @Local sugar). Writes
-	 * nothing to the log; the adapters say what they did when Mixin loads the class.
+	 * partially" lines and a SUSPECTED row for mixins that apply in full (the final class could at most discharge it
+	 * later, once defined). Writes nothing to the log; the adapters say what they did when Mixin loads the class.
 	 */
 	public static byte[] asLoaded(byte[] bytes, Function<String, byte[]> resource) {
 		if (!enabled()) return bytes;
