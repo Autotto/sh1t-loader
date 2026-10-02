@@ -338,6 +338,7 @@ public final class ForbricMixinService
 		CreateKeyboardMixinAdapter.adapt(node, this::mergedBaseNodeWithCode);
 		CreateStructureMixinAdapter.adapt(node, this::mergedBaseNodeWithCode);
 		FabricSectionCompilerMixinAdapter.adapt(node, this::mergedBaseNodeWithCode);
+		FabricBlockStateCodecMixinAdapter.adapt(node, this::mergedBaseNodeWithCode);
 		CarpetMixinAdapter.adapt(node, this::mergedBaseNodeWithCode);
 		CarpetFluidMixinAdapter.adapt(node, this::mergedBaseNodeWithCode);
 		// …and an @Inject anchored on a call the merged body makes through a subtype of the same method

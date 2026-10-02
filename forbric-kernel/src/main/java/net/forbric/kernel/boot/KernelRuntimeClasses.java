@@ -500,6 +500,9 @@ public final class KernelRuntimeClasses {
 		// NeoForge's model deserializer throws on a loader it did not register and never reads fabric:type. Called
 		// from an inserted instruction ahead of its dispatch, with the JsonObject and context NeoForge holds there.
 		CLASSES.put("net.forbric.kernel.runtime.KernelModelFormats", new Entry(Origin.COMPILED, List.of()));
+		// fabric-model-loading replaces the merged block-state codecs outright; FabricBlockStateCodecMixinAdapter makes
+		// its two redirect handlers keep NeoForge's and call this with both. Codec-typed, from guest mixin code.
+		CLASSES.put("net.forbric.kernel.runtime.KernelBlockStateModelFormats", new Entry(Origin.COMPILED, List.of()));
 		// Between a NeoForge mod's getContextClassLoader() and its cast to FML's TransformingClassLoader
 		// (FmlContextLoaderRewriter): LibJF's ASM layer reaches the Mixin weaver through what it returns.
 		CLASSES.put("net.forbric.kernel.runtime.KernelFmlTransformerView", new Entry(Origin.COMPILED, List.of(
