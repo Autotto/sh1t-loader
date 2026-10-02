@@ -1308,6 +1308,7 @@ public final class KernelLifecycle {
 			reconcileLoaderRegistriesIntoNeoForge(cl, hooksCls);
 			mirrorFabricDynamicRegistriesIntoNeoForge(cl, eventCls, hooksCls);
 			declareMinecraftForgeModifierRegistries(cl, eventCls, hooksCls);
+			reconcileSynchronizedRegistries(cl, hooksCls);
 		} catch (ClassNotFoundException absent) {
 			ForbricLog.debug("[Forbric/Lifecycle] no NeoForge DataPackRegistryEvent — skipping");
 		} catch (Throwable t) {
@@ -1326,6 +1327,58 @@ public final class KernelLifecycle {
 
 	private static final java.util.concurrent.atomic.AtomicBoolean DATAPACK_REGISTRIES_DECLARED =
 			new java.util.concurrent.atomic.AtomicBoolean();
+
+	/**
+	 * Puts NeoForge's synced datapack registries back into {@code RegistryDataLoader.SYNCHRONIZED_REGISTRIES}, the
+	 * list both ends sync from: the server packs each entry of it for the client, and the client builds each one.
+	 *
+	 * <p>NeoForge's merged {@code <clinit>} makes that field a live view of its own networkable list, and
+	 * {@code DataPackRegistryEvent} adds every registry declared with a network codec to it. fabric-api's
+	 * {@code DynamicRegistriesImpl.registerSynced} replaces the field with an {@code ArrayList} copy the first time a
+	 * Fabric mod syncs a registry of its own, and on a Forbric client the Fabric mains run before NeoForge's
+	 * declaration — so every NeoForge mod's synced registry was left out of the copy. The server never sent it, the
+	 * client never built it, and the first lookup threw: Create's {@code create:potato_projectile/type} crashed
+	 * the client building the creative search tree ("Missing registry"). Each NeoForge entry the list lacks by key
+	 * is appended; a list that is still NeoForge's view lacks none. Under {@code -Dforbric.datapackRegistryReconcile}.
+	 */
+	@SuppressWarnings("unchecked")
+	private static void reconcileSynchronizedRegistries(ClassLoader cl, Class<?> hooksCls) {
+		try {
+			Class<?> loaderCls = Class.forName(DatapackRegistryDeclaration.LOADER, false, cl);
+			Class<?> dataCls = Class.forName("net.minecraft.resources.RegistryDataLoader$RegistryData", false, cl);
+			Method key = dataCls.getMethod("key");
+			Field networkable = hooksCls.getDeclaredField("NETWORKABLE_REGISTRIES");
+			networkable.setAccessible(true);
+			Field syncedField = loaderCls.getField("SYNCHRONIZED_REGISTRIES");
+			java.util.List<Object> synced = (java.util.List<Object>) syncedField.get(null);
+			java.util.List<Object> copy = new java.util.ArrayList<>(synced);
+			java.util.List<Object> added = DatapackRegistryDeclaration.reconcile((java.util.List<?>) networkable.get(null),
+					copy, data -> {
+						try {
+							return key.invoke(data);
+						} catch (ReflectiveOperationException e) {
+							throw new IllegalStateException(e);
+						}
+					}, copy::add, null);
+			if (added.isEmpty()) return;
+			try {
+				synced.addAll(added);
+			} catch (UnsupportedOperationException unmodifiable) {
+				syncedField.setAccessible(true);
+				syncedField.set(null, copy);
+			}
+			java.util.List<String> keys = new java.util.ArrayList<>();
+			for (Object data : added) keys.add(String.valueOf(key.invoke(data)));
+			ForbricLog.info("[Forbric/Lifecycle] put %d NeoForge-synced datapack registr(ies) back into "
+					+ "RegistryDataLoader.SYNCHRONIZED_REGISTRIES — fabric-api had replaced that live view with a copy "
+					+ "before NeoForge's declaration, so the server would not send them and the client would not build "
+					+ "them: %s", keys.size(), keys);
+		} catch (Throwable t) {
+			ForbricLog.warn("[Forbric/Lifecycle] could not check NeoForge's synced datapack registries against "
+					+ "RegistryDataLoader.SYNCHRONIZED_REGISTRIES — a NeoForge mod's synced registry may be missing on "
+					+ "the client", unwrap(t));
+		}
+	}
 
 	/**
 	 * Declares to NeoForge whatever {@code RegistryDataLoader.WORLDGEN_REGISTRIES} ended up holding that NeoForge's
