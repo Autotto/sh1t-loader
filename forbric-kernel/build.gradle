@@ -122,7 +122,11 @@ def stagedMcLibraries = lastByNameUnder('com/mojang/brigadier/**/*.jar') +
 		// gson, for the same reason and one layer out: fabric-api's resource-condition evaluator takes a
 		// JsonObject, so KernelFabricConditions cannot name its own argument without it. Taken from the same
 		// local Minecraft install as the other two, never bundled — the game supplies it at runtime.
-		lastByNameUnder('com/google/code/gson/**/*.jar')
+		lastByNameUnder('com/google/code/gson/**/*.jar') +
+		// netty's buffer types, for the same reason: KernelRecipeSync trial-encodes a recipe into a
+		// RegistryFriendlyByteBuf, which IS a netty ByteBuf, so javac cannot read it without them. Never bundled.
+		lastByNameUnder('io/netty/netty-buffer/**/*.jar') +
+		lastByNameUnder('io/netty/netty-common/**/*.jar')
 
 // LazyOptional's real carrier implementation uses Commons Lang's Mutable types, and every Team Reborn Energy store
 // initialises Reborn's EnergyStorage interface, whose static fields build an Identifier and a DataComponentType

@@ -531,6 +531,11 @@ public final class KernelBoot {
 		// Polymer's ingredient codec does for every recipe — got null and the recipe packet failed to encode.
 		chain.register(TransformPhase.COREMOD,
 				new net.forbric.kernel.transform.SplitterPacketContextInjector());
+		// NeoForge syncs recipes by type, so one recipe whose serializer cannot encode it (Enchant Craft's) used to
+		// disconnect every player on join once any mod asked for crafting recipes; it is left out with a warning.
+		if (net.forbric.kernel.transform.RecipeSyncFailSoftInjector.enabled()) {
+			chain.register(TransformPhase.COREMOD, new net.forbric.kernel.transform.RecipeSyncFailSoftInjector());
+		}
 
 		// …and keep the packs it serves OUT of the player's resource-pack screen. Pack.isHidden survived the
 		// merge; the screen-side filter that reads it did not.
