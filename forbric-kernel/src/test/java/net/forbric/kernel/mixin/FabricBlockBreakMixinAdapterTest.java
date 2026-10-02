@@ -9,6 +9,7 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 import java.util.zip.ZipInputStream;
 
+import net.forbric.kernel.TestFixtures;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
@@ -172,7 +173,7 @@ class FabricBlockBreakMixinAdapterTest {
 	}
 
 	private static ClassNode vanilla() throws Exception {
-		return game(Path.of(System.getProperty("user.home"), "Library/Application Support/minecraft/versions/26.2/26.2.jar"));
+		return game(TestFixtures.vanillaJar());
 	}
 
 	/** With its local variable table, as the mixin service reads it: that table is the adapter's evidence. */

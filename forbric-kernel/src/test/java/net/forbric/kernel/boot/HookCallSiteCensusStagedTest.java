@@ -15,6 +15,7 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 
+import net.forbric.kernel.TestFixtures;
 import org.junit.jupiter.api.Test;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassWriter;
@@ -145,9 +146,8 @@ class HookCallSiteCensusStagedTest {
 
 	/** MinecraftForge's own patched game, as it was before the merge took some of its call sites. */
 	private static Path forgePatchedGame() {
-		return Path.of(System.getProperty("user.home"), "Library", "Application Support", "minecraft",
-				"libraries", "net", "forbric", "patched-mc-forge", "26.2-65.0.1",
-				"patched-mc-forge-26.2-65.0.1.jar");
+		return TestFixtures.minecraftDir().resolve(
+				"libraries/net/forbric/patched-mc-forge/26.2-65.0.1/patched-mc-forge-26.2-65.0.1.jar");
 	}
 
 	@Test

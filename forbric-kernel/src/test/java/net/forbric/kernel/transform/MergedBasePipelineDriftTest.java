@@ -32,6 +32,7 @@ import java.util.TreeMap;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
+import net.forbric.kernel.TestFixtures;
 import org.junit.jupiter.api.Test;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.Opcodes;
@@ -73,8 +74,7 @@ class MergedBasePipelineDriftTest {
 	private static final Path MERGED_BASE =
 			Path.of(System.getenv().getOrDefault("FORBRIC_OLD", System.getProperty("user.dir") + "/../forbric-loader"), "run", "merged-base",
 					"patched-mc-merged-26.2.jar").normalize();
-	private static final Path VANILLA = Path.of(System.getProperty("user.home"),
-			"Library", "Application Support", "minecraft", "versions", "26.2", "26.2.jar");
+	private static final Path VANILLA = TestFixtures.vanillaJar();
 
 	/**
 	 * Numeric differences that are real and are NOT pipeline drift, each with why.

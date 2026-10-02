@@ -1,7 +1,13 @@
 # Forbric Kernel
 
+English | [简体中文](README.zh-CN.md)
+
 A **sovereign** unified Minecraft mod loader that runs **Fabric + traditional MinecraftForge + NeoForge**
 mods on one Minecraft 26.2 instance — a ground-up rewrite of the `forbric-loader` "weld".
+
+For source development, start with [the development guide](run/README.md). From the repository root,
+`python3 tools/dev.py client` prepares an isolated game environment and launches the current kernel.
+Gradle also exposes `prepareDev`, `runClient`, `runServer`, `toolTest` and `integrationTest`.
 
 ## Why a rewrite
 
@@ -31,10 +37,11 @@ scripts under `run/` — one per milestone, each asserting on the real logs of a
 
 The old "Knot classloader split" law survives as the kernel's own boot↔game split.
 
-**Status of the game side:** filled. `src/runtime/java` is 39 files and about 6000 lines, compiled against the
-staged jars and shipped as `forbric-kernel-runtime.jar` — registry and lifecycle drivers, both families' setup
-phases, the condition evaluators, the pack sources, the unified Mods screen. An earlier revision of this file
-said it was empty, which was true when it was written and stopped being true without the sentence changing.
+**Status of the game side:** filled. `src/runtime/java` (130 files at the time of writing; introduction.md §2
+keeps the current count) is compiled against the staged jars and shipped as `forbric-kernel-runtime.jar` —
+registry and lifecycle drivers, both families' setup phases, the condition evaluators, the pack sources, the
+unified Mods screen. An earlier revision of this file said it was empty, which was true when it was written
+and stopped being true without the sentence changing.
 
 Injected bytecode still calls some boot-side statics directly, and a few classes are still synthesized at
 runtime with ASM by boot-side factories (`KernelModContainerFactory`, `KernelHudBridge`, `KernelGameLookup`) —

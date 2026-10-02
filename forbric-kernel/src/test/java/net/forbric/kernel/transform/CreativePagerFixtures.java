@@ -11,6 +11,7 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 import java.util.zip.ZipInputStream;
 
+import net.forbric.kernel.TestFixtures;
 import net.forbric.kernel.access.ClassTweakerTransformer;
 
 /**
@@ -43,7 +44,8 @@ public final class CreativePagerFixtures {
 	}
 
 	public static Path fabricApi() {
-		return find("run/client-merged-pack/mods/" + API_JAR);
+		Path pinned = TestFixtures.fabricApi();
+		return Files.isRegularFile(pinned) ? pinned : find("run/client-merged-pack/mods/" + API_JAR);
 	}
 
 	public static Path owo() {

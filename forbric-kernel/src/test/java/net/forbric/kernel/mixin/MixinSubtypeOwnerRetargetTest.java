@@ -8,6 +8,7 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.zip.ZipFile;
 
+import net.forbric.kernel.TestFixtures;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.parallel.ResourceLock;
@@ -31,7 +32,7 @@ class MixinSubtypeOwnerRetargetTest {
 
 	/** The target as ForbricMixinService reads it: with its local variable table (the fixture skips debug info). */
 	private static ClassNode withLocals(boolean vanilla) throws Exception {
-		Path jar = vanilla ? Path.of(System.getProperty("user.home"), "Library/Application Support/minecraft/versions/26.2/26.2.jar")
+		Path jar = vanilla ? TestFixtures.vanillaJar()
 				: Path.of(System.getenv().getOrDefault("FORBRIC_OLD", "../forbric-loader"), "run/merged-base/patched-mc-merged-26.2.jar");
 		assumeTrue(Files.isRegularFile(jar), "actual game required");
 		try (ZipFile zip = new ZipFile(jar.toFile())) {
@@ -63,7 +64,7 @@ class MixinSubtypeOwnerRetargetTest {
 	}
 
 	@Test void codecDoesNotRedeclareParse() throws Exception {
-		Path dfu = Path.of(System.getProperty("user.home"), "Library/Application Support/minecraft/libraries/com/mojang/datafixerupper");
+		Path dfu = TestFixtures.minecraftDir().resolve("libraries/com/mojang/datafixerupper");
 		assumeTrue(Files.isDirectory(dfu), "Minecraft's DataFixerUpper required");
 		Path jar;
 		try (var files = Files.walk(dfu)) { jar = files.filter(p -> p.toString().endsWith(".jar")).sorted().reduce((a, b) -> b).orElseThrow(); }

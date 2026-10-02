@@ -29,6 +29,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 import net.forbric.api.Side;
+import net.forbric.kernel.TestFixtures;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -53,8 +54,8 @@ import org.objectweb.asm.Opcodes;
  * <p>Self-skips when the carrier is not staged.
  */
 class PassiveSeederForgeFmlEnvironmentTest {
-	private static final Path FORGE_RUNTIME = Path.of(System.getProperty("user.dir"), "..",
-			"forbric-loader", "run", "forge-runtime", "forge-runtime.jar").normalize();
+	private static final Path FORGE_RUNTIME = Path.of(System.getProperty("forbric.stagedRoot", "../forbric-loader/run"),
+			"forge-runtime", "forge-runtime.jar").toAbsolutePath().normalize();
 
 	@TempDir
 	Path tmp;
@@ -179,10 +180,7 @@ class PassiveSeederForgeFmlEnvironmentTest {
 	/** The same library tree {@code build.gradle} resolves brigadier from, with the same overrides. */
 	private static Path newestGson() throws IOException {
 		String configured = System.getProperty("forbric.mcLibraries");
-		String env = System.getenv("MC_DIR");
-		Path root = Path.of(configured != null ? configured
-				: env != null ? env + "/libraries"
-				: System.getProperty("user.home") + "/Library/Application Support/minecraft/libraries");
+		Path root = configured != null ? Path.of(configured) : TestFixtures.minecraftDir().resolve("libraries");
 		Path gsonDir = root.resolve("com/google/code/gson/gson");
 		if (!Files.isDirectory(gsonDir)) return null;
 		try (var found = Files.walk(gsonDir)) {

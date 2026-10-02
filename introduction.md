@@ -1,5 +1,7 @@
 # Forbric — architecture and internals
 
+English | [简体中文](introduction.zh-CN.md)
+
 For mod and loader developers. This document is precise rather than gentle: it states what Forbric does, in the
 order it does it, naming the real types and files. It describes the **`main` branch**, not a release; for what a
 release contains and how a player installs it, read the [README](README.md).
@@ -46,10 +48,12 @@ and so are Fabric's (`KernelMappingResolver`'s javadoc records a constant-pool s
 no intermediary symbols). The kernel runs identity mapping: `TransformContext(…, "named")`, and
 `KernelMappingResolver` answers every lookup with its input.
 
-Nor are mod APIs. Forbric does not re-implement Fabric API, MinecraftForge or NeoForge: a mod calls the genuine
-Fabric API mod it installed, and the genuine MinecraftForge/NeoForge classes from the carriers. What the kernel
-owns is the part a loader owns — class loading, discovery, the lifecycle, the registration window — plus the
-repairs the merge makes necessary.
+Nor are mod APIs. Forbric does not re-implement the Fabric API, MinecraftForge or NeoForge APIs: a mod calls the
+genuine Fabric API mod it installed, and the genuine MinecraftForge/NeoForge classes from the carriers. What the
+kernel owns is the part a loader owns — class loading, discovery, the lifecycle, the registration window, and
+Fabric Loader's own API (§5.1) — plus the repairs the merge makes necessary. Two of those repairs reproduce
+behaviour instead of calling it: NeoForge's coremod rewrites, which the kernel performs itself (§5.2), and events
+whose hook lost the merge, which it re-emits (§8).
 
 ## 2. Shape of the solution
 
@@ -827,6 +831,19 @@ Forbric/
 ```
 
 ## 16. Build and test
+
+The current development entry point is `python3 tools/dev.py client` (Windows: `py tools/dev.py client`).
+It prepares isolated game inputs under `forbric-kernel/.dev/` with the installer's artifact pipeline, resolves
+libraries/assets and the pinned compile APIs, then builds and launches the current kernel. JDK 25+ and
+Python 3.9+ are required. Gradle exposes `prepareDev`, `runClient`, `runServer` and `devDoctor`; preparation
+and launch must be separate Gradle invocations because the game-side wiring is configured before tasks run.
+See [the development guide](forbric-kernel/run/README.md) for commands and configuration.
+
+`check` also runs development/evidence-tool self-tests and the packaged link gate's synthetic controls.
+`integrationTest` requires the staged game and transfer suites and rejects any skipped test; ordinary `test`
+still permits absent local fixtures and prints its executed/skipped counts. The complete integration suite
+requires its named mod fixtures in addition to the base game; preparing the game is not a claim that every
+compatibility pack or real-instance gate has run.
 
 ```sh
 cd forbric-kernel

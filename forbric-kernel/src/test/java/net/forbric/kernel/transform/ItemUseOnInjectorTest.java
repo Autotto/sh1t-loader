@@ -6,6 +6,7 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
 
+import net.forbric.kernel.TestFixtures;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.parallel.ResourceLock;
@@ -22,7 +23,7 @@ class ItemUseOnInjectorTest {
 	private static final Path MERGED = STAGED.resolve("merged-base/patched-mc-merged-26.2.jar");
 	private static final Path FORGE_RUNTIME = STAGED.resolve("merged-base/forge-runtime-interop.jar");
 	private static final Path NEO_PATCHED = STAGED.resolve("neoforge-patched/patched-mc-neoforge-26.2.jar");
-	private static final Path VANILLA = Path.of(System.getProperty("user.home"), "Library/Application Support/minecraft/versions/26.2/26.2.jar");
+	private static final Path VANILLA = TestFixtures.vanillaJar();
 	private static final String STACK = "net/minecraft/world/item/ItemStack";
 	private static final String HOOKS = "net/minecraftforge/common/ForgeHooks";
 	private static final Path NEO_RUNTIME = STAGED.resolve("neoforge-runtime/neoforge-runtime.jar");

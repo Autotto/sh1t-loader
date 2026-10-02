@@ -12,6 +12,7 @@ import java.nio.file.Path;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BooleanSupplier;
 
+import net.forbric.kernel.TestFixtures;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -28,8 +29,7 @@ class KernelCompostablesTest {
 
 	@BeforeEach void load() throws Exception {
 		Path compiled = Path.of(System.getProperty("user.dir"), "build", "classes", "java", "runtime").normalize();
-		Path fastutil = Path.of(System.getProperty("user.home"),
-				"Library/Application Support/minecraft/libraries/it/unimi/dsi/fastutil/8.5.18/fastutil-8.5.18.jar");
+		Path fastutil = TestFixtures.minecraftDir().resolve("libraries/it/unimi/dsi/fastutil/8.5.18/fastutil-8.5.18.jar");
 		Path run = Path.of(System.getenv().getOrDefault("FORBRIC_OLD", System.getProperty("user.dir") + "/../forbric-loader"), "run").normalize();
 		Path merged = run.resolve("merged-base/patched-mc-merged-26.2.jar"), neoRt = run.resolve("neoforge-runtime/neoforge-runtime.jar");
 		assumeTrue(Files.isDirectory(compiled) && Files.isRegularFile(fastutil) && Files.isRegularFile(merged) && Files.isRegularFile(neoRt),

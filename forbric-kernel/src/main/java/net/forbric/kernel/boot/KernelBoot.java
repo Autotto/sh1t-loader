@@ -541,6 +541,10 @@ public final class KernelBoot {
 		// server: NullPointerException". The wrapper gets NeoForge's remap contract and Forge's own injectSnapshot
 		// does the work.
 		chain.register(TransformPhase.COREMOD, new net.forbric.kernel.transform.RegistrySyncParityInjector());
+		// …and their register never reaches MappedRegistry.register, where fabric-registry-sync fires
+		// RegistryEntryAddedCallback, so fabric-menu-api had no codec for a Fabric mod's menu registered after its own
+		// main entrypoint, and Farmer's Delight's cooking pot never opened. The wrapper fires the event itself.
+		chain.register(TransformPhase.COREMOD, new net.forbric.kernel.transform.WrapperEntryAddedInjector());
 
 		// A Fabric mod's registry reads its data where native Fabric reads it. The merged Registries body is
 		// NeoForge's, which prefixes the namespace itself; Fabric prefixes in a return-value mixin instead, and

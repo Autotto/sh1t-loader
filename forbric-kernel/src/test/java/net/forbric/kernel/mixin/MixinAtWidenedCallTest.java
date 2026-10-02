@@ -22,6 +22,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import java.util.ArrayList;
 import java.util.List;
 
+import net.forbric.kernel.TestFixtures;
 import org.junit.jupiter.api.Test;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
@@ -97,7 +98,7 @@ class MixinAtWidenedCallTest {
 	}
 
 	@Test void actualFabricRegistryListReplacementTargetsTheCurrentFiveArgumentLoader() throws Exception {
-		java.nio.file.Path api = java.nio.file.Path.of("run/client-merged-pack/mods/fabric-api-0.155.2+26.2.jar");
+		java.nio.file.Path api = TestFixtures.fabricApi();
 		java.nio.file.Path base = java.nio.file.Path.of(System.getenv().getOrDefault("FORBRIC_OLD", "../forbric-loader"),
 				"run/merged-base/patched-mc-merged-26.2.jar");
 		org.junit.jupiter.api.Assumptions.assumeTrue(java.nio.file.Files.isRegularFile(api) && java.nio.file.Files.isRegularFile(base), "actual Fabric API and game inputs required");

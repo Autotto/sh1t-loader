@@ -6,6 +6,7 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.function.Function;
 import java.util.zip.ZipFile;
+import net.forbric.kernel.TestFixtures;
 import net.forbric.kernel.mixin.MixinFit;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
@@ -45,7 +46,7 @@ class SpawnPositionCallsInjectorTest {
 	}
 
 	@Test void naturalAndSummonedSpawnsGetVanillasCallsBackInEveryMethodVanillaMadeThem() throws Exception {
-		Path vanilla = Path.of(System.getProperty("user.home"), "Library/Application Support/minecraft/versions/26.2/26.2.jar");
+		Path vanilla = TestFixtures.vanillaJar();
 		for (String target : List.of(SpawnPositionCallsInjector.NATURAL, SpawnPositionCallsInjector.SUMMON)) {
 			String entry = target.replace('.', '/') + ".class";
 			byte[] original = read(MERGED, entry);

@@ -38,6 +38,7 @@ import java.util.zip.ZipOutputStream;
 
 import com.electronwill.nightconfig.core.UnmodifiableConfig;
 import com.electronwill.nightconfig.toml.TomlParser;
+import net.forbric.kernel.TestFixtures;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -163,9 +164,7 @@ class PassiveSeederForgeConfigTest {
 	}
 
 	private static Path newestLibrary(String under) throws java.io.IOException {
-		String env = System.getenv("MC_DIR");
-		Path root = Path.of(env != null ? env + "/libraries"
-				: System.getProperty("user.home") + "/Library/Application Support/minecraft/libraries").resolve(under);
+		Path root = TestFixtures.minecraftDir().resolve("libraries").resolve(under);
 		if (!Files.isDirectory(root)) return null;
 		try (var stream = Files.walk(root)) {
 			return stream.filter(f -> f.toString().endsWith(".jar") && !f.toString().contains("sources"))
