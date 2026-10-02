@@ -523,6 +523,11 @@ public final class KernelBoot {
 
 		chain.register(TransformPhase.COREMOD, new net.forbric.kernel.transform.ForgeCreativeTabsInjector());
 		chain.register(TransformPhase.COREMOD, new net.forbric.kernel.transform.ForgeSpawnPlacementsInjector());
+		// A client freezes once before its MinecraftForge mods exist; that freeze's attribute validation waits for
+		// their (held) attribute events, or it runs first and Better Nether's lazy entity registration fails.
+		if (net.forbric.kernel.transform.ForgeAttributeValidationInjector.enabled()) {
+			chain.register(TransformPhase.COREMOD, new net.forbric.kernel.transform.ForgeAttributeValidationInjector());
+		}
 		chain.register(TransformPhase.COREMOD, new net.forbric.kernel.transform.ForgeWorldModifierInjector());
 
 		// Client only: hand the kernel the live PackRepository at the vanilla-woven

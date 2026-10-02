@@ -833,6 +833,11 @@ public final class KernelLifecycle {
 			// it does here on a server) and MinecraftForge's spawn placements, until constructDeferredForgeMods.
 			boolean forgeLater = side.isClient() && !deferredForge.isEmpty();
 			forgeRegistrationEventsHeld = forgeLater;
+			// The freeze that closes this window also runs MinecraftForge's DefaultAttributes.validate, which asks
+			// every entity type for its attributes: held too, or it reports every Forge mob as having none and is
+			// the first hasSupplier call, made against a frozen registry (Better Nether's lazy entity
+			// registration then fails, and the world its biomes reference cannot load).
+			if (forgeLater) invokeStaticOn(cl, "net.forbric.kernel.runtime.KernelForgeAttributes", "holdValidation");
 			if (!forgeLater) {
 				invokeStaticOn(cl, "net.forbric.kernel.runtime.KernelForgeAttributes", "fireForgeAttributeEvents");
 			}
@@ -2673,12 +2678,21 @@ public final class KernelLifecycle {
 		// here. Any that reached for Minecraft in the early window were held back rather than withdrawn; this is
 		// the moment they were waiting for, and it is inside the reopened span so their DeferredRegisters land.
 		constructDeferredForgeMods(cl);
-		postHeldForgeRegistrationEvents(cl);
 
 		try {
 			// main first, then client — Fabric's own Hooks.startClient order, now at Fabric's own point in the
 			// constructor. A no-op when the pre-Minecraft window already ran them (the switch, or a server).
-			KernelFabricEcosystem.runMainEntrypoints();
+			try {
+				KernelFabricEcosystem.runMainEntrypoints();
+			} finally {
+				// After the mains, as on a server, where they run inside the registration window before its
+				// attribute events: every mod's content is registered by now. Better Nether registers its entity
+				// types from onInitialize but also from a static initializer its DefaultAttributes.hasSupplier
+				// mixin reaches; an attribute event that ran first started that registration in the middle of
+				// MinecraftForge iterating the entity registry (ConcurrentModificationException, every Forge
+				// mob without attributes), and one that ran after a freeze made it fail outright.
+				postHeldForgeRegistrationEvents(cl);
+			}
 			KernelFabricEcosystem.runClientEntrypoints();
 		} catch (Throwable t) {
 			ForbricLog.warn("[Forbric/Lifecycle] client entrypoints failed", unwrap(t));
@@ -2703,12 +2717,14 @@ public final class KernelLifecycle {
 	/**
 	 * The tail of the registration window that waited for the deferred MinecraftForge mods: the attribute events,
 	 * MinecraftForge's then NeoForge's as the registration window posts them on a server, and MinecraftForge's half of
-	 * the spawn placements. Still inside the reopened span, as MinecraftForge's own postRegisterEvents is, and before
-	 * anything creates a living entity. Runs even when every deferred mod failed: ForgeMod's listeners still need it.
+	 * the spawn placements; MinecraftForge's attribute validation is released for the freeze that closes the window.
+	 * After the Fabric mains and still inside the reopened span, as on a server, and before anything creates a living
+	 * entity. Runs even when every deferred mod failed: ForgeMod's listeners still need it.
 	 */
 	private static void postHeldForgeRegistrationEvents(ClassLoader cl) {
 		if (!forgeRegistrationEventsHeld) return;
 		forgeRegistrationEventsHeld = false;
+		invokeStaticOn(cl, "net.forbric.kernel.runtime.KernelForgeAttributes", "releaseValidation");
 		invokeStaticOn(cl, "net.forbric.kernel.runtime.KernelForgeAttributes", "fireForgeAttributeEvents");
 		invokeStaticOn(cl, "net.neoforged.neoforge.common.CommonHooks", "modifyAttributes");
 		invokeStaticOn(cl, "net.forbric.kernel.runtime.KernelForgeSpawnPlacements", "postForgeHalf");
