@@ -681,6 +681,11 @@ public final class KernelBoot {
 		// MinecraftForge's Hurt, Damage and player-Attack events have no NeoForge event at their positions to bridge
 		// from; seams in the merged actuallyHurt and Player.hurtServer post them where MinecraftForge did.
 		chain.register(TransformPhase.COREMOD, new net.forbric.kernel.transform.ForgeDamageSeamsInjector());
+		// After the seams: vanilla's pre-armour read of actuallyHurt's damage goes back AHEAD of MinecraftForge's Hurt seam,
+		// so a Fabric mod rewriting the damage there (TaCZ) rewrites what NeoForge applies instead of throwing on every hit.
+		if (net.forbric.kernel.transform.VanillaDamageReadInjector.enabled()) {
+			chain.register(TransformPhase.COREMOD, new net.forbric.kernel.transform.VanillaDamageReadInjector());
+		}
 		// The merged Gui.setScreen is MinecraftForge's; NeoForge's ScreenEvent.Opening and Closing go in after its hooks.
 		chain.register(TransformPhase.COREMOD, new net.forbric.kernel.transform.NeoScreenEventsInjector());
 		// fabric-api's class tweaker injects FabricCreativeModeInventoryScreen into the creative screen, and the mixin that
