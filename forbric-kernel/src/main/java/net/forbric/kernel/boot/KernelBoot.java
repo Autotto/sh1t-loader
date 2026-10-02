@@ -541,6 +541,11 @@ public final class KernelBoot {
 		if (net.forbric.kernel.transform.RecipeSyncFailSoftInjector.enabled()) {
 			chain.register(TransformPhase.COREMOD, new net.forbric.kernel.transform.RecipeSyncFailSoftInjector());
 		}
+		// The merged ServerStatus keeps both families' constructors, and vanilla's (NeoForge's) left MinecraftForge's
+		// Optional forgeData null: a mod rebuilding the status with it (LPLM) stopped the server tick loop on encode.
+		if (net.forbric.kernel.transform.MergedRecordOptionalDefaults.enabled()) {
+			chain.register(TransformPhase.COREMOD, new net.forbric.kernel.transform.MergedRecordOptionalDefaults());
+		}
 
 		// …and keep the packs it serves OUT of the player's resource-pack screen. Pack.isHidden survived the
 		// merge; the screen-side filter that reads it did not.
