@@ -739,6 +739,16 @@ public final class KernelBoot {
 		// null and all three NPE — getNameFunction most of all, because ObfuscationReflectionHelper goes through
 		// it and mods call that from static initialisers, which turns one NPE into a permanently erroneous class.
 		chain.register(TransformPhase.COREMOD, new net.forbric.kernel.transform.ForgeLauncherInfoInjector());
+		// MinecraftForge's ClearableLazy.concurrentOf(...).get() returns its first, null read to a thread that waited for the
+		// lock while another computed the value. ChunkGenerator.featuresPerStep is one, invalidated at server start, so a
+		// worldgen thread that lost that race failed its chunk on a null feature list (C2ME made it ~1 start in 10).
+		if (net.forbric.kernel.transform.ForgeClearableLazyInjector.enabled()) {
+			chain.register(TransformPhase.COREMOD, new net.forbric.kernel.transform.ForgeClearableLazyInjector());
+		} else {
+			ForbricLog.warn("[Forbric/Forge] -D%s=off — ClearableLazy keeps MinecraftForge's double-checked lock, which hands a "
+					+ "waiting thread null; parallel worldgen can fail a chunk on a null feature list",
+					net.forbric.kernel.transform.ForgeClearableLazyInjector.PROPERTY);
+		}
 		// Each family's ModList.isLoaded can only see its own family's mods, and that answer is a compatibility
 		// branch far more often than a display string — a wrong "no" disables an integration in silence.
 		chain.register(TransformPhase.COREMOD, new ForeignModPresenceInjector());
