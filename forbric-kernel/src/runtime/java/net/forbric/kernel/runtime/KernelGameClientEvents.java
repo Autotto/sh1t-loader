@@ -73,6 +73,48 @@ public final class KernelGameClientEvents {
 				event -> ForgeHooksClient.onKeyInput(event.getKeyEvent(), event.getAction()));
 	}
 
+	/** Screen.init/rebuildWidgets only posts NeoForge's events on the merged base. Share the live widget callbacks. */
+	public static void installScreenInitPre(Object neoBus) {
+		KernelGameEntityEvents.subscribe((IEventBus) neoBus, ScreenEvent.Init.Pre.class, "ScreenEvent.Init.Pre",
+				"a MinecraftForge mod cannot customize or cancel screen initialization",
+				event -> net.minecraftforge.client.event.ScreenEvent.Init.Pre.BUS.post(
+						new net.minecraftforge.client.event.ScreenEvent.Init.Pre(event.getScreen(), event.getListenersList(),
+								event::addListener, event::removeListener)));
+	}
+
+	/** IPN installs its inventory buttons here; receiving ticks and render events alone never creates them. */
+	public static void installScreenInitPost(Object neoBus) {
+		KernelGameClientNetworkEvents.forward((IEventBus) neoBus, ScreenEvent.Init.Post.class, "ScreenEvent.Init.Post",
+				event -> net.minecraftforge.client.event.ScreenEvent.Init.Post.BUS.post(
+						new net.minecraftforge.client.event.ScreenEvent.Init.Post(event.getScreen(), event.getListenersList(),
+								event::addListener, event::removeListener)));
+	}
+
+	/** Key events inside a screen are separate from InputEvent.Key, which libIPN only consumes outside screens. */
+	public static void installScreenKeyPressedPre(Object neoBus) {
+		KernelGameEntityEvents.subscribe((IEventBus) neoBus, ScreenEvent.KeyPressed.Pre.class, "ScreenEvent.KeyPressed.Pre",
+				"a MinecraftForge inventory hotkey cannot see or consume a key press",
+				event -> ForgeEventFactoryClient.onScreenKeyPressedPre(event.getScreen(), event.getKeyEvent()));
+	}
+
+	public static void installScreenKeyPressedPost(Object neoBus) {
+		KernelGameEntityEvents.subscribe((IEventBus) neoBus, ScreenEvent.KeyPressed.Post.class, "ScreenEvent.KeyPressed.Post",
+				"a MinecraftForge inventory hotkey cannot consume an otherwise unhandled key press",
+				event -> ForgeEventFactoryClient.onScreenKeyPressedPost(event.getScreen(), event.getKeyEvent()));
+	}
+
+	public static void installScreenKeyReleasedPre(Object neoBus) {
+		KernelGameEntityEvents.subscribe((IEventBus) neoBus, ScreenEvent.KeyReleased.Pre.class, "ScreenEvent.KeyReleased.Pre",
+				"a MinecraftForge inventory hotkey stays held because its release is missing",
+				event -> ForgeEventFactoryClient.onScreenKeyReleasedPre(event.getScreen(), event.getKeyEvent()));
+	}
+
+	public static void installScreenKeyReleasedPost(Object neoBus) {
+		KernelGameEntityEvents.subscribe((IEventBus) neoBus, ScreenEvent.KeyReleased.Post.class, "ScreenEvent.KeyReleased.Post",
+				"a MinecraftForge inventory hotkey cannot see an otherwise unhandled key release",
+				event -> ForgeEventFactoryClient.onScreenKeyReleasedPost(event.getScreen(), event.getKeyEvent()));
+	}
+
 	/** Only the Pre half: the merged mouse handler reaches Post after a screen took the click, which MinecraftForge did not. */
 	public static void installMouseButtonPre(Object neoBus) {
 		KernelGameEntityEvents.subscribe((IEventBus) neoBus, InputEvent.MouseButton.Pre.class, "InputEvent.MouseButton.Pre",

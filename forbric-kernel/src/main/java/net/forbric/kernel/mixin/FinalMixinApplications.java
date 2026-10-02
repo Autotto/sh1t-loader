@@ -96,6 +96,7 @@ public final class FinalMixinApplications {
    // is still a direct call and still counted.
    boolean extension=annotations.stream().anyMatch(a->a.desc.startsWith(EXTRAS)&&!EXTRAS_INJECTORS.contains(a.desc));
    if(extension)complete=false;
+   if(injecting.isEmpty())continue; // Constructors, shadows and ordinary helpers declare no injection contract.
    for(AnnotationNode annotation:injecting) {
     // As InjectionInfo.readInjectionPoints: an explicit require wins; otherwise defaultRequire applies only
     // outside a named @Group, whose members are counted by the group and individually require nothing.
@@ -103,7 +104,7 @@ public final class FinalMixinApplications {
     if(minimum<0)minimum=grouped?0:config.minimum();
     injectors.add(new Injector(method.name,method.desc,minimum,!grouped&&!sugar&&injecting.size()==1,STANDARD.contains(annotation.desc),
       MixinEquivalentImplementations.needsFingerprint(binary,method)?MixinInstructionFingerprint.hash(method):""));
-    if(grouped||sugar||extension||injecting.size()!=1)complete=false;
+   if(grouped||extension||injecting.size()!=1)complete=false;
    }
   }
   if(injectors.isEmpty())return;
@@ -151,8 +152,9 @@ public final class FinalMixinApplications {
     String dead=references>0?neverRuns(plan,target,candidates.getFirst()):null;
     if(dead!=null)
      state=injector.minimum()==0?Outcome.OPTIONAL:Outcome.NEVER_RUNS;
+    else if(references>0&&references>=injector.minimum())state=Outcome.ATTACHED;
     else if(injector.understood()&&references>=0)
-     state=references>0?(references>=injector.minimum()?Outcome.ATTACHED:Outcome.UNKNOWN):injector.minimum()==0?Outcome.OPTIONAL:Outcome.MISSING;
+     state=references==0?(injector.minimum()==0?Outcome.OPTIONAL:Outcome.MISSING):Outcome.UNKNOWN;
     boolean lost=state==Outcome.MISSING||state==Outcome.NEVER_RUNS;
     String replacement=lost?MixinEquivalentImplementations.proof(mixin,injector.name(),injector.desc(),injector.bodyHash(),target):null;
     boolean pending=lost&&WatchdogDumpEquivalence.helperUnknown()
@@ -238,9 +240,19 @@ public final class FinalMixinApplications {
     .map(m->new Renamed(m.getName(),m.getDesc())).toList();
  }
  private static int references(ClassNode target,MethodNode handler) {
-  int result=0;
-  for(MethodNode method:target.methods)if(method!=handler)result+=references(target,method,handler); // A self-call is not an injection into the target.
-  return result;
+  return attachmentHosts(target,handler).values().stream().mapToInt(Integer::intValue).sum();
+ }
+ /** A sugar bridge's call is not an attachment unless something outside the bridge chain calls it. */
+ private static Map<MethodNode,Integer> attachmentHosts(ClassNode target,MethodNode handler) {
+  Map<MethodNode,Integer> hosts=new IdentityHashMap<>();Set<MethodNode> seen=Collections.newSetFromMap(new IdentityHashMap<>());
+  Deque<MethodNode> pending=new ArrayDeque<>();pending.add(handler);
+  while(!pending.isEmpty()){
+   MethodNode callee=pending.removeFirst();if(!seen.add(callee))continue;
+   for(MethodNode method:target.methods){if(method==callee||method==handler)continue;int count=references(target,method,callee);if(count==0)continue;
+    if(method.name.contains("$mixinextras$bridge$"))pending.add(method);else hosts.merge(method,count,Integer::sum);
+   }
+  }
+  return hosts;
  }
  private static int references(ClassNode target,MethodNode method,MethodNode handler) {
   int result=0;
@@ -257,8 +269,7 @@ public final class FinalMixinApplications {
   if(!MixinFit.asksLiveness()||!MergedBaseUncalledMethods.lists(target.name))return null;
   net.forbric.api.Ecosystem ecosystem=MixinConfigOwners.ecosystemOf(plan.config().name());if(ecosystem==null)return null;
   List<String> hosts=new ArrayList<>();
-  for(MethodNode method:target.methods) {
-   if(method==handler||references(target,method,handler)==0)continue;
+  for(MethodNode method:attachmentHosts(target,handler).keySet()) {
    String why=MergedBaseUncalledMethods.neverRuns(target,method,ecosystem);if(why==null)return null;
    hosts.add(target.name.substring(target.name.lastIndexOf('/')+1)+"."+method.name+" ("+why+")");
   }
@@ -273,8 +284,7 @@ public final class FinalMixinApplications {
   if(!MixinStubRebind.ownsCarrierStub(target.name))return null; // no row here: no method of it could be the host
   net.forbric.api.Ecosystem ecosystem=MixinConfigOwners.ecosystemOf(config);if(ecosystem==null)return null;
   String host=null;
-  for(MethodNode method:target.methods) {
-   if(method==handler||references(target,method,handler)==0)continue;
+  for(MethodNode method:attachmentHosts(target,handler).keySet()) {
    if(!MixinStubRebind.isStubOverBody(target,method,ecosystem))return null;
    host=method.name+method.desc;
   }

@@ -145,11 +145,12 @@ public final class MixinFit {
 
 		/** A compact "why" for one log line. */
 		public String reason() {
+			String missing = String.join(", ", new LinkedHashSet<>(unresolved));
 			return switch (verdict) {
 				case FIT -> "all " + total + " anchor(s) resolve";
-				case PARTIAL -> resolved + "/" + total + " anchors resolve, missing: " + String.join(", ", unresolved);
-				case UNFIT -> "no anchor resolves (" + String.join(", ", unresolved) + ")";
-				case HAZARD -> "orphaned @Shadow field(s): " + String.join(", ", unresolved);
+				case PARTIAL -> resolved + "/" + total + " anchors resolve, missing: " + missing;
+				case UNFIT -> "no anchor resolves (" + missing + ")";
+				case HAZARD -> "orphaned @Shadow field(s): " + missing;
 			};
 		}
 	}

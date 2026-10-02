@@ -4012,13 +4012,31 @@ public final class ForbricMergedBaseCompatTransformer implements ClassTransforme
 		for (AbstractInsnNode insn : init.instructions.toArray()) {
 			if (insn instanceof MethodInsnNode call && PIP_BUILDER_OWNER.equals(call.owner)) return false;
 		}
+		int listSlot = -1;
+		int slot = 1;
+		for (Type argument : Type.getArgumentTypes(init.desc)) {
+			if ("Ljava/util/List;".equals(argument.getDescriptor())) listSlot = slot;
+			slot += argument.getSize();
+		}
+		if (listSlot < 0) return false;
+		// Both constructors erase to the same descriptor. Guest mixins can append ordinary renderers
+		// to NeoForge's registration list, so filter only the pool's input and retain the original list.
+		for (AbstractInsnNode insn : init.instructions.toArray()) {
+			if (insn instanceof MethodInsnNode call && "createPools".equals(call.name)
+					&& "net/neoforged/neoforge/client/gui/PictureInPictureRendererPool".equals(call.owner)
+					&& "(Ljava/util/List;)Ljava/util/Map;".equals(call.desc)) {
+				init.instructions.insertBefore(call, new MethodInsnNode(Opcodes.INVOKESTATIC, PIP_BUILDER_OWNER,
+						"poolRegistrations", "(Ljava/util/List;)Ljava/util/List;", false));
+			}
+		}
 
 		int appended = 0;
 		for (AbstractInsnNode insn : init.instructions.toArray()) {
 			if (insn.getOpcode() != Opcodes.RETURN) continue;
 			InsnList assign = new InsnList();
 			assign.add(new VarInsnNode(Opcodes.ALOAD, 0));
-			assign.add(new MethodInsnNode(Opcodes.INVOKESTATIC, PIP_BUILDER_OWNER, "build", "()Ljava/util/Map;",
+			assign.add(new VarInsnNode(Opcodes.ALOAD, listSlot));
+			assign.add(new MethodInsnNode(Opcodes.INVOKESTATIC, PIP_BUILDER_OWNER, "build", "(Ljava/util/List;)Ljava/util/Map;",
 					false));
 			assign.add(new FieldInsnNode(Opcodes.PUTFIELD, node.name, renderers.name, renderers.desc));
 			init.instructions.insertBefore(insn, assign);
@@ -4026,6 +4044,18 @@ public final class ForbricMergedBaseCompatTransformer implements ClassTransforme
 		}
 		if (appended == 0) return false;
 		init.maxStack = Math.max(init.maxStack, 2);
+		for (MethodNode method : node.methods) {
+			if (!"close".equals(method.name) || !"()V".equals(method.desc)) continue;
+			for (AbstractInsnNode insn : method.instructions.toArray()) {
+				if (insn.getOpcode() != Opcodes.RETURN) continue;
+				InsnList close = new InsnList();
+				close.add(new VarInsnNode(Opcodes.ALOAD, 0));
+				close.add(new FieldInsnNode(Opcodes.GETFIELD, node.name, renderers.name, renderers.desc));
+				close.add(new MethodInsnNode(Opcodes.INVOKESTATIC, PIP_BUILDER_OWNER, "close", "(Ljava/util/Map;)V", false));
+				method.instructions.insertBefore(insn, close);
+			}
+			method.maxStack = Math.max(method.maxStack, 1);
+		}
 		return true;
 	}
 

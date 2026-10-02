@@ -68,6 +68,12 @@ public enum ForeignType {
 	/** The base of every event each family's bus dispatches (EventChainAuditInjector wraps both dispatches). */
 	EVENT("net.minecraftforge.eventbus.internal.Event",
 			"net.neoforged.bus.api.Event"),
+	EVENT_BUS("net.minecraftforge.eventbus.api.bus.EventBus", "net.neoforged.bus.EventBus"),
+	EVENT_LISTENER("net.minecraftforge.eventbus.api.listener.EventListener", "net.neoforged.bus.api.EventListener"),
+	DATAPACK_NEW_REGISTRY_EVENT("net.minecraftforge.registries.DataPackRegistryEvent$NewRegistry",
+			"net.neoforged.neoforge.registries.DataPackRegistryEvent$NewRegistry"),
+	DATAPACK_REGISTRY_DATA("net.minecraftforge.registries.DataPackRegistryEvent$DataPackRegistryData",
+			"net.neoforged.neoforge.registries.DataPackRegistryEvent$DataPackRegistryData"),
 	FLUID_INTERACTION_REGISTRY("net.minecraftforge.fluids.FluidInteractionRegistry",
 			"net.neoforged.neoforge.fluids.FluidInteractionRegistry"),
 	BLOCK_TINT_EVENT("net.minecraftforge.client.event.RegisterColorHandlersEvent$Block",

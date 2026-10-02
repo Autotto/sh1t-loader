@@ -60,6 +60,11 @@ public final class KernelFluidTypes {
 		return tag != null && KernelFabricFluidBehaviors.registered(tag) ? KernelFabricFluidBehaviors.neoType(tag) : null;
 	}
 
+	/** Whether the merged type-based tracker has a meaning for this tag. An untracked vanilla tag query is false. */
+	public static boolean hasTagType(TagKey<Fluid> tag) {
+		return FluidTags.WATER.equals(tag) || FluidTags.LAVA.equals(tag) || byTag(tag) != null;
+	}
+
 	/**
 	 * MinecraftForge's fluid type for a fluid that does not override MinecraftForge's {@code getFluidType()} — a NeoForge
 	 * or Fabric mod's (vanilla's are bridged per class). MinecraftForge's default throws the same "Mod fluids must

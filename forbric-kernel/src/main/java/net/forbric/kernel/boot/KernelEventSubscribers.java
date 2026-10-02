@@ -355,8 +355,8 @@ public final class KernelEventSubscribers {
 	}
 
 	/**
-	 * The mod that owns {@code sub}: its declared {@code modid()}, else the jar's single {@code @Mod} of the same
-	 * family. Returns null when the jar declares several and the annotation named none — guessing would attach a
+	 * The mod that owns {@code sub}: its declared {@code modid()}, else the jar's single distinct {@code @Mod} id of
+	 * the same family. Returns null when the jar declares several ids and the annotation named none — guessing would attach a
 	 * mod's listeners to a sibling's bus.
 	 *
 	 * <p>A NeoForge jar with no {@code @Mod} class at all falls back to its single mod that has none: FML gives that
@@ -374,7 +374,9 @@ public final class KernelEventSubscribers {
 		if (modsInJar != null) {
 			for (ModAnnotationScanner.ModClassInfo info : modsInJar) {
 				if (info.family != sub.family() || info.modId == null) continue;
-				if (only != null) return null;
+				// NeoForge can declare a common and a client @Mod entry class for the SAME id.
+				// Ownership is ambiguous only between distinct mods, not between their entry classes.
+				if (only != null && !only.equals(info.modId)) return null;
 				only = info.modId;
 			}
 		}

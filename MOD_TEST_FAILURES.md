@@ -4,6 +4,72 @@
 加载器：Forbric main `11ca1ffa`，用 `forbric-kernel-installer` 装进 Mac 官方目录 `~/Library/Application Support/minecraft`（版本 `26.2-forbric`）
 下面的历史测试保留当时结果；后续修复及验证单独记录，不回写原始统计。
 
+## 修复后新抽样：100 个主体 mod（2026-10-01）
+
+本轮已完成公共问题修复、100 个新主体逐个加载，以及全部严格成功主体的完整混装测试。**单独加载：88/100 严格成功，95/100 正常进入世界、绘制画面并退出。完整 88 个混装失败；隔离两项明确冲突后，86 个的保存和重载通过。** 剩余不严格成功的项目仍保留，未改写成成功。
+
+### 样本与判定
+
+- 排除历史测试的 570 个项目，按项目 ID 确认本轮 100 个主体没有重复；种子 `20261001`。下载量前 200 中尚未测过且可用的热门项目只剩 35 个，因此采用 **35 热门 + 65 随机**，加载器构建随机选择。
+- 依赖额外计入，共 **128 个 jar**，分母始终为 100 个主体。补齐 Puzzle 未声明却直接使用的 MidnightLib；原始 mod jar 均未改写。初始错误依赖闭包、修正前结果和中断记录另存，不计作额外主体。
+- 每个主体只带自己的必要依赖，使用干净测试目录和同一个原版世界，逐个启动官方格式的已安装 Forbric 配置。第 100 tick 截图，第 200 tick 正常断开退出。
+- 严格成功要求进入世界、实际绘制、正常退出，主体、内嵌模块及所有加载依赖的报告状态均为 `OK`，无已确认必要损失、入口失败或未解决依赖。使用“继续”策略收集诊断并不会让失败变为严格成功。
+- 100 个最新结果均绑定同一个冻结内核 SHA-256：`48425134ce52b4bbd235677a8f72b1457d4756e68d74326cd21693f70197a468`。主体与依赖文件的 SHA-256 均已复核；源码修复集基于 `fd4fa20e`。
+
+| 样本 | 严格成功 | 正常进世界并退出 |
+|---|---:|---:|
+| 热门主体 | 32/35 | 35/35 |
+| 随机主体 | 56/65 | 60/65 |
+| **合计** | **88/100（88%）** | **95/100（95%）** |
+
+历史三批的“完全正常”是 79.1%，但那是另一批样本，且只判断主体自身；本轮还要求依赖严格正常。本轮没有修复前的配对基线，因此**不能把两个比例之差称为这次修复带来的确定提升**。严格加载通过也不代表每个 mod 的全部游戏行为都已覆盖。
+
+### 本轮修复与实测证据
+
+| 公共原因 | 修复 |
+|---|---|
+| KotlinForForge 外壳没有 mod 清单，嵌套运行库被漏掉 | 保留带 JarJar 的匿名物理根，发现并加载真实内嵌库 |
+| 外部运行时档案没有进入变换类加载器 | 将运行库 URL 纳入拥有类的加载路径，保留变换及资源解析 |
+| 合并后 Forge/NeoForge 类型或生命周期不一致 | 接回 multipart 实体追踪/移除，填入真实游戏及载体版本，补发 ModifyRegistriesEvent |
+| 可选 mixin 的 requiredMods 被丢弃 | 按原始 requiredMods 和实际存在的 mod 决定注册 |
+| macOS AWT 字体初始化与 GLFW 冲突、初始化回调失联 | 默认字体使用 headless 模式并保留显式选择；接回真实客户端初始化回调 |
+| 原方法/局部变量不在实际执行路径 | 修复流体标签查询、物品光泽局部捕获和斧头去皮回调，保留原调用、事件和取消行为 |
+| 插件假定 Knot 或原生 FML；共享库仲裁后配置入口消失 | 按实际拥有者选择 Controlify 平台；接入当前 Mixin 装饰链；发布嵌套库真实身份并调用 Spectre 配置入口 |
+| 枚举声明路径被硬编码 | 读取每个 mod 声明的 enumExtensions 路径；EUM 在最终 100 个中严格通过 |
+| 缺失依赖或选中了无关主体作为依赖 | 收紧依赖闭包，补齐 MidnightLib，保留所有修正前证据 |
+
+专项重测中，15 个历史失败/降级主体已在对应修复阶段严格通过：Fzzy Config、SimpleGUI、Particle Core、Alex’s Mobs、AutoEat、LambDynamicLights、Sodium、Iris、EasyMagic、FancyMenu、DrippyLoadingScreen、Biomes O’ Plenty、Item Glint Relight、WorldWeaver、BCLib。这些专项不混入新抽样的 100 个分母。
+
+最终代码的完整内核回归为 **2736 项，0 跳过、0 失败**；依赖/存档工具的 8 项 Python 检查通过。53 个门禁通过；其中缺夹具或受并发影响的尝试保留，采用完整夹具复核后的通过记录。M0 完整夹具门禁及 M24 故意失败/严格停止/正常对照均通过。两小时 soak 曾在约 2000 秒正常退出，但缺少 controller-result，**未获放行，也没有计为通过**。
+
+### 完整混装与冲突隔离
+
+- **完整包：88 个主体 + 必要依赖，共 109 个 jar。严格启动失败，重载标为 NOT_RUN。** 明确错误为 Chloride 与 CWB 同时覆盖 `sodium:general.fullscreen_mode`。未删除冲突成员后把结果改成成功。
+- 隔离 CWB 后暴露了 Spectre 配置入口缺失以及 Controlify/JECharacters 插件问题；对应 Forbric 修复已落实。修复后进世界又遇到 EnchantCraft 配方编码拒绝新实例。
+- 用 **官方 NeoForge 26.2.0.88、未修改的 EnchantCraft jar** 做原生对照，同样复现 StreamCodec.unit 拒绝新建 ApplyEnchantRecipe 的异常；原生服务器正常启动和停止。
+- **仅用于诊断的最终包：排除 CWB、EnchantCraft，86 个主体、107 个 jar。** 6000 tick 首次加载、正常保存退出，以及 200 tick 保存后重载均严格通过；报告无非 OK mod，必要损失为零。此结果不替代完整包的失败。
+- 保存检查兼容 26.2 新目录结构，要求实际的新 level.dat 及玩家/区块写入，不能用复制进来的旧存档充当保存证据；混装测试目录关闭失焦暂停。
+
+### 仍未严格成功的 12 个主体
+
+| 主体 | 本轮结果 | 确认的阻塞 |
+|---|---|---|
+| ClientCarts | 进世界，主体 OK | 依赖 Extended Drawers 的 useOn 注入没有实际附着 |
+| Crash Assistant | 进世界，降级 | 依赖原生 FML 中额外加入的 ExitVMBypass 类 |
+| Leaves Be Gone | 进世界，主体 OK | Puzzles Lib 的 tryDropExperience 回调仍落在不执行的方法上 |
+| MyConnectionMyChoice | 崩溃 | 内嵌 lifecycle API 使用了不匹配 26.2 的注入参数 |
+| C2ME | 进世界，降级 | worldgen-threading 的结构计数字段锚点不匹配 |
+| Extended Drawers Polymer Patch | 进世界，主体 OK | 同上游 Extended Drawers 的必要注入缺失 |
+| LPLM | 崩溃，报告主体 OK | 服务器状态序列化收到 null Optional；运行结果仍判失败 |
+| NoFog | 进世界，降级 | modifyFogEnd 必要注入未附着 |
+| OptiCore | 崩溃、降级 | 多个游戏/Sodium 目标不匹配，并出现渲染状态类型转换失败 |
+| PlayerCollars | 崩溃、降级 | 静态初始化向已冻结的物品注册表注册 |
+| Sound Visualizer | 进世界，主体 OK | 依赖 Architectury 的 rightClickAir 注入未附着 |
+| Tuanzi’s Server Mod | 未进入世界，报告 OK | 它自己的白名单拒绝测试账号 CompatPlayer；属于配置阻挡，不能据此认定加载器损坏 |
+
+清单、闭包、每个主体的最新结果、冻结指纹及混装结果见 [本轮机器可读记录](forbric-kernel/run/compat/reports/2026-10-01-sweep100/summary.json) 和 [抽样清单](forbric-kernel/run/compat/reports/2026-10-01-sweep100/manifest.json)。完整控制台、截图、崩溃报告和保存世界保存在本机 `forbric-kernel/build/sweep100-mac-network/`；原生对照在 `build/sweep100-native-recipe/`，回归及未放行 soak 证据在 `build/sweep100-validation/`。
+
+
 ## 后续修复：Carpet（2026-09-30）
 
 针对 `fabric-carpet-26.2+v260616.jar`，已接回 `fillUpdates` 的两处注入、黑石/深板岩再生，以及 Scarpet 换手与挖方块事件。保留原始 Carpet 回调与取消结果；原生换手、挖方块事件的否决仍然有效。

@@ -44,6 +44,7 @@ class ForbricMixinServiceTest {
 		System.clearProperty("forbric.suppressMixins");
 		System.clearProperty("forbric.keepMixins");
 		System.clearProperty(net.forbric.kernel.transform.GuestInjectorPruner.PROPERTY);
+		System.clearProperty(FabricRegistryInitializationMixinAdapter.PROPERTY);
 		ForbricMixinService.setGuestConfigs(List.of());
 	}
 
@@ -84,6 +85,7 @@ class ForbricMixinServiceTest {
 	@Test
 	void aSuppressionByNameIsAConfirmedFindingThatAsksNothing(@org.junit.jupiter.api.io.TempDir java.nio.file.Path dir)
 			throws Exception {
+		System.setProperty(FabricRegistryInitializationMixinAdapter.PROPERTY, "off");
 		String config = "fabric-registry-sync-v0.mixins.json";
 		String pkg = "net.fabricmc.fabric.mixin.registry.sync";
 		assertTrue(MergedBaseMixinCompat.SUPPRESSED_MIXINS.contains(config + ":BootstrapMixin"), "precondition");
@@ -125,6 +127,7 @@ class ForbricMixinServiceTest {
 
 	@Test
 	void keepMixinsOverridesTheShippedSuppressionList() {
+		System.setProperty(FabricRegistryInitializationMixinAdapter.PROPERTY, "off");
 		String config = "fabric-registry-sync-v0.mixins.json";
 		assertTrue(ForbricMixinService.suppressedMixinsFor(config).contains("BootstrapMixin"),
 				"precondition: this entry ships in MergedBaseMixinCompat.SUPPRESSED_MIXINS");
@@ -149,10 +152,20 @@ class ForbricMixinServiceTest {
 
 	@Test
 	void keepMixinsForAnUnrelatedConfigChangesNothing() {
+		System.setProperty(FabricRegistryInitializationMixinAdapter.PROPERTY, "off");
 		String config = "fabric-registry-sync-v0.mixins.json";
 		System.setProperty("forbric.keepMixins", "other.mixins.json:BootstrapMixin");
 		assertTrue(ForbricMixinService.suppressedMixinsFor(config).contains("BootstrapMixin"),
 				"the config name is part of the key — a same-named mixin elsewhere must not unpin this one");
+	}
+
+	@Test
+	void restoredRegistryMixinsRunByDefaultAndExplicitSuppressionsStillWin() {
+		String config = "fabric-registry-sync-v0.mixins.json";
+		assertFalse(ForbricMixinService.suppressedMixinsFor(config).contains("BootstrapMixin"));
+		assertFalse(ForbricMixinService.suppressedMixinsFor(config).contains("RegistryDataLoaderMixin"));
+		System.setProperty("forbric.suppressMixins", config + ":BootstrapMixin");
+		assertTrue(ForbricMixinService.suppressedMixinsFor(config).contains("BootstrapMixin"));
 	}
 
 	@Test

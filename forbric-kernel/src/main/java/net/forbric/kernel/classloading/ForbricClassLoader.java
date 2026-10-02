@@ -52,6 +52,7 @@ public final class ForbricClassLoader extends URLClassLoader {
 	}
 
 	private final ClassLoader parent;
+	private volatile ClassLoader fallbackClassLoader;
 	private final DefinedClassEvidence definitionEvidence = new DefinedClassEvidence();
 
 	/** One {@link ProtectionDomain} per owned jar, keyed by the jar URL's spelling. See {@link #domainFor}. */
@@ -80,6 +81,23 @@ public final class ForbricClassLoader extends URLClassLoader {
 	@Override
 	public void addURL(URL url) {
 		super.addURL(url);
+	}
+
+	/**
+	 * Attaches a mod's extracted runtime archives to the transforming loader. Universal mods such as
+	 * SimpleGUI expose their payload through a URLClassLoader and reflectively request this interface.
+	 * Owning those URLs keeps game types, access transforms and Mixin on the same loader, rather than
+	 * defining a second copy through a child that delegates back here. Like addURL, this does not unload
+	 * previously attached archives; a null value only clears the fallback marker used by runtime bridges.
+	 */
+	public synchronized void setFallbackClassLoader(ClassLoader fallback) {
+		if (fallback == null) { fallbackClassLoader = null; return; }
+		if (fallback == this || !(fallback instanceof URLClassLoader urls)) {
+			throw new IllegalArgumentException("A runtime fallback must expose its archives through URLClassLoader");
+		}
+		for (URL url : urls.getURLs()) addURL(url);
+		fallbackClassLoader = fallback;
+		preMixin.clear();
 	}
 
 	/** Installs the pre-mixin transform chain (Access, compat, the kernel redirectors). Call once, before any load. */

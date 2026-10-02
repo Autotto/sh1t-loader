@@ -83,22 +83,17 @@ class MixinFitLivenessCensusStagedTest {
 			"apoli.mixins.json:legacy.hud_power.HudMixin FIT -> PARTIAL",
 			"architectury.mixins.json:MixinServerExplosion PARTIAL -> PARTIAL",
 			"balm.fabric.mixins.json:FabricCropBlockMixin PARTIAL -> PARTIAL",
-			"bclib.mixins.common.json:axe.AxeItemMixin FIT -> PARTIAL",
 			"bettermounthud.mixins.json:HudMixin FIT -> PARTIAL",
 			"configapi-fabric.mixins.json:event.ServerExplosionMixin PARTIAL -> PARTIAL",
-			"fabric-block-api-v1.mixins.json:LiquidBlockMixin FIT -> PARTIAL",
 			"fabric-block-api-v1.mixins.json:LivingEntityMixin FIT -> PARTIAL",
-			"fabric-content-registries-v0.mixins.json:AxeItemMixin FIT -> PARTIAL",
 			"fabric-renderer-api-v1.mixins.json:block.particle.ScreenEffectRendererMixin FIT -> PARTIAL",
-			"fabric-renderer-api-v1.mixins.json:block.render.SectionCompilerMixin PARTIAL -> PARTIAL",
 			"fabric-rendering-v1.mixins.json:HudMixin PARTIAL -> PARTIAL",
 			"puzzleslib.fabric.mixins.json:BlockFabricMixin FIT -> PARTIAL",
 			"puzzleslib.fabric.mixins.json:ServerExplosionFabricMixin FIT -> PARTIAL",
 			"puzzleslib.fabric.mixins.json:client.EffectsInInventoryFabricMixin PARTIAL -> PARTIAL",
-			"sodium-fabric.mixins.json:features.render.model.ItemModelGeneratorMixin FIT -> PARTIAL",
-			"wover.traits.mixins.common.json:AxeItemMixin FIT -> PARTIAL");
+			"sodium-fabric.mixins.json:features.render.model.ItemModelGeneratorMixin FIT -> PARTIAL");
 	/** The same, counted per pack: one mixin changes in every pack that carries it. */
-	private static final int EXPECTED_IN_PACKS = 43;
+	private static final int EXPECTED_IN_PACKS = 28;
 
 	@AfterEach
 	void reset() {
