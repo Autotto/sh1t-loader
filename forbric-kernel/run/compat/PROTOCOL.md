@@ -63,12 +63,39 @@ jar before treating the selection as final; metadata resolution alone cannot pro
 ## Carpet rule and event verification
 
 `carpet-gate.py --carpet <fabric-carpet-26.2+v260616.jar> --staged-root <forbric-loader/run>`
-compiles the Carpet probe and runs 22 behavior checks in isolated dedicated-server worlds. The baseline
-runs with `forbric.carpetMixins=off` and must expose the repaired failures; the fixed run uses strict
-compatibility policy and must pass every behavior check with no confirmed Carpet losses. Both runs
+compiles the Carpet probe and runs 27 behavior checks in isolated dedicated-server worlds. The baseline
+runs with `forbric.carpetMixins=off` and must fail exactly the 16 checks that need the adapter (fill shape
+updates, a direct `Level.setBlock` under `impendingFillSkipUpdates` for the neighbour-update redirect, renewable
+blackstone and deepslate on, both Scarpet events and their native-Fabric order); vanilla's own lava/water reactions
+pass there, since placement no longer depends on the adapter (`FluidInteractionsInjector`), and the summary lists
+Carpet and base-fluid failures separately. The fixed run uses strict compatibility policy and must pass every
+behavior check with no confirmed Carpet losses, and none of the five adapted mixins may be left suspected or
+"applies only partially" (the baseline must still show them, so the check can fail). Both runs
 must save and shut down normally. Reports, logs, test worlds and input hashes stay under the printed
 output directory; `--output` selects a new directory explicitly. See
 [the Carpet probe instructions](../../canary/carpet/README.md) for prerequisites and coverage.
+
+## Vanilla fluid parity
+
+`fluid-parity-gate.py [--output DIR] [--unfixed]` runs one datapack, unchanged, on a vanilla 26.2 dedicated server
+(`launch-vanilla-server.sh`, the player's own jar) and on the kernel with zero mods (`launch-kernel-server.sh`): lava set
+beside water (source and flowing), water set beside lava, lava set on soul soil beside blue ice, lava flowing into a
+cell under water, water flowing to lava, lava flowing down into water, and a cobblestone and a basalt generator emptied
+every tick for 600 ticks. The scores the console prints and the blocks in the saved region files must be identical on
+both sides, and vanilla itself must show every reaction (so a scenario that measured nothing cannot pass). `--unfixed`
+runs the kernel with `-Dforbric.fluidInteractions=off` and must go RED. Needs Java 25 on `PATH`, like gate M31.
+
+`fluid-parity-gate.py --mods [--native-controls DIR]` is the same comparison for mods' fluid rules, against the loaders
+themselves: native NeoForge 26.2.0.88 with a NeoForge canary mod and native MinecraftForge 26.2-65.0.1 with a
+MinecraftForge canary mod (`canary/fluid-interactions`, each compiled against its own loader's installed jars only), and
+the kernel with both jars. The native images are the ones `native-controls.py prepare` installs (default
+`build/native-controls`); each run copies them and never writes into them. On NeoForge a mod's rule runs when a block
+next to the liquid changes and never when the liquid is placed; on MinecraftForge it runs on both, and every rule is
+tried at one neighbour before the next, so a mod's rule above beats vanilla's water to the east. Every case cell must
+match the server of the loader whose entry point the merged game uses there (placement: MinecraftForge's; a neighbour
+change: NeoForge's, then MinecraftForge mods' rules at the same neighbour), immediately and 100 ticks later, and the
+canaries must report the same firings there; where both rules match one block, exactly one runs. `--mods --unfixed`
+must go RED.
 
 ## Fabric menu codec verification
 

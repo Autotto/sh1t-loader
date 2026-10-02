@@ -640,6 +640,18 @@ public final class KernelBoot {
 		chain.register(TransformPhase.COREMOD, new net.forbric.kernel.transform.AxeStripCallbacksInjector());
 		chain.register(TransformPhase.COREMOD, new net.forbric.kernel.transform.CompatPluginPlatformInjector());
 		chain.register(TransformPhase.COREMOD, new net.forbric.kernel.transform.SpectreConfigContractInjector());
+		// Lava placed or flowing next to water: the merged LiquidBlock.onPlace (MinecraftForge's) asked MinecraftForge's
+		// registry, which the neuter below used to empty, so only water arriving next to lava reacted. It asks it whole
+		// now, as on MinecraftForge (vanilla's rules and MinecraftForge mods'; NeoForge's own placement runs no mod's).
+		// neighborChanged (NeoForge's) asks NeoForge's registry, and at each neighbour its rules miss, MinecraftForge
+		// mods' — once one adds a rule. Off, the neuter is registered again and placement is as broken as before.
+		boolean fluidInteractions = net.forbric.kernel.transform.FluidInteractionsInjector.enabled();
+		if (fluidInteractions) {
+			chain.register(TransformPhase.COREMOD, new net.forbric.kernel.transform.FluidInteractionsInjector());
+		} else {
+			ForbricLog.warn("[Forbric/Fluid] -D%s=off — LiquidBlock.onPlace asks MinecraftForge's neutered FluidInteractionRegistry: "
+					+ "lava placed or flowing next to water stays lava", net.forbric.kernel.transform.FluidInteractionsInjector.PROPERTY);
+		}
 		// MinecraftForge's ParticleEngine.registerParticleGroup against NeoForge's engine: its statics, merged in on build.
 		chain.register(TransformPhase.COREMOD, new net.forbric.kernel.transform.ParticleGroupsInjector());
 		// MinecraftForge's Hurt, Damage and player-Attack events have no NeoForge event at their positions to bridge
@@ -831,14 +843,11 @@ public final class KernelBoot {
 		//     meant no dungeon, no spawner and no dungeon chest in EVERY world, for everyone, mods or no mods.
 		//     KernelNeoWorldgen loads the data maps for real and the mob pick falls back to vanilla's own set.
 		// A neuter is a promise that the method cannot work here; both promises had expired.
-		MethodBodyNeuter neuter = new MethodBodyNeuter()
-				.add(new MethodBodyNeuter.Target("net.minecraftforge.fluids.FluidInteractionRegistry",
-						"canInteract", "(Lnet/minecraft/world/level/Level;Lnet/minecraft/core/BlockPos;)Z",
-						"MinecraftForge fluid-interaction hook calls its own getFluidType() (net.minecraftforge FluidType) "
-						+ "but the merged Fluid implements only NeoForge's IFluidExtension (getFluidType returns the "
-						+ "neoforged FluidType) → AbstractMethodError on WaterFluid.getFluidType during worldgen fluid "
-						+ "ticking. Return false so vanilla fluid behavior proceeds (Forge/Neo FluidType ABI split)"));
-		addSideNeuters(side, neuter);
+		// So had a third: MinecraftForge's FluidInteractionRegistry.canInteract. Its AbstractMethodError went once the
+		// merged fluids answered MinecraftForge's getFluidType() (the per-class bridge, ForeignFluidTypeInjector), and the
+		// "vanilla fluid behaviour proceeds" it promised did not: the merged LiquidBlock.onPlace asks exactly this method,
+		// so placing lava next to water never reacted. It runs whole with FluidInteractionsInjector; off, it is put back.
+		MethodBodyNeuter neuter = neuters(side, fluidInteractions);
 		chain.register(TransformPhase.COREMOD, neuter);
 
 		// A NeoForge mod adds constants to vanilla enums by declaring them in META-INF/enumextensions.json; FML
@@ -1021,6 +1030,26 @@ public final class KernelBoot {
 
 		Method main = mainClass.getMethod("main", String[].class);
 		main.invoke(null, (Object) gameArgs.toArray(new String[0]));
+	}
+
+	/**
+	 * Every method the kernel empties on {@code side}: built here, outside {@link #launch}, so a test can read the list
+	 * KernelBoot really registers. MinecraftForge's {@code FluidInteractionRegistry.canInteract} is on it only with
+	 * {@code -Dforbric.fluidInteractions=off} ({@code fluidInteractions} false): with the repair on, a MinecraftForge
+	 * mod's fluid rules run through exactly that method, and a neuter there silences them with every test still green.
+	 */
+	static MethodBodyNeuter neuters(Side side, boolean fluidInteractions) {
+		MethodBodyNeuter neuter = new MethodBodyNeuter();
+		if (!fluidInteractions) {
+			neuter.add(new MethodBodyNeuter.Target("net.minecraftforge.fluids.FluidInteractionRegistry",
+					"canInteract", "(Lnet/minecraft/world/level/Level;Lnet/minecraft/core/BlockPos;)Z",
+					"MinecraftForge fluid-interaction hook calls its own getFluidType() (net.minecraftforge FluidType) "
+					+ "but the merged Fluid implements only NeoForge's IFluidExtension (getFluidType returns the "
+					+ "neoforged FluidType) → AbstractMethodError on WaterFluid.getFluidType during worldgen fluid "
+					+ "ticking. Return false so vanilla fluid behavior proceeds (Forge/Neo FluidType ABI split)"));
+		}
+		addSideNeuters(side, neuter);
+		return neuter;
 	}
 
 	/**
