@@ -66,7 +66,7 @@ class InjectorExecutionCensusTest {
 			"ClientEntrypointHookInjector", "ClientPackHookInjector", "ClientPartTrackingInjector", "ClientSmokeTickInjector",
 			"CommonNetworkInteropInjector", "CompatPluginPlatformInjector", "CompatibilityPromptTickInjector",
 			"CompostablesFallbackInjector", "CreateBreathingInjector", "CreateHudContextInjector", "CreateSoundQueryInjector",
-			"CreateWorkerWaitInjector", "CreativePagerBridgeInjector", "DataPackHookInjector", "DragonPartsInjector",
+			"CreativePagerBridgeInjector", "DataPackHookInjector", "DragonPartsInjector",
 			"DuplicateLambdaPruneInjector", "EventChainAuditInjector",
 			"ExitHookInjector", "FabricFluidBehaviorInjector", "FabricFluidModelsInjector", "FabricFuelValuesInjector",
 			"FlowerPotRepairInjector", "FluidInteractionsInjector", "ForbricBrandingInjector", "ForeignFluidTypeInjector",
