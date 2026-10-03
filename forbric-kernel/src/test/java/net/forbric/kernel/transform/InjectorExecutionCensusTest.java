@@ -69,7 +69,7 @@ class InjectorExecutionCensusTest {
 			"CreativePagerBridgeInjector", "DataPackHookInjector", "DragonPartsInjector",
 			"DuplicateLambdaPruneInjector", "EventChainAuditInjector",
 			"ExitHookInjector", "FabricFluidBehaviorInjector", "FabricFluidModelsInjector", "FabricFuelValuesInjector",
-			"FlowerPotRepairInjector", "FluidInteractionsInjector", "ForbricBrandingInjector", "ForeignFluidTypeInjector",
+			"FlowerPotRepairInjector", "FluidInteractionsInjector", "ForeignFluidTypeInjector",
 			"ForeignPayloadReceiveInjector", "ForgeAttributeValidationInjector",
 			"ForgeBindingsLookupInjector", "ForgeBlockTintInjector", "ForgeBrewingRecipesInjector",
 			"ForgeCapabilityTokenInjector", "ForgeClientConsumersInjector",
