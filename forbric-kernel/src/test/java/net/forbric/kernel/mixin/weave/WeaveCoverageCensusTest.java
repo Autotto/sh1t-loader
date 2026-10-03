@@ -67,7 +67,8 @@ class WeaveCoverageCensusTest {
 			Map.entry("MixinNativeTail", new Switch(List.of("forbric.vanillaEarlyReturns"), "net.forbric.kernel.transform.VanillaEarlyReturns")),
 			Map.entry("MixinHandlerShim", Switch.own("forbric.mixinHandlerShim")),
 			Map.entry("MixinAnonymousRetarget", Switch.own("forbric.mixinAnonymousDrift")),
-			Map.entry("InterfaceDefaultConflictRepair", Switch.own("forbric.defaultConflictRepair")));
+			Map.entry("InterfaceDefaultConflictRepair", Switch.own("forbric.defaultConflictRepair")),
+			Map.entry("FabricRegistryInitializationMixinAdapter", Switch.own("forbric.fabricRegistryInitialization")));
 
 	private static final String NO_SCENARIO = "no weave scenario yet; ClassNode-level tests only";
 	/** Only shrinks. Every row is a stage whose output no CI test has yet run through the real weave. */
@@ -78,7 +79,7 @@ class WeaveCoverageCensusTest {
 			"CreateKeyboardMixinAdapter", "CreateStructureMixinAdapter", "FabricBlockBreakMixinAdapter",
 			"FabricBlockStateCodecMixinAdapter", "FabricClientMixinAnchors", "FabricCreativePagerMixinAdapter",
 			"FabricEnchantmentMixinAdapter", "FabricEntityMixinAnchors", "FabricFluidFlowMixinAdapter",
-			"FabricMiningMixinAdapter", "FabricRegistryInitializationMixinAdapter", "FabricRegistryLoaderMixinAdapter",
+			"FabricMiningMixinAdapter", "FabricRegistryLoaderMixinAdapter",
 			"FabricSectionCompilerMixinAdapter", "FabricServerLanguageMixinAdapter", "FabricSoundMixinAdapter",
 			"GuiItemCaptureMixinAdapter", "InsertedLambdaArgumentShim", "KernelClientHookMixinAnchors",
 			"MixinRetarget", "MixinShearsRelay",
