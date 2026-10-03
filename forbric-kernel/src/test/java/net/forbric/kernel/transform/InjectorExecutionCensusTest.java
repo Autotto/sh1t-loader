@@ -87,7 +87,7 @@ class InjectorExecutionCensusTest {
 			"SoundRegistryIdentityInjector",
 			"SpawnPositionCallsInjector", "SpawnerFinalizeInjector",
 			"SplitterPacketContextInjector", "TooltipOrderScrapeInjector", "UntrackedFluidEyeQueryInjector",
-			"VanillaDamageReadInjector", "WidenedFieldTwinInjector", "WrapperEntryAddedInjector");
+			"VanillaDamageReadInjector", "WidenedFieldTwinInjector");
 
 	@Test void everyInjectorIsExecutedOrListedWithAReason() throws Exception {
 		Map<String, String> injectors = injectors(classesBeside(ClassTransformer.class));
@@ -115,12 +115,14 @@ class InjectorExecutionCensusTest {
 		assertEquals(List.of("undeclared: BrandNewInjector"), problems(injectors, Set.of(), NOT_EXECUTED_YET.keySet()));
 
 		injectors.remove("BrandNewInjector");
-		assertEquals(List.of("both executed and allowlisted: ExitHookInjector"),
-				problems(injectors, Set.of("ExitHookInjector"), NOT_EXECUTED_YET.keySet()));
+		// Any row will do, and a named one would break the day its injector is credited.
+		String row = NOT_EXECUTED_YET.keySet().iterator().next();
+		assertEquals(List.of("both executed and allowlisted: " + row),
+				problems(injectors, Set.of(row), NOT_EXECUTED_YET.keySet()));
 
 		Set<String> gone = new TreeSet<>(injectors);
-		gone.remove("WrapperEntryAddedInjector");
-		assertEquals(List.of("allowlisted but no longer an injector: WrapperEntryAddedInjector"),
+		gone.remove(row);
+		assertEquals(List.of("allowlisted but no longer an injector: " + row),
 				problems(gone, Set.of(), NOT_EXECUTED_YET.keySet()));
 
 		Map<String, String> known = Map.of("ExitHookInjector", "net/forbric/kernel/transform/ExitHookInjector");
