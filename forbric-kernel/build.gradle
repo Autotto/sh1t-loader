@@ -241,7 +241,8 @@ dependencies {
 	runtimeCompileOnly('org.joml:joml:1.10.8') { transitive = false }
 
 	testImplementation "org.junit.jupiter:junit-jupiter:${project.junit_version}"
-	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+	// Compiled against too: FixturePolicyExtensionTest launches a nested run to prove the suite loads its extension.
+	testImplementation 'org.junit.platform:junit-platform-launcher'
 }
 
 tasks.withType(JavaCompile).configureEach {
@@ -509,6 +510,10 @@ tasks.withType(Test).configureEach {
 	if (utf8TestLocale) environment 'LC_ALL', 'C.UTF-8'
 	inputs.property('strictIntegration', strictIntegration)
 	inputs.property('skipBaseline', skipBaseline ?: '')
+	// The fixtures whose absence fails instead of skipping (TestFixtures.Fixture ids, or 'all'), read by
+	// TestFixtures and FixturePolicyExtension. An integration run requires all of them, at the test that skipped
+	// rather than only in the totals afterwards.
+	systemProperty 'forbric.requireFixtures', project.findProperty('forbric.requireFixtures') ?: (strictIntegration ? 'all' : '')
 	// A previous permissive result must never bypass the no-skips verdict of an integration invocation, and the
 	// skip ratchet must judge tests that ran now.
 	outputs.upToDateWhen { !strictIntegration && skipBaseline == null }
