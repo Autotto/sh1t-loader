@@ -40,7 +40,13 @@ would do; a dry run prints every command and changes nothing:
 python3 tools/nightly/run_nightly.py --repo /Users/jerry/Documents/Forbric --dry-run
 ```
 
-Then:
+Then, once, the worktree the runner itself is taken from (the plist moves it to `origin/main` every night):
+
+```bash
+git -C /Users/jerry/Documents/Forbric worktree add --detach /Users/jerry/Documents/Forbric-nightly-src origin/main
+```
+
+and:
 
 ```bash
 cp tools/nightly/com.forbric.nightly.plist ~/Library/LaunchAgents/
@@ -49,7 +55,7 @@ launchctl print gui/$UID/com.forbric.nightly    # loaded? last exit code
 launchctl kickstart gui/$UID/com.forbric.nightly    # optional: run a night now
 ```
 
-The plist runs the main checkout's copy of `run_nightly.py`, with absolute paths and
+The plist runs `run_nightly.py` from `Forbric-nightly-src` after moving it to `origin/main`, with absolute paths and
 `PATH=/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin` (launchd's own has no `gh`). Change those
 in the plist if this Mac differs, then `bootout` and `bootstrap` again.
 

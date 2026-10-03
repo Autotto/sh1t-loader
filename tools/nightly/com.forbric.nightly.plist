@@ -9,14 +9,16 @@
 <dict>
 	<key>Label</key>
 	<string>com.forbric.nightly</string>
+	<!--
+		The runner itself comes from origin/main too: a worktree of its own (Forbric-nightly-src) is moved to the
+		fetched origin/main first, so the main checkout may be on any branch or commit, and an improved
+		run_nightly.py takes effect the night after it lands. Create that worktree once (README.md, Install).
+	-->
 	<key>ProgramArguments</key>
 	<array>
-		<string>/usr/local/bin/python3</string>
-		<string>/Users/jerry/Documents/Forbric/tools/nightly/run_nightly.py</string>
-		<string>--repo</string>
-		<string>/Users/jerry/Documents/Forbric</string>
-		<string>--work</string>
-		<string>/Users/jerry/Documents/Forbric-nightly</string>
+		<string>/bin/sh</string>
+		<string>-c</string>
+		<string>git -C /Users/jerry/Documents/Forbric fetch --quiet origin &amp;&amp; git -C /Users/jerry/Documents/Forbric-nightly-src checkout --quiet --detach origin/main &amp;&amp; exec /usr/local/bin/python3 /Users/jerry/Documents/Forbric-nightly-src/tools/nightly/run_nightly.py --repo /Users/jerry/Documents/Forbric --work /Users/jerry/Documents/Forbric-nightly</string>
 	</array>
 	<key>EnvironmentVariables</key>
 	<dict>
