@@ -94,8 +94,18 @@ final class WeaveHarness {
 
 	/** Compiles {@code sources} and packs the classes plus {@code resources} into a real jar under {@code work}. */
 	static Path fixture(Path work, String name, List<Path> sources, Map<String, Path> resources) throws IOException {
+		return fixture(work, name, sources, resources, List.of());
+	}
+
+	/**
+	 * As above, with {@code javacOptions} after the harness's own: {@code -g} when a scenario needs the
+	 * LocalVariableTable a mod's release build carries and javac's default leaves out.
+	 */
+	static Path fixture(Path work, String name, List<Path> sources, Map<String, Path> resources, List<String> javacOptions)
+			throws IOException {
 		Path classes = Files.createDirectories(work.resolve(name + "-classes"));
 		List<String> args = new ArrayList<>(JAVAC);
+		args.addAll(javacOptions);
 		args.addAll(List.of("-cp", compileClasspath(), "-d", classes.toString()));
 		for (Path source : sources) args.add(source.toString());
 		StringWriter errors = new StringWriter();
@@ -185,12 +195,43 @@ final class WeaveHarness {
 		return result;
 	}
 
-	/** A run that must have defined and verified {@code internalName} through the real pipeline. */
+	/**
+	 * A run that must have defined and verified {@code internalName} through the real pipeline.
+	 *
+	 * <p>The verifier resolves every type the woven code hands across an assignment, MixinExtras' included: an
+	 * {@code Operation} or {@code LocalRef} comes from the MixinExtras jar the run wove with, and a {@code LocalRef}
+	 * implementation from {@link MixinExtrasGeneratedRefs}, because MixinExtras defines those only at run time.
+	 */
 	static void assertWovenAndVerified(Result run, String internalName, Path fixture) throws IOException {
-		try (var resolver = new java.net.URLClassLoader(new java.net.URL[] {fixture.toUri().toURL()},
-				WeaveHarness.class.getClassLoader())) {
-			String verdict = run.verify(internalName, resolver);
+		try (var jars = new java.net.URLClassLoader(new java.net.URL[] {fixture.toUri().toURL(),
+				Path.of(mixinExtrasJar()).toUri().toURL()}, WeaveHarness.class.getClassLoader())) {
+			String verdict = run.verify(internalName, new MixinExtrasGeneratedRefs(jars));
 			assertTrue(verdict.isEmpty(), internalName + " does not verify after weaving:\n" + verdict + "\n" + run.describe());
+		}
+	}
+
+	/**
+	 * A bodiless stand-in for each {@code LocalRef} implementation MixinExtras generates. It defines them through a
+	 * Lookup while the class weaves, so neither its jar nor the defined-class evidence has them, and the verifier needs
+	 * only their place in the hierarchy: the ref interface of the same name they implement.
+	 */
+	private static final class MixinExtrasGeneratedRefs extends ClassLoader {
+		private static final String GENERATED = "com.llamalad7.mixinextras.sugar.impl.ref.generated.";
+
+		MixinExtrasGeneratedRefs(ClassLoader parent) {
+			super(parent);
+		}
+
+		@Override
+		protected Class<?> findClass(String name) throws ClassNotFoundException {
+			if (!name.startsWith(GENERATED) || !name.endsWith("Impl")) throw new ClassNotFoundException(name);
+			String simple = name.substring(GENERATED.length(), name.length() - "Impl".length());
+			org.objectweb.asm.ClassWriter writer = new org.objectweb.asm.ClassWriter(0);
+			writer.visit(org.objectweb.asm.Opcodes.V21, org.objectweb.asm.Opcodes.ACC_PUBLIC, name.replace('.', '/'), null,
+					"java/lang/Object", new String[] { "com/llamalad7/mixinextras/sugar/ref/" + simple });
+			writer.visitEnd();
+			byte[] bytes = writer.toByteArray();
+			return defineClass(name, bytes, 0, bytes.length);
 		}
 	}
 

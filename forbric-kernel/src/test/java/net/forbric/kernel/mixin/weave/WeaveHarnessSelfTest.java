@@ -130,6 +130,24 @@ class WeaveHarnessSelfTest {
 		assertTrue(server.findings().stream().noneMatch(f -> f.id().contains("PanelClientMixin")), server.findings().toString());
 	}
 
+	/** A fixture's own javac options reach javac: {@code -g} adds the LocalVariableTable javac's default leaves out. */
+	@Test void aFixtureCompilesWithItsOwnJavacOptions() throws Exception {
+		List<Path> greeter = List.of(SOURCES.resolve("fixture/selftest/Greeter.java"));
+		Path debug = WeaveHarness.fixture(work, "javac-g", greeter, Map.of(), List.of("-g"));
+		Path plain = WeaveHarness.fixture(work, "javac-default", greeter, Map.of());
+		assertEquals(List.of("this"), greetLocals(debug));
+		assertEquals(List.of(), greetLocals(plain));
+	}
+
+	private static List<String> greetLocals(Path jar) throws Exception {
+		try (var zip = new java.util.zip.ZipFile(jar.toFile())) {
+			ClassNode node = new ClassNode();
+			new ClassReader(zip.getInputStream(zip.getEntry("fixture/selftest/Greeter.class")).readAllBytes()).accept(node, 0);
+			var greet = node.methods.stream().filter(m -> m.name.equals("greet")).findFirst().orElseThrow();
+			return greet.localVariables == null ? List.of() : greet.localVariables.stream().map(v -> v.name).toList();
+		}
+	}
+
 	private static WeaveHarness.Result run(String label, Map<String, String> properties) throws Exception {
 		return WeaveHarness.run(work, label, fixture, CONFIG, "selftest", Ecosystem.FABRIC, EnvType.SERVER,
 				"fixture.selftest.Greeter", "greet", properties);

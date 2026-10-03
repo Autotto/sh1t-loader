@@ -2,8 +2,6 @@ package net.forbric.kernel.mixin.weave;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import java.net.URL;
-import java.net.URLClassLoader;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
@@ -12,8 +10,6 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.objectweb.asm.ClassReader;
-import org.objectweb.asm.ClassWriter;
-import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.MethodInsnNode;
 import org.objectweb.asm.tree.MethodNode;
@@ -80,7 +76,7 @@ class MixinWrapOperationShimWeaveTest {
 		assertFalse(calls(shim, STATE, "getCloneItemStack"), "handlePickItemFromBlock still makes the call itself — " + shim.describe());
 		assertTrue(callsAnywhere(shim, RUNTIME, "reordered"), "no reordered Operation in the woven listener — " + shim.describe());
 		assertTrue(WeaveHarness.hasMergedMethod(shim.defined(LISTENER)), shim.describe());
-		assertVerifies(shim);
+		WeaveHarness.assertWovenAndVerified(shim, LISTENER, fixture);
 	}
 
 	@Test void switchedOffTheWrapIsUnboundAndThePickIsTheCarriersAlone() throws Exception {
@@ -91,7 +87,7 @@ class MixinWrapOperationShimWeaveTest {
 		assertEquals(1, fitMisses(off).size(), "findings: " + off.findings() + "\n" + off.describe());
 		assertTrue(calls(off, STATE, "getCloneItemStack"), off.describe());
 		assertFalse(callsAnywhere(off, RUNTIME, "reordered"), off.describe());
-		assertVerifies(off);
+		WeaveHarness.assertWovenAndVerified(off, LISTENER, fixture);
 	}
 
 	/** The two runs must be told apart by the very predicates the tests use on them. */
@@ -132,40 +128,6 @@ class MixinWrapOperationShimWeaveTest {
 		ClassNode node = new ClassNode();
 		new ClassReader(run.defined(LISTENER)).accept(node, 0);
 		return node;
-	}
-
-	/**
-	 * WeaveHarness.assertWovenAndVerified, with what its resolver cannot load: the @Local sugar bridge passes a
-	 * MixinExtras LocalRefImpl as a LocalRef. LocalRef is in the MixinExtras jar; LocalRefImpl exists only at run time
-	 * (MixinExtras defines it through a Lookup, so not even the defined-class evidence has it). The verifier needs only
-	 * its place in the hierarchy, so a bodiless class implementing the matching ref interface stands in for it.
-	 */
-	private static void assertVerifies(WeaveHarness.Result run) throws Exception {
-		try (var jars = new URLClassLoader(new URL[] { fixture.toUri().toURL(), Path.of(WeaveHarness.mixinExtrasJar()).toUri().toURL() },
-				WeaveHarness.class.getClassLoader())) {
-			String verdict = run.verify(LISTENER, new GeneratedRefs(jars));
-			assertTrue(verdict.isEmpty(), LISTENER + " does not verify after weaving:\n" + verdict + "\n" + run.describe());
-		}
-	}
-
-	private static final class GeneratedRefs extends ClassLoader {
-		private static final String GENERATED = "com.llamalad7.mixinextras.sugar.impl.ref.generated.";
-
-		GeneratedRefs(ClassLoader parent) {
-			super(parent);
-		}
-
-		@Override
-		protected Class<?> findClass(String name) throws ClassNotFoundException {
-			if (!name.startsWith(GENERATED) || !name.endsWith("Impl")) throw new ClassNotFoundException(name);
-			String simple = name.substring(GENERATED.length(), name.length() - "Impl".length());
-			ClassWriter writer = new ClassWriter(0);
-			writer.visit(Opcodes.V21, Opcodes.ACC_PUBLIC, name.replace('.', '/'), null, "java/lang/Object",
-					new String[] { "com/llamalad7/mixinextras/sugar/ref/" + simple });
-			writer.visitEnd();
-			byte[] bytes = writer.toByteArray();
-			return defineClass(name, bytes, 0, bytes.length);
-		}
 	}
 
 	private static List<WeaveHarness.Finding> ours(WeaveHarness.Result run) {
