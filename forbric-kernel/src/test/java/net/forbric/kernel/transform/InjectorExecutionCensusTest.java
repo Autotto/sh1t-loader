@@ -66,7 +66,7 @@ class InjectorExecutionCensusTest {
 			"EventChainAuditInjector",
 			"ForgeLootPoolConditionsInjector",
 			"ForgeSpawnPlacementsInjector",
-			"ForgeWorldModifierInjector", "HopperFabricStorageInjector",
+			"ForgeWorldModifierInjector",
 			"NeoTooltipAppendersInjector",
 			"RegistryDirectoryOwnerInjector",
 			"SpawnerFinalizeInjector");
