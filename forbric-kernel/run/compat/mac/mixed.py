@@ -62,14 +62,15 @@ def crash_reports(evidence):
     return sorted(path for path in Path(evidence).glob('crash-*.txt') if path.name != CRASH_ANALYSIS)
 
 
-def run(label, ticks, subjects, out, jvm=(), stall=420, timeout=900, grace=30, instance=None, launch=drive):
+def run(label, ticks, subjects, out, jvm=(), stall=420, timeout=900, grace=30, instance=None, launch=None):
     """One client session of the prepared instance, judged as a pack; evidence and result.json go to out/label.
 
     subjects are the jars that must come out OK; jvm flags follow the strict compatibility policy; stall, timeout and
-    grace are the driver's CLIENT_STALL, RUN_TIMEOUT and GRACE. instance defaults to per-mod.py's; launch is what runs
-    the driver, with drive()'s parameters.
+    grace are the driver's CLIENT_STALL, RUN_TIMEOUT and GRACE. instance defaults to per-mod.py's; launch, by default
+    drive(), is what runs the driver, with drive()'s parameters.
     """
     instance = Path(instance) if instance is not None else permod().INST
+    launch = launch or drive
     evidence = Path(out) / label
     evidence.mkdir(parents=True, exist_ok=False)
     start = time.time()
