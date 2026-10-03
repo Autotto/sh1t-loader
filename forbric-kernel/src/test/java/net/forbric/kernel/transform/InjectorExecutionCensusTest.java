@@ -81,7 +81,7 @@ class InjectorExecutionCensusTest {
 			"LootPoolFieldsInjector", "LootTableEventBridgeInjector", "ModelFormatFunnelInjector",
 			"NeoClientSetupHookInjector", "NeoConversionPostInjector",
 			"NeoEnumExtensionInjector", "NeoScreenEventsInjector", "NeoTooltipAppendersInjector",
-			"PackMetadataFailSoftInjector", "PackScreenHiddenFilterInjector",
+			"PackScreenHiddenFilterInjector",
 			"ParticleGroupsInjector", "PayloadCodecFunnelInjector", "PortalSpawnInjector",
 			"RecipeSyncFailSoftInjector", "RegistryAliasParityInjector", "RegistryDirectoryOwnerInjector",
 			"RegistrySyncParityInjector", "ServerCompatibilityTickInjector", "ServerReloadListenerNamesInjector",
