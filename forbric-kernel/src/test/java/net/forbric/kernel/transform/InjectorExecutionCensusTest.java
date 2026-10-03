@@ -85,7 +85,7 @@ class InjectorExecutionCensusTest {
 			"ParticleGroupsInjector", "PayloadCodecFunnelInjector", "PortalSpawnInjector", "PortingLayerAbiInjector",
 			"RecipeSyncFailSoftInjector", "RegistryAliasParityInjector", "RegistryDirectoryOwnerInjector",
 			"RegistrySyncParityInjector", "ServerCompatibilityTickInjector", "ServerReloadListenerNamesInjector",
-			"ServerTickSamplerInjector", "SodiumConfigUserBridgeInjector", "SoundRegistryIdentityInjector",
+			"SodiumConfigUserBridgeInjector", "SoundRegistryIdentityInjector",
 			"SpawnPositionCallsInjector", "SpawnerFinalizeInjector", "SpectreConfigContractInjector",
 			"SplitterPacketContextInjector", "TooltipOrderScrapeInjector", "UntrackedFluidEyeQueryInjector",
 			"VanillaDamageReadInjector", "WidenedFieldTwinInjector", "WrapperEntryAddedInjector");
