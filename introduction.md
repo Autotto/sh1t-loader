@@ -931,7 +931,9 @@ java -cp <boot-cp> net.forbric.kernel.boot.Main --scan --mods <dir> --report out
   merged base and carriers built there; only upstream downloads are cached and nothing derived is uploaded), then
   runs the same suite plus `transferTest`. There about 150 tests still skip, nearly all needing third-party mod packs
   that are not in this repository, held to `ci-prepared.tsv` the same way. Job `development-tools` runs
-  `tools/dev.py tool-test` and the packaged link gate on Windows, Linux and macOS. No `gate-m*` runs in CI.
+  `tools/dev.py tool-test` and the packaged link gate on Windows, Linux and macOS. kernel-prepared then runs four
+  real dedicated-server gates on the same files: m1, m36, m46 and m53, whose mods are canaries built from this
+  repository. The other gates (client, third-party packs, soak) run only on a developer machine.
 
 ## 17. System properties
 
