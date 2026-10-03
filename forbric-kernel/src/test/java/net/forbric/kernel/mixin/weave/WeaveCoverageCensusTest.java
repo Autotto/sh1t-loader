@@ -23,8 +23,10 @@ import org.objectweb.asm.tree.MethodNode;
 /**
  * Which stages of the guest-mixin pipeline the real-Mixin weave tests actually exercise, read from the bytecode.
  *
- * <p>Two lists, both computed rather than typed in, so a new stage cannot be added without this test noticing:
+ * <p>Three lists, all computed rather than typed in, so a new stage cannot be added without this test noticing:
  * <ul>
+ *   <li>the classes {@code ForbricMixinService.getResourceAsStream} asks, with a guest config's bytes, which of its
+ *       entries to leave out before Mixin reads the config;</li>
  *   <li>the adapters {@code ForbricMixinService.getClassNode} runs over every guest mixin before Mixin parses it;</li>
  *   <li>the stages {@code KernelMixinBootstrap.init} runs over every class after Mixin wove it.</li>
  * </ul>
@@ -49,6 +51,7 @@ class WeaveCoverageCensusTest {
 
 	/** stage (simple class name) -> the switch its weave test flips. The comment names the test. */
 	static final Map<String, Switch> WOVEN = Map.ofEntries(
+			Map.entry("KernelGuestMixinAdapter", Switch.own("forbric.guestMixinAdapter")), // KernelGuestMixinAdapterWeaveTest
 			Map.entry("FinalMixinApplications", Switch.own()),                   // WeaveHarnessSelfTest, MixinOutcomeWeaveTest
 			Map.entry("MixinAtWidenedCall", Switch.own("forbric.mixinAtWiden")), // MixinOutcomeWeaveTest
 			Map.entry("MixinStubRebind", Switch.own("forbric.mixinStubRebind")),
@@ -83,22 +86,27 @@ class WeaveCoverageCensusTest {
 			"NativeCoremodParity", "PostMixinFixups", "ForgeTransferShapeAudit");
 
 	@Test void everyPipelineStageIsWovenOrListedWithAReason() throws Exception {
+		Set<String> configTime = configTimeStages();
 		Set<String> preMixin = preMixinAdapters();
 		Set<String> postMixin = postMixinStages();
+		assertEquals(Set.of("KernelGuestMixinAdapter"), configTime, "the config-time stages changed; place the new one in a list");
 		assertTrue(preMixin.size() >= 40, "the census could not read getClassNode's adapters: " + preMixin);
 		assertEquals(Set.of("NativeCoremodParity", "PostMixinFixups", "InterfaceDefaultConflictRepair",
 				"ForgeTransferShapeAudit"), postMixin, "the post-Mixin stages changed; place the new one in a list");
 
-		Set<String> stages = new TreeSet<>(preMixin);
+		Set<String> stages = new TreeSet<>(configTime);
+		stages.addAll(preMixin);
 		stages.addAll(postMixin);
 		assertEquals(List.of(), problems(stages, WOVEN.keySet(), NOT_WOVEN_YET.keySet()));
 		for (var woven : WOVEN.entrySet()) {
 			for (String property : woven.getValue().properties()) assertSwitchBelongsTo(woven.getKey(), property, woven.getValue().owner());
 		}
 
+		long config = configTime.stream().filter(WOVEN::containsKey).count();
 		long pre = preMixin.stream().filter(WOVEN::containsKey).count();
 		long post = postMixin.stream().filter(WOVEN::containsKey).count();
-		System.out.printf("weave coverage: getClassNode %d/%d, post-Mixin %d/%d%n", pre, preMixin.size(), post, postMixin.size());
+		System.out.printf("weave coverage: config-time %d/%d, getClassNode %d/%d, post-Mixin %d/%d%n", config,
+				configTime.size(), pre, preMixin.size(), post, postMixin.size());
 	}
 
 	/** The census must be able to see an undeclared stage, an overlap and a stale row, or it proves nothing. */
@@ -151,6 +159,25 @@ class WeaveCoverageCensusTest {
 		} catch (ClassNotFoundException notAnAdapter) {
 			return Class.forName("net.forbric.kernel.transform." + stage); // a post-Mixin stage
 		}
+	}
+
+	/**
+	 * Every class getResourceAsStream hands a guest config's bytes to and takes back the entries to leave out — the
+	 * rewrites the service makes itself (relaxation, the named suppression list) are not separate stages.
+	 */
+	static Set<String> configTimeStages() throws IOException {
+		ClassNode service = read(SERVICE);
+		MethodNode getResourceAsStream = service.methods.stream().filter(m -> m.name.equals("getResourceAsStream")
+				&& m.desc.equals("(Ljava/lang/String;)Ljava/io/InputStream;")).findFirst().orElseThrow();
+		Set<String> stages = new TreeSet<>();
+		for (AbstractInsnNode insn : getResourceAsStream.instructions) {
+			if (insn.getOpcode() == Opcodes.INVOKESTATIC && insn instanceof MethodInsnNode call
+					&& call.owner.startsWith("net/forbric/kernel/mixin/") && !call.owner.equals(SERVICE)
+					&& call.desc.contains("[B") && call.desc.endsWith(")Ljava/util/List;")) {
+				stages.add(call.owner.substring(call.owner.lastIndexOf('/') + 1));
+			}
+		}
+		return stages;
 	}
 
 	/** Every class getClassNode hands a guest mixin's ClassNode to. */
