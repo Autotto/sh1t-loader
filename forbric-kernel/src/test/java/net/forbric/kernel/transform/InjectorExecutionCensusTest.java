@@ -63,8 +63,7 @@ class InjectorExecutionCensusTest {
 	 */
 	static final Map<String, String> NOT_EXECUTED_YET = notExecutedYet(
 			"CompatPluginPlatformInjector",
-			"EventChainAuditInjector",
-			"RegistryDirectoryOwnerInjector");
+			"EventChainAuditInjector");
 
 	@Test void everyInjectorIsExecutedOrListedWithAReason() throws Exception {
 		Map<String, String> injectors = injectors(classesBeside(ClassTransformer.class));
