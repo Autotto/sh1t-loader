@@ -70,7 +70,7 @@ class InjectorExecutionCensusTest {
 			"DuplicateLambdaPruneInjector", "EventChainAuditInjector",
 			"ExitHookInjector", "FabricFluidBehaviorInjector", "FabricFluidModelsInjector", "FabricFuelValuesInjector",
 			"FlowerPotRepairInjector", "FluidInteractionsInjector", "ForeignFluidTypeInjector",
-			"ForeignPayloadReceiveInjector", "ForgeAttributeValidationInjector",
+			"ForgeAttributeValidationInjector",
 			"ForgeBlockTintInjector", "ForgeBrewingRecipesInjector",
 			"ForgeClientConsumersInjector",
 			"ForgeCreativeTabsInjector", "ForgeDamageSeamsInjector",
