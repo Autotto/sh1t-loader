@@ -376,6 +376,22 @@ acknowledged. A mod that logs a caught exception and keeps ticking is not a cras
 these on synthetic consoles. The instance is deleted after a `DONE` without `--keep`; the console, crash reports and
 the kernel's reports stay in `results/<run>/`.
 
+`fabric-ab.py --data <pick dir> --out <dir> pack|per-mod|confirm|ddmin|summary` runs a pure-Fabric pick (for example
+`PICK_LOADER=fabric PICK_COUNT=130 PICK_SIDE=server mac/pick.py`, then `mac/closure.py`) through `run-set` on both arms.
+It refuses a jar that is not the manifest's bytes or a closure that names a jar outside the manifest. `pack` runs
+every jar together (`--subjects native-pass` only the subjects that ran alone on native Fabric, `matched-pass` those
+that ran alone on both, each with its dependencies); `per-mod --jobs N` runs each subject with its `closure.json`
+dependencies; `confirm` reruns, one at a time, each per-mod pair whose arms disagree; `ddmin [--subjects ...]`
+minimises a pack's Forbric failure with `mac/ddmin_core.py` (oracle: the Forbric arm; FAIL: the pack session's
+signature; seeds: that session's own evidence) and then runs the minimal set on native Fabric, so the result says
+`FORBRIC_ONLY` or `BOTH_FAIL` from a run rather than an argument. Every session is a line of `<out>/runs.jsonl`
+keyed by engine, mod-set SHA-256, ticks and the engine's identity (the kernel jar's SHA-256 or the launcher's), so a
+repeated or interrupted command runs only what it has not seen, and a session of another kernel is never reused.
+A pair is `MATCHED_PASS`, `FORBRIC_ONLY`, `NATIVE_ONLY`, `BOTH_FAIL`, or `INPUT_MISMATCH` when its arms ran different
+bytes. `summary [--report DIR]` writes `summary.json` with jar names, digests, outcomes and signatures and no local
+path. `test_fabric_ab.py` runs all of it against a fake server: verdicts, the cache, kernel refusal, the minimiser
+with a dependency, pack selection and the summary. The 2026-10-03 run is `reports/2026-10-03-pure-fabric-server/`.
+
 `retention-control.py` requires the prepared native NeoForge image and the fixed Unlit Campfire jar in
 the copied mixed pack. It compiles an independent canary, saves a real campfire and compares the untouched
 mod's static cache after normal shutdown on native NeoForge and Forbric. Both arms and their exact mod
