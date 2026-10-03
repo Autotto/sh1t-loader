@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+	Forbric nightly on the developer's Mac: a LaunchAgent, so it runs in the logged-in GUI session the client
+	gates need for their window. Install and remove: README.md beside this file. launchd expands neither ~ nor
+	$HOME, so every path here is absolute.
+-->
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>com.forbric.nightly</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/usr/local/bin/python3</string>
+		<string>/Users/jerry/Documents/Forbric/tools/nightly/run_nightly.py</string>
+		<string>--repo</string>
+		<string>/Users/jerry/Documents/Forbric</string>
+		<string>--work</string>
+		<string>/Users/jerry/Documents/Forbric-nightly</string>
+	</array>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<!-- launchd's own PATH has neither gh (Homebrew, last here) nor /usr/local/bin/python3, the one the gates call. -->
+		<key>PATH</key>
+		<string>/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin</string>
+	</dict>
+	<key>StartCalendarInterval</key>
+	<dict>
+		<key>Hour</key>
+		<integer>2</integer>
+		<key>Minute</key>
+		<integer>30</integer>
+	</dict>
+	<key>RunAtLoad</key>
+	<false/>
+	<key>StandardOutPath</key>
+	<string>/Users/jerry/Library/Logs/forbric-nightly.log</string>
+	<key>StandardErrorPath</key>
+	<string>/Users/jerry/Library/Logs/forbric-nightly.log</string>
+</dict>
+</plist>
