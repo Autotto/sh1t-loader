@@ -448,7 +448,16 @@ After all subjects finish, run `mac/mixed.py` with the same `PERMOD_MC`, `PERMOD
 `FORBRIC_VERSION` and `FORBRIC_JAVA`. It checks kernel/input fingerprints, combines every strictly passing
 subject and its dependencies, tests 6,000 world ticks, then reloads the saved world. Its full pack manifest,
 reports and screenshots go to `mixed/`. `PERMOD_MIXED_OUT` and `PERMOD_MIXED_INSTANCE` select fresh
-evidence/instance names for a later candidate. Save verification uses `mac/world_save.py` for both save layouts: fresh level data, existing region data,
+evidence/instance names for a later candidate. `--subjects all` combines every subject in `manifest.json` instead,
+and needs no individual sweep at all: in place of the per-mod fingerprints it checks each jar's bytes against the
+digest the manifest records (`sha256` when a row has one, else Modrinth's `sha1` and `size`). Either way
+`result.json` names the mode and the SHA-256 of every jar, which must still match after the last session.
+Each session's evidence also keeps `forbric-mods.txt`, and `.forbric-kernel/crash-analysis.txt` and
+`merge-report.txt` when that session wrote them (a crash-analysis file is never counted as a crash report).
+Importing `mixed.py` starts nothing and reads no environment: `run(label, ticks, subjects, out, jvm, stall,
+timeout, grace)` is one session of the prepared instance with the subjects, extra JVM flags and the driver's
+`CLIENT_STALL`/`RUN_TIMEOUT`/`GRACE` all explicit, which is how the minimiser below drives it.
+`mac/test_mixed.py` runs it against a fake driver. Save verification uses `mac/world_save.py` for both save layouts: fresh level data, existing region data,
 and a fresh player or region write. `mac/test_world_save.py` rejects copied or incomplete saves. The disposable mixed instance disables pause on lost focus. A partial or failed first load leaves reload explicitly NOT_RUN.
 The runner clears only directories bearing its `.forbric-sweep-instance` marker. Use a new evidence folder
 for a new candidate; unfinished or differently fingerprinted individual results cannot feed a mixed test.
