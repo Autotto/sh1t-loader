@@ -19,7 +19,6 @@ package net.forbric.kernel.interop;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -31,6 +30,8 @@ import java.util.List;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
+import net.forbric.kernel.TestFixtures;
+import net.forbric.kernel.TestFixtures.Fixture;
 import org.junit.jupiter.api.Test;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.tree.AbstractInsnNode;
@@ -53,9 +54,7 @@ import org.objectweb.asm.tree.MethodNode;
  */
 class PayloadInteropPlayChannelsTest {
 	private static final Path MODS = Path.of("run/client-popular/mods");
-	private static final Path MERGED_BASE =
-			Path.of(System.getenv().getOrDefault("FORBRIC_OLD", System.getProperty("user.dir") + "/../forbric-loader"), "run", "merged-base",
-					"patched-mc-merged-26.2.jar").normalize();
+	private static final Path MERGED_BASE = TestFixtures.stagedRoot().resolve("merged-base/patched-mc-merged-26.2.jar");
 
 	@Test
 	void everyNameTheRecordingSpellsExistsWhereItIsSpelled() throws Exception {
@@ -72,7 +71,8 @@ class PayloadInteropPlayChannelsTest {
 
 		byte[] fabricApi = nested("fabric-api-", "networking-api-v1",
 				"net/fabricmc/fabric/impl/networking/CommonRegisterPayload.class");
-		assumeTrue(fabricApi != null, "fabric-api's networking module absent");
+		// Whichever fabric-api the pack holds, picked by prefix: a module it lacks is that pack's, not drift.
+		TestFixtures.require(Fixture.THIRD_PARTY, fabricApi != null, "fabric-api's networking module absent");
 		List<String> components = accessorsOf(fabricApi);
 		assertTrue(components.contains("protocol"),
 				"fabric's CommonRegisterPayload must still declare protocol(); it declares " + components);
@@ -87,7 +87,7 @@ class PayloadInteropPlayChannelsTest {
 
 	@Test
 	void theConnectionProtocolConstantAndAccessorAreWhatTheMergedBaseDeclares() throws Exception {
-		assumeTrue(Files.isRegularFile(MERGED_BASE), "staged merged base absent");
+		TestFixtures.require(Fixture.STAGED, Files.isRegularFile(MERGED_BASE), "staged merged base absent");
 		ClassNode protocol = parse(fromZip(MERGED_BASE, "net/minecraft/network/ConnectionProtocol.class"));
 		assertTrue(protocol.fields.stream().anyMatch(f -> "PLAY".equals(f.name)),
 				"the enum constant the recording resolves by name");

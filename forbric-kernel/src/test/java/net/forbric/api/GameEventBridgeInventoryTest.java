@@ -19,8 +19,8 @@ package net.forbric.api;
 import net.forbric.kernel.TestFixtures;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -225,8 +225,10 @@ class GameEventBridgeInventoryTest {
 	 */
 	@Test
 	void noClientGameBusBridgeIsAuditedAsBridgedWhileThatPassIsNotLate() throws Exception {
-		assumeTrue(!GameEventBridge.Pass.CLIENT_GAME_BUS.lateInstalled(),
-				"CLIENT_GAME_BUS is late now, so a bridged row would be safe");
+		// Pinned rather than skipped on: once the pass is late a bridged row is safe and nothing is left to check,
+		// so the change that makes it late deletes this test instead of leaving it to skip where nobody looks.
+		assertFalse(GameEventBridge.Pass.CLIENT_GAME_BUS.lateInstalled(),
+				"CLIENT_GAME_BUS is late now, so a bridged row would be safe: delete this test");
 		Path audit = Path.of("src/main/java/net/forbric/kernel/boot/DeadEventAudit.java");
 		assertTrue(Files.exists(audit), "DeadEventAudit's source is part of this checkout: " + audit);
 		String bridged = Files.readString(audit);
