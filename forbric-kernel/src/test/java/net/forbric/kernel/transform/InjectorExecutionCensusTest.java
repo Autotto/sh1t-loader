@@ -66,7 +66,6 @@ class InjectorExecutionCensusTest {
 			"CompostablesFallbackInjector",
 			"EventChainAuditInjector",
 			"FabricFuelValuesInjector",
-			"ForgeClientConsumersInjector",
 			"ForgeLootPoolConditionsInjector",
 			"ForgeSpawnPlacementsInjector",
 			"ForgeWorldModifierInjector", "HopperFabricStorageInjector",
