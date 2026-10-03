@@ -62,8 +62,7 @@ class InjectorExecutionCensusTest {
 	 * credited until it carries {@link ExecutesInjector} and passes the claim checks below.
 	 */
 	static final Map<String, String> NOT_EXECUTED_YET = notExecutedYet(
-			"BiomeInfoRebaseInjector",
-			"ClientPartTrackingInjector", "ClientSmokeTickInjector",
+			"BiomeInfoRebaseInjector", "ClientPartTrackingInjector", "ClientSmokeTickInjector",
 			"CommonNetworkInteropInjector", "CompatPluginPlatformInjector", "CompatibilityPromptTickInjector",
 			"CompostablesFallbackInjector",
 			"CreativePagerBridgeInjector", "DragonPartsInjector",
@@ -82,7 +81,7 @@ class InjectorExecutionCensusTest {
 			"RegistryDirectoryOwnerInjector",
 			"RegistrySyncParityInjector", "ServerCompatibilityTickInjector",
 			"SoundRegistryIdentityInjector",
-			"SpawnPositionCallsInjector", "SpawnerFinalizeInjector",
+			"SpawnerFinalizeInjector",
 			"SplitterPacketContextInjector", "TooltipOrderScrapeInjector",
 			"VanillaDamageReadInjector", "WidenedFieldTwinInjector");
 
