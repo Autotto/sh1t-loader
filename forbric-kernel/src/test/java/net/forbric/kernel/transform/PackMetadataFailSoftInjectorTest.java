@@ -20,7 +20,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import java.io.InputStream;
 import java.nio.file.Files;
@@ -43,6 +42,9 @@ import org.objectweb.asm.tree.MethodNode;
 import org.objectweb.asm.tree.analysis.Analyzer;
 import org.objectweb.asm.tree.analysis.BasicVerifier;
 
+import net.forbric.kernel.TestFixtures;
+import net.forbric.kernel.TestFixtures.Fixture;
+
 /**
  * Verifies the fail-soft wrap in REAL merged-base bytecode: the pack-dropping throw at
  * {@code ResourceMetadata$…getSection} is caught and answered with {@code Optional.empty()}, and the vanilla parse
@@ -54,16 +56,14 @@ import org.objectweb.asm.tree.analysis.BasicVerifier;
  * would have missed and a structural match that has become too loose.
  */
 class PackMetadataFailSoftInjectorTest {
-	private static final Path MERGED_BASE =
-			Path.of(System.getenv().getOrDefault("FORBRIC_OLD", System.getProperty("user.dir") + "/../forbric-loader"), "run", "merged-base",
-					"patched-mc-merged-26.2.jar").normalize();
+	private static final Path MERGED_BASE = TestFixtures.stagedRoot().resolve("merged-base/patched-mc-merged-26.2.jar");
 
 	private static final String NEST = "net/minecraft/server/packs/resources/ResourceMetadata$";
 	private static final String HOOK_OWNER = "net/forbric/kernel/boot/KernelPackMetadata";
 
 	@Test
 	void exactlyOneNestMemberParsesJson() throws Exception {
-		assumeTrue(Files.isRegularFile(MERGED_BASE), "staged merged base absent — skipping real-bytecode check");
+		TestFixtures.require(Fixture.STAGED, Files.isRegularFile(MERGED_BASE), "staged merged base absent — skipping real-bytecode check");
 
 		List<String> matched = new ArrayList<>();
 		for (String member : nestMembers()) {
@@ -80,7 +80,7 @@ class PackMetadataFailSoftInjectorTest {
 
 	@Test
 	void wrapsTheParseInsteadOfReimplementingIt() throws Exception {
-		assumeTrue(Files.isRegularFile(MERGED_BASE), "staged merged base absent — skipping real-bytecode check");
+		TestFixtures.require(Fixture.STAGED, Files.isRegularFile(MERGED_BASE), "staged merged base absent — skipping real-bytecode check");
 
 		String target = jsonBackedMember();
 		ClassNode node = transformed(target);
@@ -115,7 +115,7 @@ class PackMetadataFailSoftInjectorTest {
 
 	@Test
 	void transformedMethodsAnalyseCleanly() throws Exception {
-		assumeTrue(Files.isRegularFile(MERGED_BASE), "staged merged base absent — skipping real-bytecode check");
+		TestFixtures.require(Fixture.STAGED, Files.isRegularFile(MERGED_BASE), "staged merged base absent — skipping real-bytecode check");
 
 		ClassNode node = transformed(jsonBackedMember());
 
@@ -130,7 +130,7 @@ class PackMetadataFailSoftInjectorTest {
 
 	@Test
 	void theHandAuthoredHandlerFrameHasTheRightShape() throws Exception {
-		assumeTrue(Files.isRegularFile(MERGED_BASE), "staged merged base absent — skipping real-bytecode check");
+		TestFixtures.require(Fixture.STAGED, Files.isRegularFile(MERGED_BASE), "staged merged base absent — skipping real-bytecode check");
 
 		ClassNode node = transformed(jsonBackedMember());
 		MethodNode getSection = method(node, "getSection");
@@ -152,7 +152,7 @@ class PackMetadataFailSoftInjectorTest {
 
 	@Test
 	void isIdempotent() throws Exception {
-		assumeTrue(Files.isRegularFile(MERGED_BASE), "staged merged base absent — skipping real-bytecode check");
+		TestFixtures.require(Fixture.STAGED, Files.isRegularFile(MERGED_BASE), "staged merged base absent — skipping real-bytecode check");
 
 		String target = jsonBackedMember();
 		byte[] once = new PackMetadataFailSoftInjector().transform(dotted(target), readClass(target), null);
@@ -195,7 +195,7 @@ class PackMetadataFailSoftInjectorTest {
 				if (name.startsWith(NEST) && name.endsWith(".class")) members.add(name);
 			}
 		}
-		assumeTrue(!members.isEmpty(), "ResourceMetadata nest not found in the staged merged base");
+		assertTrue(!members.isEmpty(), "content drift: ResourceMetadata nest not found in the staged merged base");
 		return members;
 	}
 

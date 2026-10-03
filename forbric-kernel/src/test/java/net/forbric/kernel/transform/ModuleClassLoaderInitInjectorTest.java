@@ -17,13 +17,13 @@
 package net.forbric.kernel.transform;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import java.io.InputStream;
 import java.lang.reflect.Field;
@@ -40,6 +40,8 @@ import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.MethodNode;
 import org.objectweb.asm.tree.TryCatchBlockNode;
 
+import net.forbric.kernel.TestFixtures;
+import net.forbric.kernel.TestFixtures.Fixture;
 import net.forbric.kernel.mixin.MixinWeaverSlot;
 
 /**
@@ -51,8 +53,7 @@ import net.forbric.kernel.mixin.MixinWeaverSlot;
  * the rest of the run.
  */
 class ModuleClassLoaderInitInjectorTest {
-	private static final Path CARRIER = Path.of(System.getenv().getOrDefault("FORBRIC_OLD", "../forbric-loader"),
-			"run", "neoforge-runtime", "neoforge-runtime.jar");
+	private static final Path CARRIER = TestFixtures.stagedRoot().resolve("neoforge-runtime/neoforge-runtime.jar");
 
 	@AfterEach
 	void clearSwitch() {
@@ -80,7 +81,9 @@ class ModuleClassLoaderInitInjectorTest {
 	@Test
 	void unpatchedItIsErroneousOnThisJvmAndPatchedItInitialises() throws Exception {
 		byte[] in = carrierClass();
-		assumeTrue(!Object.class.getModule().isOpen("java.lang.invoke",
+		// The test JVM is build.gradle's, which opens nothing; one that opened java.lang.invoke could not show the
+		// unpatched class failing, so that is a broken harness rather than a missing fixture.
+		assertFalse(Object.class.getModule().isOpen("java.lang.invoke",
 				getClass().getClassLoader().getUnnamedModule()), "this JVM opened java.lang.invoke — nothing to show");
 
 		try (DefiningLoader shipped = new DefiningLoader(in)) {
@@ -130,7 +133,7 @@ class ModuleClassLoaderInitInjectorTest {
 	}
 
 	private static byte[] carrierClass() throws Exception {
-		assumeTrue(Files.isRegularFile(CARRIER), "NeoForge carrier not staged");
+		TestFixtures.require(Fixture.STAGED, Files.isRegularFile(CARRIER), "NeoForge carrier not staged");
 		try (ZipFile zip = new ZipFile(CARRIER.toFile());
 				InputStream in = zip.getInputStream(zip.getEntry("net/neoforged/fml/classloading/ModuleClassLoader.class"))) {
 			return in.readAllBytes();
