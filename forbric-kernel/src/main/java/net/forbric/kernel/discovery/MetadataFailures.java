@@ -57,8 +57,13 @@ public final class MetadataFailures {
 		}
 	}
 
+	/** A jar nothing could load because its loading family's manifest failed; the catalogue gives it a row. */
+	public record Lost(Path jar, Ecosystem ecosystem, String modId, String detail) {
+	}
+
 	private static final Map<Path, Map<Ecosystem, Failure>> FAILURES = new ConcurrentHashMap<>();
 	private static final Set<Path> INSPECTED = ConcurrentHashMap.newKeySet();
+	private static final List<Lost> LOST = new java.util.concurrent.CopyOnWriteArrayList<>();
 
 	private MetadataFailures() {
 	}
@@ -143,6 +148,9 @@ public final class MetadataFailures {
 							+ failure.manifest() + " cannot be read, so the mod is not loaded: " + failure.message()
 					: "Its " + failure.manifest() + " cannot be read (" + failure.message() + "); it loads as "
 							+ loads + " instead";
+			if (lost && !kernel && LOST.stream().noneMatch(l -> l.jar().equals(failure.jar()))) {
+				LOST.add(new Lost(failure.jar(), failure.ecosystem(), modId, detail));
+			}
 			CompatibilityFindings.record(new CompatibilityFinding(
 					"metadata:" + failure.ecosystem().name().toLowerCase(java.util.Locale.ROOT), modId, "Mod metadata",
 					"ForbricModDiscoverer " + failure.manifest(),
@@ -153,9 +161,18 @@ public final class MetadataFailures {
 		}
 	}
 
+	/**
+	 * The jars {@link #recordFindings} found nothing could load. A player installed each of them, so the Mods screen
+	 * and the load report must list them as mods that did not load, not as problems that belong to no mod.
+	 */
+	public static List<Lost> lost() {
+		return List.copyOf(LOST);
+	}
+
 	/** Called at the start of a boot, next to {@link CompatibilityFindings#reset()}, and by tests. */
 	public static void reset() {
 		FAILURES.clear();
 		INSPECTED.clear();
+		LOST.clear();
 	}
 }

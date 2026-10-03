@@ -22,6 +22,7 @@ import net.forbric.api.CompatibilityFinding;
 import net.forbric.api.CompatibilityFindings;
 import net.forbric.api.DiscoveredMod;
 import net.forbric.api.Ecosystem;
+import net.forbric.api.ModCatalog;
 import net.forbric.kernel.discovery.ForbricModDiscoverer;
 import net.forbric.kernel.discovery.MetadataFailures;
 
@@ -110,6 +111,29 @@ class MalformedMetadataTest {
 		assertEquals(List.of("entitycount:metadata:neoforge"), lost.stream().map(CompatibilityFinding::key).toList());
 		assertTrue(lost.get(0).detail().contains(BAD_RANGE), lost.get(0).detail());
 		assertTrue(lost.get(0).evidence().contains("jar=bad-neo.jar"), lost.get(0).evidence().toString());
+	}
+
+	@Test void anUnreadableInstalledJarIsAModThatDidNotLoadNotAProblemOfNoMod() throws Exception {
+		Path mods = Files.createDirectories(temporary.resolve("mods"));
+		Path good = jar(mods, "good-neo.jar", Map.of("META-INF/neoforge.mods.toml", neoToml("goodneo", "[26.2,)")));
+		jar(mods, "bad-neo.jar", Map.of("META-INF/neoforge.mods.toml", neoToml("entitycount", BAD_RANGE)));
+		KernelBoot.discoverForgeFamilyModJars(mods, DuplicateModArbiter.Decision.none());
+		MetadataFailures.recordFindings(MultiLoaderArbiter::ownerOf, List.of());
+		try {
+			KernelModCatalog.publish(new ForbricModDiscoverer().discoverJar(good), mods);
+			ModCatalog.Entry row = ModCatalog.all().stream().filter(e -> e.modId().equals("entitycount")).findFirst()
+					.orElseThrow(() -> new AssertionError("no row for the installed jar: " + ModCatalog.all()));
+			assertEquals(ModCatalog.Status.FAILED, row.status());
+			assertEquals("bad-neo.jar", row.jar());
+			assertTrue(row.statusDetail().contains(BAD_RANGE), row.statusDetail());
+			assertEquals(List.of(), CompatibilityFindings.unattributed(), "it belongs to an installed mod");
+
+			CompatibilityFindings.observeInitializationFailures();
+			assertEquals(1, CompatibilityFindings.confirmedRequired().size(), "the row must not mint a second finding: "
+					+ CompatibilityFindings.confirmedRequired());
+		} finally {
+			KernelModCatalog.publish(List.of());
+		}
 	}
 
 	@Test void aUniversalJarThatStillLoadsIsOnlyANote() throws Exception {
