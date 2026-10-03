@@ -13,7 +13,8 @@ def jar_ids(data, depth=0):
         names = set(archive.namelist())
         children = set()
         if 'fabric.mod.json' in names:
-            metadata = json.loads(archive.read('fabric.mod.json'))
+            # Fabric Loader's own reader accepts a raw control character inside a string (a pasted description).
+            metadata = json.loads(archive.read('fabric.mod.json'), strict=False)
             provided.add(metadata.get('id'))
             provided.update(metadata.get('provides') or [])
             required.update((metadata.get('depends') or {}).keys())
@@ -50,4 +51,4 @@ def environment(data):
     with zipfile.ZipFile(io.BytesIO(data)) as archive:
         if 'fabric.mod.json' not in archive.namelist():
             return '*'
-        return json.loads(archive.read('fabric.mod.json')).get('environment') or '*'
+        return json.loads(archive.read('fabric.mod.json'), strict=False).get('environment') or '*'
