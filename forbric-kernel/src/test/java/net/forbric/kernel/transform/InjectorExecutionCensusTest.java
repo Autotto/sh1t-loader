@@ -75,7 +75,7 @@ class InjectorExecutionCensusTest {
 			"ForgeClientConsumersInjector",
 			"ForgeCreativeTabsInjector", "ForgeDamageSeamsInjector",
 			"ForgeLootPoolConditionsInjector",
-			"ForgeOptionsInjector", "ForgePartTrackingInjector", "ForgeSpawnPlacementsInjector",
+			"ForgePartTrackingInjector", "ForgeSpawnPlacementsInjector",
 			"ForgeWorldModifierInjector", "HopperFabricStorageInjector",
 			"LootTableEventBridgeInjector", "ModelFormatFunnelInjector",
 			"NeoConversionPostInjector",

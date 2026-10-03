@@ -652,7 +652,6 @@ test	net.forbric.kernel.transform.ForgeLootPoolConditionsInjectorTest	nativeMine
 test	net.forbric.kernel.transform.ForgeLootPoolConditionsInjectorTest	theBuilderKeepsItsConditionInThePool()	$ROOT/forbric-loader/run/merged-base/patched-mc-merged-26.2.jar absent
 test	net.forbric.kernel.transform.ForgeLootPoolConditionsInjectorTest	thePoolDecoderJudgesForgeConditionInsideNeoForgesWrapper()	$ROOT/forbric-loader/run/neoforge-runtime/neoforge-runtime.jar absent
 test	net.forbric.kernel.transform.ForgeLootPoolConditionsInjectorTest	theSwitchLeavesBothAlone()	$ROOT/forbric-loader/run/merged-base/patched-mc-merged-26.2.jar absent
-test	net.forbric.kernel.transform.ForgeOptionsInjectorTest	anEarlySaveRetainsUnknownF6WithoutOverwritingAnAlreadyRegisteredKey()	compiled game side: build/classes/java/runtime/net/forbric/kernel/runtime/KernelForgeOptions.class
 test	net.forbric.kernel.transform.ForgeOptionsInjectorTest	disabledAndDriftedClassesStayUntouched()	staged merged base: $ROOT/forbric-loader/run/merged-base/patched-mc-merged-26.2.jar
 test	net.forbric.kernel.transform.ForgeOptionsInjectorTest	realMergedRepairPreservesNeoProcessingAndTheCarrierLateLoader()	staged merged base: $ROOT/forbric-loader/run/merged-base/patched-mc-merged-26.2.jar
 test	net.forbric.kernel.transform.ForgePartTrackingInjectorTest	aMinecraftForgeModsMultipartEntityIsAddedToAndRemovedFromAServerWorld()	$ROOT/forbric-loader/run/merged-base/patched-mc-merged-26.2.jar absent
