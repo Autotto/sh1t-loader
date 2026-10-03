@@ -1,0 +1,166 @@
+package net.forbric.kernel.mixin.weave;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
+
+import org.junit.jupiter.api.Test;
+import org.objectweb.asm.ClassReader;
+import org.objectweb.asm.Opcodes;
+import org.objectweb.asm.tree.AbstractInsnNode;
+import org.objectweb.asm.tree.ClassNode;
+import org.objectweb.asm.tree.MethodInsnNode;
+import org.objectweb.asm.tree.MethodNode;
+
+/**
+ * Which stages of the guest-mixin pipeline the real-Mixin weave tests actually exercise, read from the bytecode.
+ *
+ * <p>Two lists, both computed rather than typed in, so a new stage cannot be added without this test noticing:
+ * <ul>
+ *   <li>the adapters {@code ForbricMixinService.getClassNode} runs over every guest mixin before Mixin parses it;</li>
+ *   <li>the stages {@code KernelMixinBootstrap.init} runs over every class after Mixin wove it.</li>
+ * </ul>
+ * Every stage is either {@link #WOVEN} — a weave test runs it and its off switch turns the behaviour off — or in
+ * {@link #NOT_WOVEN_YET} with the reason. A stage in both, or an allowlist row whose stage no longer exists, fails.
+ * The allowlist only shrinks: adding a weave scenario means deleting its row here, and the diff shows it.
+ */
+class WeaveCoverageCensusTest {
+	private static final String SERVICE = "net/forbric/kernel/mixin/ForbricMixinService";
+	private static final String BOOTSTRAP = "net/forbric/kernel/mixin/KernelMixinBootstrap";
+
+	/** stage (simple class name) -> the off switch its weave test flips, or "" for an audit with no switch. */
+	static final Map<String, String> WOVEN = Map.of(
+			"MixinAtWidenedCall", "forbric.mixinAtWiden",   // MixinOutcomeWeaveTest, widened vs widened-off
+			"FinalMixinApplications", "");                  // the audit itself: WeaveHarnessSelfTest + MixinOutcomeWeaveTest
+
+	private static final String NO_SCENARIO = "no weave scenario yet; ClassNode-level tests only";
+	/** Only shrinks. Every row is a stage whose output no CI test has yet run through the real weave. */
+	static final Map<String, String> NOT_WOVEN_YET = notWovenYet(
+			"BarrelRollCameraAdapter", "CarpetFluidMixinAdapter", "CarpetMixinAdapter", "ContinuitySpriteMixinAdapter",
+			"CreateBreathingMixinAdapter", "CreateContextualBlockAdapters", "CreateEntitySoundMixinAdapter",
+			"CreateFluidMixinAdapter", "CreateHudMixinAdapter", "CreateInjectionAdapters", "CreateInteractionMixinAdapters",
+			"CreateKeyboardMixinAdapter", "CreateStructureMixinAdapter", "FabricBlockBreakMixinAdapter",
+			"FabricBlockStateCodecMixinAdapter", "FabricClientMixinAnchors", "FabricCreativePagerMixinAdapter",
+			"FabricEnchantmentMixinAdapter", "FabricEntityMixinAnchors", "FabricFluidFlowMixinAdapter",
+			"FabricMiningMixinAdapter", "FabricRegistryInitializationMixinAdapter", "FabricRegistryLoaderMixinAdapter",
+			"FabricSectionCompilerMixinAdapter", "FabricServerLanguageMixinAdapter", "FabricSoundMixinAdapter",
+			"GuiItemCaptureMixinAdapter", "InsertedLambdaArgumentShim", "KernelClientHookMixinAnchors",
+			"MixinAnonymousRetarget", "MixinAtShape", "MixinHandlerShim", "MixinLocalsCapture", "MixinMergedTwin",
+			"MixinNativeTail", "MixinOverloadPin", "MixinRelocatedCall", "MixinRetarget", "MixinShearsRelay", "MixinStubRebind",
+			"MixinSubtypeOwnerRetarget", "MixinWrapOperationShim",
+			// post-Mixin stages
+			"NativeCoremodParity", "PostMixinFixups", "InterfaceDefaultConflictRepair", "ForgeTransferShapeAudit");
+
+	@Test void everyPipelineStageIsWovenOrListedWithAReason() throws Exception {
+		Set<String> preMixin = preMixinAdapters();
+		Set<String> postMixin = postMixinStages();
+		assertTrue(preMixin.size() >= 40, "the census could not read getClassNode's adapters: " + preMixin);
+		assertEquals(Set.of("NativeCoremodParity", "PostMixinFixups", "InterfaceDefaultConflictRepair",
+				"ForgeTransferShapeAudit"), postMixin, "the post-Mixin stages changed; place the new one in a list");
+
+		Set<String> stages = new TreeSet<>(preMixin);
+		stages.addAll(postMixin);
+		assertEquals(List.of(), problems(stages, WOVEN.keySet(), NOT_WOVEN_YET.keySet()));
+		for (var woven : WOVEN.entrySet()) {
+			if (!woven.getValue().isEmpty()) assertSwitchBelongsTo(woven.getKey(), woven.getValue());
+		}
+
+		long pre = preMixin.stream().filter(WOVEN::containsKey).count();
+		long post = postMixin.stream().filter(WOVEN::containsKey).count();
+		System.out.printf("weave coverage: getClassNode %d/%d, post-Mixin %d/%d%n", pre, preMixin.size(), post, postMixin.size());
+	}
+
+	/** The census must be able to see an undeclared stage, an overlap and a stale row, or it proves nothing. */
+	@Test void theCensusCanFail() {
+		Set<String> stages = new TreeSet<>(NOT_WOVEN_YET.keySet());
+		stages.addAll(WOVEN.keySet());
+		stages.add("BrandNewAdapter");
+		assertEquals(List.of("undeclared: BrandNewAdapter"), problems(stages, WOVEN.keySet(), NOT_WOVEN_YET.keySet()));
+
+		Set<String> both = new TreeSet<>(NOT_WOVEN_YET.keySet());
+		both.add("MixinAtWidenedCall");
+		stages.remove("BrandNewAdapter");
+		assertEquals(List.of("both woven and allowlisted: MixinAtWidenedCall"), problems(stages, WOVEN.keySet(), both));
+
+		Set<String> gone = new TreeSet<>(stages);
+		gone.remove("MixinShearsRelay");
+		assertEquals(List.of("allowlisted but no longer a stage: MixinShearsRelay"), problems(gone, WOVEN.keySet(), NOT_WOVEN_YET.keySet()));
+	}
+
+	static List<String> problems(Set<String> stages, Set<String> woven, Set<String> allowlisted) {
+		List<String> problems = new java.util.ArrayList<>();
+		for (String stage : stages) {
+			if (woven.contains(stage) && allowlisted.contains(stage)) problems.add("both woven and allowlisted: " + stage);
+			else if (!woven.contains(stage) && !allowlisted.contains(stage)) problems.add("undeclared: " + stage);
+		}
+		for (String row : allowlisted) if (!stages.contains(row)) problems.add("allowlisted but no longer a stage: " + row);
+		for (String row : woven) if (!stages.contains(row)) problems.add("woven but no longer a stage: " + row);
+		return problems;
+	}
+
+	/** A scenario cannot claim adapter X while flipping Y's switch: the switch must be one of X's own constants. */
+	private static void assertSwitchBelongsTo(String stage, String property) throws Exception {
+		Class<?> type = Class.forName("net.forbric.kernel.mixin." + stage);
+		for (Field field : type.getDeclaredFields()) {
+			if (Modifier.isStatic(field.getModifiers()) && field.getType() == String.class) {
+				field.setAccessible(true);
+				if (property.equals(field.get(null))) return;
+			}
+		}
+		fail(stage + " declares no constant " + property + ", so its weave scenario does not switch it off");
+	}
+
+	/** Every class getClassNode hands a guest mixin's ClassNode to. */
+	static Set<String> preMixinAdapters() throws IOException {
+		ClassNode service = read(SERVICE);
+		MethodNode getClassNode = service.methods.stream().filter(m -> m.name.equals("getClassNode")
+				&& m.desc.equals("(Ljava/lang/String;ZI)Lorg/objectweb/asm/tree/ClassNode;")).findFirst().orElseThrow();
+		Set<String> adapters = new TreeSet<>();
+		for (AbstractInsnNode insn : getClassNode.instructions) {
+			if (insn.getOpcode() == Opcodes.INVOKESTATIC && insn instanceof MethodInsnNode call
+					&& call.owner.startsWith("net/forbric/kernel/mixin/") && call.desc.contains("Lorg/objectweb/asm/tree/ClassNode;")) {
+				adapters.add(call.owner.substring(call.owner.lastIndexOf('/') + 1));
+			}
+		}
+		return adapters;
+	}
+
+	/** The stages of the (String, byte[]) -> byte[] lambda KernelMixinBootstrap.init installs after Mixin. */
+	static Set<String> postMixinStages() throws IOException {
+		ClassNode bootstrap = read(BOOTSTRAP);
+		Set<String> stages = new TreeSet<>();
+		for (MethodNode method : bootstrap.methods) {
+			if (!method.name.startsWith("lambda$init$") || !method.desc.endsWith("Ljava/lang/String;[B)[B")) continue;
+			for (AbstractInsnNode insn : method.instructions) {
+				if (insn instanceof MethodInsnNode call && (call.owner.startsWith("net/forbric/kernel/transform/")
+						|| call.owner.startsWith("net/forbric/kernel/mixin/")) && !call.owner.endsWith("/MixinWeaverSlot")) {
+					stages.add(call.owner.substring(call.owner.lastIndexOf('/') + 1));
+				}
+			}
+		}
+		return stages;
+	}
+
+	private static Map<String, String> notWovenYet(String... stages) {
+		Map<String, String> rows = new LinkedHashMap<>();
+		for (String stage : stages) rows.put(stage, NO_SCENARIO);
+		return rows;
+	}
+
+	private static ClassNode read(String internalName) throws IOException {
+		try (InputStream in = WeaveCoverageCensusTest.class.getClassLoader().getResourceAsStream(internalName + ".class")) {
+			assertNotNull(in, internalName + " is not on the test classpath");
+			ClassNode node = new ClassNode();
+			new ClassReader(in).accept(node, 0);
+			return node;
+		}
+	}
+}
