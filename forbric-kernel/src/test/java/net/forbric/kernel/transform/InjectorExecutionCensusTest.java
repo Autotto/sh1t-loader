@@ -85,7 +85,7 @@ class InjectorExecutionCensusTest {
 			"RegistrySyncParityInjector", "ServerCompatibilityTickInjector", "ServerReloadListenerNamesInjector",
 			"SoundRegistryIdentityInjector",
 			"SpawnPositionCallsInjector", "SpawnerFinalizeInjector",
-			"SplitterPacketContextInjector", "TooltipOrderScrapeInjector", "UntrackedFluidEyeQueryInjector",
+			"SplitterPacketContextInjector", "TooltipOrderScrapeInjector",
 			"VanillaDamageReadInjector", "WidenedFieldTwinInjector");
 
 	@Test void everyInjectorIsExecutedOrListedWithAReason() throws Exception {
