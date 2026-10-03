@@ -471,3 +471,5 @@ exception chain's frames, report rows that are not OK) into jars, mapping mod id
 `mods[]` rows. `minimise` runs the closed seed set first and starts ddmin there when it FAILs; runs are
 remembered by the closed configuration, so two subsets that launch the same jars run once. The driver that
 launches the game for each configuration (`mac/ddmin.py`) is a later step; nothing here starts a client.
+`mac/test_ddmin.py` checks it with fake oracles and the fixtures in `mac/testdata/`; `python3 tools/dev.py
+tool-test` runs it with every other `mac/test_*.py`.
