@@ -211,8 +211,8 @@ server rejects `--gameDir`, so `KernelBoot` strips it on that side. The game ver
     mod that did not attach) is recorded while Mixin parses configs.
 16. `KernelRuntimeClasses.verify(loader)` — the kernel's own game side, through the finished pipeline.
 17. `PassiveSeeder.seedAll` — NeoForge `FMLLoader`, `ModList`, paths; MinecraftForge identity (idempotent).
-18. Audit reports, `KernelLoadReport.writeEvidence()`, then `CompatibilityDecision.requireContinuation(isClient)`
-    — the pre-game decision point (§12.4).
+18. Audit reports (among them `MixinOverlapLint`, §7.6), `KernelLoadReport.writeEvidence()`, then
+    `CompatibilityDecision.requireContinuation(isClient)` — the pre-game decision point (§12.4).
 19. `KernelFabricEcosystem.runPreLaunch()` — Fabric `preLaunch` entrypoints, after Mixin, before any game class.
 20. Load the entry class (`net.minecraft.server.dedicated.DedicatedServer` / `…client.gui.screens.TitleScreen`
     is the census landmark; the invoked class is the game's `Main`). If `LifecycleHookInjector` did not find its
@@ -580,6 +580,26 @@ failure off the mod's row when a named kernel repair does *everything* that mixi
 the mod's own config plugin would have declined it; `ForeignMixinBreaks` records mixins written to attach to
 another mod that did not. `MixinCompatibility` carries one identity for a mixin from preflight to application.
 
+### 7.6 Cross-mod overlaps — `MixinOverlapLint`
+
+`MixinFit` judges one mixin against the base; two mods that each fit can still collide. `MixinOverlapLint` lists
+every handler's claim (target method, `@At` call, ordinal) and pairs claims of different mods — a bundled module
+counts as its installed jar, and two jars of one mod id as one mod:
+
+| Rule | Pair | Kind |
+| --- | --- | --- |
+| R1 | two `@Overwrite` of one method — the one Mixin applies last silently replaces the other | conflict |
+| R2 | two `@Redirect` of one call, equal or open ordinals — Mixin keeps one | conflict |
+| R3 | an `@Overwrite` and another mod's injector in that method | conflict |
+| R4 | a `@Redirect` and another mod's `@WrapOperation`/`@ModifyExpressionValue` on one call | note |
+
+A wildcard/regex selector or a bare name on an unreadable target makes no claim; slices are not read. At boot
+(§3.2 step 18) it reads each config as `ForbricMixinService` served it to Mixin, after the kernel's drops, and
+records one `SUSPECTED` finding per mod and conflict, id `mixin-overlap:<owner>.<name><desc>[@<at>]`, the detail
+naming the other mod; it logs counts and elapsed ms (`-Dforbric.mixinOverlapLint=off` skips it). When a crash
+stack passes through a method with a recorded conflict, `CrashAttribution` names both mods. Offline:
+`MixinOverlapLint <merged-base.jar> <mods-dir> [--json out]` (jars found recursively).
+
 ## 8. Event bridges
 
 On the merged base the two Forge families' hooks competed for the same call sites and one won; the loser's hook
@@ -695,7 +715,7 @@ deferred-work failures, the static audits of §3.2, `KernelTransferInterop`, and
 | `load-report.txt` | at the pre-game boundary as evidence, again after the setup lifecycle, again at `ServerStartedEvent` (the world is up; integrated servers post it too) and when late findings arrive (`-Dforbric.loadReportRewrite=off` keeps the first write); a shutdown hook writes it if loading never finishes. In the system language |
 | `compatibility-report.json` | beside it, the machine-readable findings |
 | `merge-report.txt` | when two jars claimed one mod id (§4.3) |
-| `crash-analysis.txt` | after a crash report: which mods the stack points at (`CrashAttribution`; `-Dforbric.crashAnalysis=off`). The Forge `Suspected Mods:` line depends on a module layer the kernel does not build |
+| `crash-analysis.txt` | after a crash report: which mods the stack points at, including both mods of a mixin overlap in a method on the stack (`CrashAttribution`, §7.6; `-Dforbric.crashAnalysis=off`). The Forge `Suspected Mods:` line depends on a module layer the kernel does not build |
 | `crash-suspects.json` | beside it: `{schema:1, report, clash, suspects:[{modId,name,jar,reason,depth}]}`. On the next client launch, before arbitration, `CrashSuspectOffer` offers to start without those jars (for a clash, every side but the first-named), appends them to `<gameDir>/forbric-disabled.txt` on "Start without", and renames the file `crash-suspects.offered.json` whatever the answer. A server, a headless run and `-Dforbric.dependencyDialog=off` only log the lines |
 
 Working directories in the same place: `lib/` (extracted bundled jars), `jij/`, `jarjar/`, `candidates/`.
@@ -986,6 +1006,7 @@ developer reaches for:
 | `forbric.mixinDiagnostics` | keep injection requirements strict to surface every misfit |
 | `forbric.mixinFit` | `strict`: also drop `PARTIAL` mixins |
 | `forbric.mixinFit.liveness` | `off`: injectors on uncalled methods count as resolved |
+| `forbric.mixinOverlapLint` | `off`: no cross-mod overlap findings at boot (§7.6) |
 | `forbric.guestMixinAdapter` | `off`: no derived drops, only the hand list |
 | `forbric.mergedBaseCompat` | `off`: drop the built-in incompatibility lists |
 | `forbric.disableMixinConfigs`, `forbric.enableMixinConfigs` | csv of configs to disable / force on |

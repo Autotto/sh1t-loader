@@ -123,7 +123,7 @@ if (code != 0) System.exit(code);
 15. `PassiveSeeder.reportDependencies()` —— 放在 Mixin 之后，因为它要报告的内容有一半（写给另一个 mod、却没有挂上的 mixin）是在 Mixin 解析配置时才记录下来的。
 16. `KernelRuntimeClasses.verify(loader)` —— 让内核自己的游戏侧过一遍已经搭好的流水线。
 17. `PassiveSeeder.seedAll` —— NeoForge 的 `FMLLoader`、`ModList`、路径；MinecraftForge 身份（幂等）。
-18. 审计报告、`KernelLoadReport.writeEvidence()`，然后是 `CompatibilityDecision.requireContinuation(isClient)` —— 进入游戏之前的决策点（§12.4）。
+18. 审计报告（其中有 `MixinOverlapLint`，§7.6）、`KernelLoadReport.writeEvidence()`，然后是 `CompatibilityDecision.requireContinuation(isClient)` —— 进入游戏之前的决策点（§12.4）。
 19. `KernelFabricEcosystem.runPreLaunch()` —— Fabric `preLaunch` 入口点，在 Mixin 之后、任何游戏类之前运行。
 20. 加载入口类（`net.minecraft.server.dedicated.DedicatedServer` / `…client.gui.screens.TitleScreen` 是普查标志点；实际调用的是游戏的 `Main`）。如果 `LifecycleHookInjector` 没找到它的触发点，**内核拒绝启动**（`missedRequiredExcision()`）。
 21. `Main.main(gameArgs)` —— 原版启动流程，其中真正的加载器触发点已被重定向。
@@ -309,6 +309,19 @@ Mixin (via MixinWeaverSlot) → NativeCoremodParity → PostMixinFixups → Inte
 
 `MixinConfigOwners` 在注册前把每个配置映射到它所属的 mod，这样 Mixin 自己报出的失败就会点名那个 mod（`-Dforbric.mixinModIdDecoration` 还会把 mod id 写进生成的 handler 名）。`KernelMixinErrorHandler` 把准备/应用阶段的失败记到该 mod 的那一行上，但不改变 Mixin 的决定。`FinalMixinApplications` 在所有阶段结束后观察每个已定义的类——某个 handler 零引用，就证明它没有挂上。当某个具名的内核修复完成了那个 mixin 做的*全部*事情时，`SupersededMixins` 不让这次失败记到该 mod 的那一行上；当该 mod 自己的配置插件本来就会拒绝这个 mixin 时，`PluginDeclinedMixins` 也这样处理；`ForeignMixinBreaks` 记录那些专门写来挂到另一个 mod 上、结果没挂上的 mixin。`MixinCompatibility` 让一个 mixin 从预检到应用始终带着同一个身份。
 
+### 7.6 跨 mod 的重叠 —— `MixinOverlapLint`
+
+`MixinFit` 拿一个 mixin 对照基底来判；两个各自都合身的 mod 放在一起仍可能相撞。`MixinOverlapLint` 列出每个 handler 的占用（目标方法、`@At` 调用、ordinal），把不同 mod 的占用两两配对 —— 打包在一个 jar 里的模块算作装进来的那个 jar，同一 mod id 的两个 jar 算作同一个 mod：
+
+| 规则 | 组合 | 类别 |
+| --- | --- | --- |
+| R1 | 同一方法上的两个 `@Overwrite` —— Mixin 最后应用的那个会悄悄替换掉另一个 | 冲突 |
+| R2 | 同一调用上的两个 `@Redirect`，ordinal 相同或未指定 —— Mixin 只保留一个 | 冲突 |
+| R3 | 一个 `@Overwrite`，加上另一个 mod 在该方法里的任意注入器 | 冲突 |
+| R4 | 同一调用上的 `@Redirect` 和另一个 mod 的 `@WrapOperation`/`@ModifyExpressionValue` | 提示 |
+
+通配符/正则选择器，或目标类读不到时的裸方法名，不产生占用；slice 不读。启动时（§3.2 第 18 步）它按 `ForbricMixinService` 实际交给 Mixin 的配置来读（内核删掉的 mixin 已不在里面），每个 mod 每条冲突记一条 `SUSPECTED` 发现，id 为 `mixin-overlap:<owner>.<name><desc>[@<at>]`，detail 里点名另一个 mod；日志里记各规则计数和耗时毫秒数（`-Dforbric.mixinOverlapLint=off` 关掉）。崩溃调用栈经过一个记录了冲突的方法时，`CrashAttribution` 会同时点名这两个 mod。离线：`MixinOverlapLint <merged-base.jar> <mods-dir> [--json out]`（递归查找 jar）。
+
 ## 8. 事件桥
 
 在合并基底上，两个 Forge 系的钩子争夺同一批调用点，最后只有一方胜出；落败方的钩子成了死代码，于是这个系的监听器挂在一条没人发布事件的总线上。MinecraftForge mod 要的必须正是 `net.minecraftforge.…Event` 的实例，所以重新发出事件本来就无法避免。
@@ -375,7 +388,7 @@ NeoForge 的 `mod_resources` 来源在合并基底上是孤立的。`ClientPackH
 | `load-report.txt` | 在进入游戏前的边界处作为证据写一次，初始化生命周期结束后再写一次，`ServerStartedEvent` 时（世界已就绪；内置服务器也会发布这个事件）以及后期检出项到来时还会再写（`-Dforbric.loadReportRewrite=off` 只保留第一次写入）；如果加载始终没有完成，由关闭钩子写入。使用系统语言 |
 | `compatibility-report.json` | 与它放在一起，机器可读的检出项 |
 | `merge-report.txt` | 两个 jar 声明同一个 mod id 时（§4.3） |
-| `crash-analysis.txt` | 生成崩溃报告之后：调用栈指向哪些 mod（`CrashAttribution`；`-Dforbric.crashAnalysis=off`）。Forge 的 `Suspected Mods:` 那一行依赖一个模块层，而内核不构建这个模块层 |
+| `crash-analysis.txt` | 生成崩溃报告之后：调用栈指向哪些 mod，调用栈经过的方法上有 mixin 重叠时同时点名双方（`CrashAttribution`，§7.6；`-Dforbric.crashAnalysis=off`）。Forge 的 `Suspected Mods:` 那一行依赖一个模块层，而内核不构建这个模块层 |
 | `crash-suspects.json` | 与它放在一起：`{schema:1, report, clash, suspects:[{modId,name,jar,reason,depth}]}`。下一次客户端启动时，在仲裁之前，`CrashSuspectOffer` 提出不加载这些 jar 启动（冲突时保留第一个被点名的一方），选“不加载启动”就把它们追加进 `<gameDir>/forbric-disabled.txt`；无论怎么回答，都把文件改名为 `crash-suspects.offered.json`。服务器、无显示环境和 `-Dforbric.dependencyDialog=off` 只在日志里写出这些行 |
 
 同一位置还有几个工作目录：`lib/`（解压出来的自带 jar）、`jij/`、`jarjar/`、`candidates/`。
@@ -570,6 +583,7 @@ java -cp <boot-cp> net.forbric.kernel.boot.Main --scan --mods <dir> --report out
 | `forbric.mixinDiagnostics` | 保持注入要求严格，让每一处不适配都暴露出来 |
 | `forbric.mixinFit` | `strict`：连 `PARTIAL` 的 mixin 也丢弃 |
 | `forbric.mixinFit.liveness` | `off`：位于无人调用的方法上的注入器也算已解析 |
+| `forbric.mixinOverlapLint` | `off`：启动时不报告跨 mod 的 mixin 重叠（§7.6） |
 | `forbric.guestMixinAdapter` | `off`：不做推导出来的丢弃，只用手写清单 |
 | `forbric.mergedBaseCompat` | `off`：去掉内置的不兼容清单 |
 | `forbric.disableMixinConfigs`, `forbric.enableMixinConfigs` | 要禁用 / 强制启用的配置，csv |
