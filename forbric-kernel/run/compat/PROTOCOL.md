@@ -455,3 +455,19 @@ for a new candidate; unfinished or differently fingerprinted individual results 
 
 `mac/dependency_selection.py` keeps already required API providers ahead of unrelated sampled hosts;
 `mac/test_archive.py` also verifies this selection rule.
+
+## Minimise a failing pack
+
+`mac/ddmin_core.py` is the game-free half of replacing hand bisection (halving a failing mixed pack, or
+`--bisect` above) with delta debugging. It uses only the standard library and reads no environment or files.
+An oracle maps a jar list to FAIL (the full pack's failure signature), PASS, or UNRESOLVED (it failed some other
+way); only FAIL ever shrinks the set. `ddmin` is Zeller and Hildebrandt's ddmin2: subsets, then complements,
+then double the granularity. `one_minimal` removes single jars until none can go. `closed` adds every
+`closure.json` dependency to each run; dependencies are never minimised. `signature` names a failure by the
+crash report's top exception, with timestamps, paths, Mixin handler prefixes, hex and digits removed and a
+`Sources: a and b` list sorted; exit 78 is `POLICY_STOP:` plus the sorted keys of the confirmed required
+findings. `seeds` turns a run's own evidence (the clash `Sources`, `crash-analysis.txt` suspects, jars in the
+exception chain's frames, report rows that are not OK) into jars, mapping mod ids only through the report's
+`mods[]` rows. `minimise` runs the closed seed set first and starts ddmin there when it FAILs; runs are
+remembered by the closed configuration, so two subsets that launch the same jars run once. The driver that
+launches the game for each configuration (`mac/ddmin.py`) is a later step; nothing here starts a client.
