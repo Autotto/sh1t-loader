@@ -102,6 +102,19 @@ class LabRuns(unittest.TestCase):
         other.run("pack", "forbric", ["a.jar", "b.jar"])
         self.assertEqual(1, len(other.launch.launches))
 
+    def test_a_cached_session_is_relabelled_once_and_is_not_an_attempt(self):
+        lab = self.lab()
+        for label in ("ddmin:2:x", "pack", "ddmin:2:x", "pack", "ddmin:2:x"):
+            lab.run(label, "forbric", ["a.jar", "b.jar"])
+        self.assertEqual(1, len(self.server.launches))
+        self.assertEqual(["ddmin:2:x", "pack"], [record["label"] for record in lab.records()])
+        self.assertEqual("ddmin:2:x", lab.records()[-1]["cachedFrom"])
+        lab.run("pack", "native", ["a.jar", "b.jar"])
+        summary = ab.summarise(lab.manifest, lab.records(), KERNEL, LAUNCHER, 200)
+        # the pack's Forbric arm is that one launch, read through the relabelled record; only native launched as "pack"
+        self.assertEqual(ab.MATCHED_PASS, summary["pack"]["verdict"])
+        self.assertEqual(["native"], [attempt["engine"] for attempt in summary["pack"]["attempts"]])
+
     def test_a_kernel_that_changes_under_a_session_is_refused(self):
         with self.assertRaises(SystemExit):
             self.lab(launch=FakeServer("z" * 64)).run("pack", "forbric", ["a.jar"])

@@ -102,7 +102,7 @@ def summarise(manifest, records, kernel, launcher, ticks):
         native = next((r for r in reversed(runs) if r["engine"] == "native" and r.get("identityDigest") == launcher), None)
         forbric = next((r for r in reversed(runs) if r["engine"] == "forbric" and r.get("identityDigest") == kernel), None)
         attempts = [dict(engine=r["engine"], outcome=r["outcome"], signature=r.get("signature")) for r in runs
-                    if r.get("identityDigest") in (kernel, launcher)]
+                    if r.get("identityDigest") in (kernel, launcher) and "cachedFrom" not in r]
         verdict = pair_verdict(native, forbric) if native and forbric else "NOT_RUN"
         return dict(verdict=verdict, native=arm(native), forbric=arm(forbric), attempts=attempts)
     per_mod = {name: pair("per-mod:" + name) for name in names}
@@ -167,12 +167,15 @@ class Lab:
         ident = self.kernel if engine == "forbric" else self.launcher
         key = session_key(engine, self.set_digest(jars), ticks, ident)
         if not fresh:
-            for record in reversed(self.records()):
-                if record["key"] == key:
-                    if record["label"] != label:
-                        record = dict(record, label=label, cachedFrom=record["label"])
-                        self.append(record)
-                    return record
+            same = [record for record in self.records() if record["key"] == key]
+            mine = [record for record in same if record["label"] == label]
+            if mine:
+                return mine[-1]
+            if same:
+                # Recorded under this label too, so the summary finds it, but marked: it is not another launch.
+                record = dict(same[-1], label=label, cachedFrom=same[-1].get("cachedFrom", same[-1]["label"]))
+                self.append(record)
+                return record
         result = self.launch(engine, [self.mods / j for j in jars], ticks, timeout or self.timeout, xmx or self.xmx)
         if identity_digest(result) != ident:
             raise SystemExit(f"{label}/{engine} ran {identity_digest(result)}, not {ident}: the kernel changed during the run")
