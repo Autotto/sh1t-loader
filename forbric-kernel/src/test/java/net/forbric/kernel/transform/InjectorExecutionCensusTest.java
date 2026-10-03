@@ -65,7 +65,7 @@ class InjectorExecutionCensusTest {
 			"BiomeInfoRebaseInjector", "BiomeLateWriteInjector",
 			"ClientEntrypointHookInjector", "ClientPackHookInjector", "ClientPartTrackingInjector", "ClientSmokeTickInjector",
 			"CommonNetworkInteropInjector", "CompatPluginPlatformInjector", "CompatibilityPromptTickInjector",
-			"CompostablesFallbackInjector", "CreateBreathingInjector", "CreateHudContextInjector", "CreateSoundQueryInjector",
+			"CompostablesFallbackInjector", "CreateHudContextInjector", "CreateSoundQueryInjector",
 			"CreativePagerBridgeInjector", "DataPackHookInjector", "DragonPartsInjector",
 			"DuplicateLambdaPruneInjector", "EventChainAuditInjector",
 			"ExitHookInjector", "FabricFluidBehaviorInjector", "FabricFluidModelsInjector", "FabricFuelValuesInjector",
