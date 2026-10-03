@@ -71,7 +71,7 @@ class InjectorExecutionCensusTest {
 			"ExitHookInjector", "FabricFluidBehaviorInjector", "FabricFluidModelsInjector", "FabricFuelValuesInjector",
 			"FlowerPotRepairInjector", "FluidInteractionsInjector", "ForeignFluidTypeInjector",
 			"ForeignPayloadReceiveInjector", "ForgeAttributeValidationInjector",
-			"ForgeBindingsLookupInjector", "ForgeBlockTintInjector", "ForgeBrewingRecipesInjector",
+			"ForgeBlockTintInjector", "ForgeBrewingRecipesInjector",
 			"ForgeClientConsumersInjector",
 			"ForgeCreativeTabsInjector", "ForgeDamageSeamsInjector",
 			"ForgeLootPoolConditionsInjector",
