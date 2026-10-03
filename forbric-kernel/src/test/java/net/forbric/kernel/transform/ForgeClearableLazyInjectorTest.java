@@ -2,19 +2,16 @@
 package net.forbric.kernel.transform;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
 import java.net.URL;
 import java.net.URLClassLoader;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
-import java.util.zip.ZipFile;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.parallel.ResourceLock;
@@ -24,6 +21,9 @@ import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.analysis.Analyzer;
 import org.objectweb.asm.tree.analysis.BasicVerifier;
 
+import net.forbric.kernel.TestFixtures;
+import net.forbric.kernel.TestFixtures.Fixture;
+
 /**
  * MinecraftForge's real {@code ClearableLazy$Concurrent}, raced deterministically: one thread computes inside the lock
  * while a second has already read {@code null} and waits for that lock. Unpatched, the second returns {@code null};
@@ -31,17 +31,11 @@ import org.objectweb.asm.tree.analysis.BasicVerifier;
  */
 @ResourceLock(Resources.SYSTEM_PROPERTIES)
 class ForgeClearableLazyInjectorTest {
-	private static final Path FORGE_RUNTIME = Path.of(System.getenv().getOrDefault("FORBRIC_OLD",
-			System.getProperty("user.dir") + "/../forbric-loader"), "run", "forge-runtime", "forge-runtime.jar");
+	private static final Path FORGE_RUNTIME = TestFixtures.stagedRoot().resolve("forge-runtime/forge-runtime.jar");
 	private static final String ENTRY = "net/minecraftforge/common/util/ClearableLazy$Concurrent.class";
 
-	private static byte[] original() throws Exception {
-		assumeTrue(Files.isRegularFile(FORGE_RUNTIME), "staged forge-runtime absent");
-		try (ZipFile zip = new ZipFile(FORGE_RUNTIME.toFile())) {
-			var entry = zip.getEntry(ENTRY);
-			assumeTrue(entry != null, "ClearableLazy$Concurrent moved");
-			return zip.getInputStream(entry).readAllBytes();
-		}
+	private static byte[] original() {
+		return TestFixtures.requireEntry(Fixture.STAGED, FORGE_RUNTIME, ENTRY);
 	}
 
 	private static byte[] patched(byte[] original) {

@@ -2,7 +2,6 @@
 package net.forbric.kernel.transform;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -21,17 +20,20 @@ import org.objectweb.asm.tree.MethodNode;
 import org.objectweb.asm.tree.analysis.Analyzer;
 import org.objectweb.asm.tree.analysis.BasicVerifier;
 
+import net.forbric.kernel.TestFixtures;
+import net.forbric.kernel.TestFixtures.Fixture;
+
 /** NeoForge's real BrandingControl and the merged base's real F3 version line name Forbric's release. */
 @ResourceLock("system-properties")
 class ForbricBrandingInjectorTest {
-	private static final Path STAGED = Path.of(System.getProperty("forbric.stagedRoot", "../forbric-loader/run"));
+	private static final Path STAGED = TestFixtures.stagedRoot();
 	private static final Path MERGED = STAGED.resolve("merged-base/patched-mc-merged-26.2.jar");
 	private static final Path NEOFORGE_RUNTIME = STAGED.resolve("neoforge-runtime/neoforge-runtime.jar");
 
 	@AfterEach void reset() { System.clearProperty(ForbricBrandingInjector.PROPERTY); }
 
 	@Test void theTitleScreenNamesForbricAndCountsEveryInstalledMod() throws Exception {
-		assumeTrue(Files.isRegularFile(NEOFORGE_RUNTIME), "neoforge runtime not staged: " + NEOFORGE_RUNTIME);
+		TestFixtures.require(Fixture.STAGED, Files.isRegularFile(NEOFORGE_RUNTIME), "neoforge runtime not staged: " + NEOFORGE_RUNTIME);
 		String internal = ForbricBrandingInjector.BRANDING_CONTROL.replace('.', '/');
 		byte[] original = NativeCoremodParityTest.read(NEOFORGE_RUNTIME, internal);
 		byte[] out = new ForbricBrandingInjector().transform(ForbricBrandingInjector.BRANDING_CONTROL, original, null);
@@ -49,7 +51,7 @@ class ForbricBrandingInjectorTest {
 	}
 
 	@Test void f3ShowsForbricsReleaseAndBrand() throws Exception {
-		assumeTrue(Files.isRegularFile(MERGED), "merged base not staged: " + MERGED);
+		TestFixtures.require(Fixture.STAGED, Files.isRegularFile(MERGED), "merged base not staged: " + MERGED);
 		String internal = ForbricBrandingInjector.DEBUG_VERSION.replace('.', '/');
 		byte[] original = NativeCoremodParityTest.read(MERGED, internal);
 		byte[] out = new ForbricBrandingInjector().transform(ForbricBrandingInjector.DEBUG_VERSION, original, null);
