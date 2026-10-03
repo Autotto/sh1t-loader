@@ -933,7 +933,9 @@ java -cp <boot-cp> net.forbric.kernel.boot.Main --scan --mods <dir> --report out
   that are not in this repository, held to `ci-prepared.tsv` the same way. Job `development-tools` runs
   `tools/dev.py tool-test` and the packaged link gate on Windows, Linux and macOS. kernel-prepared then runs four
   real dedicated-server gates on the same files: m1, m36, m46 and m53, whose mods are canaries built from this
-  repository. The other gates (client, third-party packs, soak) run only on a developer machine.
+  repository. The other gates (client, third-party packs, soak) need the developer's Mac: `tools/nightly/` runs
+  them there every night from launchd (02:30, the soak on Sundays), commits each night's summary to the branch
+  `ci-results` and sets the commit status `nightly/dev-mac` on the tested commit.
 
 ## 17. System properties
 
