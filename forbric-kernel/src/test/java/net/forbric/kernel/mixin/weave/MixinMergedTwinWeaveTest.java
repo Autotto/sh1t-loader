@@ -43,6 +43,8 @@ class MixinMergedTwinWeaveTest {
 	private static Path fixture;
 	private static WeaveHarness.Result twinned;
 	private static WeaveHarness.Result off;
+	private static Path descriptorFixture;
+	private static WeaveHarness.Result descriptorSpelled;
 
 	@BeforeAll static void weaveWithAndWithoutTheTwinPass() throws Exception {
 		fixture = WeaveHarness.fixture(work, "mergedtwin", List.of(
@@ -55,6 +57,35 @@ class MixinMergedTwinWeaveTest {
 				Map.of(CONFIG, SOURCES.resolve(CONFIG)));
 		twinned = run("twinned", "on");
 		off = run("twin-off", "off");
+
+		// The same mixin with its INVOKE owner written the other way Mixin accepts, `Lowner;name(desc)`: the spelling
+		// MinecraftDev generates, and the one fabric-networking-api-v1's CustomPayloadStreamCodecMixin uses on the
+		// very class this adapter twins (CustomPacketPayload$1#findCodec).
+		Path mixin = SOURCES.resolve("fixture/mergedtwin/mod/mixin/PayloadsCodecMixin.java");
+		String dotted = "target = \"fixture/mergedtwin/Payloads$1.findCodec(";
+		String source = java.nio.file.Files.readString(mixin);
+		assertTrue(source.contains(dotted), "the fixture's INVOKE target changed; update this variant");
+		Path variant = java.nio.file.Files.createDirectories(work.resolve("descriptor-src")).resolve("PayloadsCodecMixin.java");
+		java.nio.file.Files.writeString(variant, source.replace(dotted, "target = \"Lfixture/mergedtwin/Payloads$1;findCodec("));
+		descriptorFixture = WeaveHarness.fixture(work, "mergedtwin-descriptor", List.of(
+				SOURCES.resolve("fixture/mergedtwin/PayloadCodec.java"),
+				SOURCES.resolve("fixture/mergedtwin/Payloads.java"),
+				SOURCES.resolve("fixture/mergedtwin/Payloads$1$forbricneo.java"),
+				SOURCES.resolve("fixture/mergedtwin/mod/ChannelHolder.java"),
+				SOURCES.resolve("fixture/mergedtwin/mod/Probe.java"),
+				variant),
+				Map.of(CONFIG, SOURCES.resolve(CONFIG)));
+		descriptorSpelled = WeaveHarness.run(work, "twinned-descriptor", descriptorFixture, CONFIG, MOD, Ecosystem.FABRIC,
+				EnvType.SERVER, "fixture.mergedtwin.mod.Probe", "run", Map.of(MixinMergedTwin.PROPERTY, "on"));
+	}
+
+	/** An owner pinned as {@code Lowner;name(desc)} is unpinned too, so the twin that runs gets the call, not just the handler. */
+	@Test void aDescriptorSpelledOwnerIsUnpinnedToo() throws Exception {
+		assertTrue(descriptorSpelled.printed("[MergedTwin] live encode=woven:hello"), descriptorSpelled.describe());
+		assertTrue(descriptorSpelled.printed("[MergedTwin] vanilla encode=woven:hello"), descriptorSpelled.describe());
+		assertTrue(twinHolds(descriptorSpelled), descriptorSpelled.describe());
+		WeaveHarness.assertWovenAndVerified(descriptorSpelled, TWIN, descriptorFixture);
+		assertEquals(List.of(), losses(descriptorSpelled), descriptorSpelled.describe());
 	}
 
 	@Test void theRenamedTwinThatRunsCarriesTheMixin() throws Exception {
