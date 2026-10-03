@@ -356,6 +356,26 @@ kernel and merge-tools jars it is about to publish.
 `NATIVE_CONTROL_CACHE` selects the read-only reference checkout; its default is the parent of `FORBRIC_OLD`,
 or this checkout when that variable is absent. All generated files remain under this kernel's `build/`.
 
+`native-controls.py run-set --engine native|forbric --family fabric --mods JAR... [--ticks 200] [--timeout 900]
+[--xmx 3G] [--level-type minecraft:normal] [--keep]` boots one fresh server under `build/native-controls/instances/`
+with exactly those jars (a normal world from the fixed seed, view and simulation distance 3, pause when empty off),
+waits for `Done (` as `control-diff.sh` does, asks `time query gametime` until the game has advanced `--ticks`, then
+saves and stops. The native arm is the image `prepare --family fabric` installed; the Forbric arm builds this
+checkout's kernel jar first and runs `launch-kernel-server.sh` under the strict policy (a dedicated server has no
+window, so the product default refuses the same way). `results/<run>/result.json` records `outcome`, the
+`modSetSha256` over the sorted jar SHA-256s (equal on both arms means they ran the same bytes), the kernel jar's
+SHA-256 (Forbric) or the launcher's (native), the measured game time, `signature` (`mac/ddmin_core.signature` of a
+failure), crash-report count, uncaught exceptions of other threads, and whether a non-daemon thread kept the JVM
+alive after the server had stopped (`lingeredAfterStop`, killed and not a failure). The console is classified by
+`server_outcome(log, ticks, exit_code)` alone: no `Done (` is `FAILED_TO_START` when the process ended on its own or
+printed a start failure (`Failed to start the minecraft server`, an uncaught `main` exception, a Forbric policy
+stop) and `STALL` when it had to be killed; after `Done (`, a crash report, the run loop's `Encountered an unexpected
+exception`, an exception escaping the server or main thread, a failed stop or a JVM fatal error is `CRASH`, and so is
+a JVM that went away by itself before the stop; it is `DONE` only when the ticks were reached and the stop was
+acknowledged. A mod that logs a caught exception and keeps ticking is not a crash. `test_native_controls.py` pins
+these on synthetic consoles. The instance is deleted after a `DONE` without `--keep`; the console, crash reports and
+the kernel's reports stay in `results/<run>/`.
+
 `retention-control.py` requires the prepared native NeoForge image and the fixed Unlit Campfire jar in
 the copied mixed pack. It compiles an independent canary, saves a real campfire and compares the untouched
 mod's static cache after normal shutdown on native NeoForge and Forbric. Both arms and their exact mod
