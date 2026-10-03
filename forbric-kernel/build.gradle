@@ -316,6 +316,10 @@ test {
 	// ledger from the last time it cost a day; this is the fix rather than the note.
 	dependsOn tasks.named('compileRuntimeJava')
 	inputs.files(sourceSets.runtime.output).withPropertyName('gameSideClasses').optional()
+	// NoRawAssumptionsTest reads the test sources and its allowlist as TEXT. An allowlist edit changes no class, so
+	// without these the task stayed UP-TO-DATE and kept the verdict on the previous list.
+	inputs.file('src/test/raw-assumption-allowlist.txt').withPropertyName('rawAssumptionAllowlist')
+	inputs.files(fileTree('src/test/java'), fileTree('src/transferTest/java')).withPropertyName('testSourceText')
 	// ProcessBuilder tests execute these files; their edits must invalidate the test task too.
 	inputs.files(fileTree('run/compat') { include '**/*.py', '**/*.sh', '**/*.md' })
 			.withPropertyName('compatibilityTools').optional()
