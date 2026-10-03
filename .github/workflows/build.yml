@@ -135,6 +135,30 @@ jobs:
       - name: Unit and transfer tests with the game files
         shell: bash
         run: cd forbric-kernel && ./gradlew jar test transferTest skipRatchet -Pforbric.skipBaseline=ci-prepared -Pforbric.requireTransfer=true
+      # Real dedicated servers through the kernel, on the same prepared files: a zero-mod boot (m1) and the gates whose
+      # mods are canaries built from this repository's sources. m36 weaves real guest mixins in a running server and
+      # checks what they did (its weave-level half also runs in the unit suite, see MixinOutcomeWeaveTest); m46 and m53
+      # check mixins written against vanilla that the merged game reshaped. Each gate writes eula.txt for its own
+      # throwaway server, as it does on a developer machine.
+      - name: Server gates on the prepared files
+        shell: bash
+        env:
+          FORBRIC_OLD: ${{ github.workspace }}/forbric-kernel/.dev/staged
+          MC_DIR: ${{ github.workspace }}/forbric-kernel/.dev/minecraft
+        run: |
+          cd forbric-kernel
+          ./gradlew -q runtimeJar
+          export FORBRIC_SPONGE_MIXIN="$(./gradlew -q printBootClasspath | tr ':' '\n' | grep '/sponge-mixin-' | head -1)"
+          export M46_FABRIC_API="$PWD/.dev/api/fabric-api-0.155.2+26.2.jar" M53_FABRIC_API="$PWD/.dev/api/fabric-api-0.155.2+26.2.jar"
+          failed=0
+          for gate in m1 m36-mixin-outcome m46-stub-rebind m53-widened-new; do
+            start=$(date +%s)
+            if bash "run/gate-$gate.sh" > "build/gate-$gate.out" 2>&1; then verdict=GREEN; else verdict=RED; failed=1; fi
+            echo "gate-$gate $verdict in $(( $(date +%s) - start ))s" | tee -a build/gates-prepared.txt
+            [ "$verdict" = GREEN ] || tail -80 "build/gate-$gate.out"
+          done
+          { echo '### Server gates on the prepared files'; echo; sed 's/^/- /' build/gates-prepared.txt; } >> "$GITHUB_STEP_SUMMARY"
+          exit "$failed"
       - name: Test summary
         if: always()
         shell: bash
