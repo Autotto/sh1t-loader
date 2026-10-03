@@ -88,6 +88,22 @@ class RunTest(unittest.TestCase):
         self.assertTrue(result['strict'], result)
         self.assertFalse((self.out / 'clean' / 'crash-analysis.txt').exists())
 
+    def test_a_crash_stamped_by_a_lagging_filesystem_clock_still_counts(self):
+        # Windows stamps files from a clock tick that can trail time.time(); an instant crash then carries an mtime a
+        # few milliseconds before the session began. It is still this session's crash.
+        class LaggingClock(FakeDriver):
+            def __call__(self, instance, log, ticks, jvm, stall, timeout, grace):
+                code = super().__call__(instance, log, ticks, jvm, stall, timeout, grace)
+                lagged = time.time() - 0.05
+                for written in instance.rglob('*'):
+                    if written.is_file():
+                        os.utime(written, (lagged, lagged))
+                return code
+        result = mixed.run('lagging', 200, ['alpha-1.0.jar'], self.out, instance=self.instance, launch=LaggingClock(crash=True))
+        self.assertEqual('CRASH', result['run'])
+        self.assertEqual([self.out / 'lagging' / 'crash-2026-10-01_21.00.12-client.txt'],
+                         mixed.crash_reports(self.out / 'lagging'))
+
     def test_a_crash_analysis_alone_is_not_a_crash_report(self):
         result = mixed.run('analysis', 200, ['alpha-1.0.jar'], self.out, instance=self.instance,
                            launch=FakeDriver(analysis='Forbric crash analysis\n'))

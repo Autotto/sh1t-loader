@@ -28,6 +28,7 @@ SUBJECT_KINDS = ('popular', 'random')
 EVIDENCE = ['client-console.log', '.forbric-kernel/compatibility-report.json', '.forbric-kernel/load-report.txt',
             'forbric-mods.txt']
 # Copied only when this session wrote them; nothing deletes the older ones.
+MTIME_SLACK = 2.0
 FRESH = ['screenshots/*.png', 'crash-reports/*.txt', 'thread-dump-*.txt', '.forbric-kernel/crash-analysis.txt',
          '.forbric-kernel/merge-report.txt']
 CRASH_ANALYSIS = 'crash-analysis.txt'
@@ -74,6 +75,11 @@ def run(label, ticks, subjects, out, jvm=(), stall=420, timeout=900, grace=30, i
     evidence = Path(out) / label
     evidence.mkdir(parents=True, exist_ok=False)
     start = time.time()
+    # Files written during the session are told from leftovers by their mtime. A filesystem stamps them from a clock
+    # that can trail time.time(): Windows' tick lags by up to ~16 ms, so a crash report written in the session's first
+    # instant read as older than the session and was dropped, and the session read as clean. The instance is cleared
+    # before every session, so a leftover is never seconds young; a little slack costs nothing.
+    fresh = start - MTIME_SLACK
     returncode = launch(instance, evidence / 'driver.log', ticks, list(jvm), stall, timeout, grace)
     for filename in EVIDENCE:
         source = instance / filename
@@ -81,7 +87,7 @@ def run(label, ticks, subjects, out, jvm=(), stall=420, timeout=900, grace=30, i
             shutil.copy2(source, evidence / source.name)
     for pattern in FRESH:
         for source in instance.glob(pattern):
-            if source.stat().st_mtime >= start:
+            if source.stat().st_mtime >= fresh:
                 shutil.copy2(source, evidence / source.name)
     driver = (evidence / 'driver.log').read_text(errors='replace')
     console = (evidence / 'client-console.log').read_text(errors='replace') if (evidence / 'client-console.log').exists() else ''
@@ -91,7 +97,7 @@ def run(label, ticks, subjects, out, jvm=(), stall=420, timeout=900, grace=30, i
     bad = sweep_verdict.bad_rows(report)
     missing = sweep_verdict.missing_subjects(subjects, report)
     world = instance / 'saves' / 'compat-world'
-    saved = saved_since(world, start)
+    saved = saved_since(world, fresh)
     strict = sweep_verdict.pack_strict(returncode, verdict, report, missing, saved)
     result = dict(run=verdict, strict=strict, bad_mods=bad, missing_subjects=missing, saved=saved, world_ticks=ticks, seconds=int(time.time() - start))
     (evidence / 'result.json').write_text(json.dumps(result, indent=2) + '\n')
