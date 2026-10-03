@@ -180,7 +180,8 @@ class FmlTransformerViewTest {
 	void theKernelWeavesWithWhatTheSlotHolds() throws Exception {
 		Path compiled = Path.of("build", "classes", "java", "main", "net", "forbric", "kernel", "mixin",
 				"KernelMixinBootstrap.class");
-		assumeTrue(Files.isRegularFile(compiled), "main classes not compiled yet");
+		assertTrue(Files.isRegularFile(compiled),
+				"KernelMixinBootstrap not found in the compiled src/main classes, which exist before any test runs");
 		ClassNode node = new ClassNode();
 		new ClassReader(Files.readAllBytes(compiled)).accept(node, 0);
 		List<String> weaving = new ArrayList<>();

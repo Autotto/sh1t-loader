@@ -61,7 +61,9 @@ class PayloadInteropPlayChannelsTest {
 	void everyNameTheRecordingSpellsExistsWhereItIsSpelled() throws Exception {
 		List<String> spelled = stringsOf("net/forbric/kernel/interop/PayloadInterop.class",
 				Path.of("build/classes/java/main"));
-		assumeTrue(!spelled.isEmpty(), "kernel classes not compiled");
+		assertTrue(!spelled.isEmpty(),
+				"A string constant in PayloadInterop not found in the compiled src/main classes, which exist before "
+						+ "any test runs");
 		assertTrue(spelled.contains("fabric_getPendingChannelsNames"),
 				"the connection accessor Fabric's ServerPlayNetworkAddon drains must be named");
 		assertTrue(spelled.contains("protocol"),

@@ -94,7 +94,9 @@ class DatapackRegistryDeclarationTest {
 	@Test
 	void theEarlyWindowAsksBeforeDeclaring() throws Exception {
 		MethodNode drive = method("driveNativeRegistration");
-		assumeTrue(drive != null, "KernelLifecycle not compiled yet");
+		assertTrue(drive != null,
+				"KernelLifecycle.driveNativeRegistration not found in the compiled src/main classes, which exist "
+						+ "before any test runs");
 
 		int asks = firstCall(drive, "waitsForFabric");
 		int declares = firstCall(drive, "registerDataPackRegistries");
@@ -136,7 +138,9 @@ class DatapackRegistryDeclarationTest {
 	@Test
 	void theConstructorHookDeclaresAfterTheWindowCloses() throws Exception {
 		MethodNode hook = method("onClientEntrypoints");
-		assumeTrue(hook != null, "KernelLifecycle not compiled yet");
+		assertTrue(hook != null,
+				"KernelLifecycle.onClientEntrypoints not found in the compiled src/main classes, which exist before "
+						+ "any test runs");
 
 		int declares = firstCall(hook, "registerDataPackRegistries");
 		assertTrue(declares >= 0, "a client whose mains run in Minecraft.<init> must declare there");
@@ -149,7 +153,9 @@ class DatapackRegistryDeclarationTest {
 	@Test
 	void clientSetupCannotRunAheadOfTheDeclaration() throws Exception {
 		MethodNode setup = method("onNeoClientSetup");
-		assumeTrue(setup != null, "KernelLifecycle not compiled yet");
+		assertTrue(setup != null,
+				"KernelLifecycle.onNeoClientSetup not found in the compiled src/main classes, which exist before any "
+						+ "test runs");
 
 		int declares = firstCall(setup, "registerDataPackRegistries");
 		int lifecycle = firstCall(setup, "fireClientSetupLifecycle");
@@ -160,7 +166,9 @@ class DatapackRegistryDeclarationTest {
 	@Test
 	void theDeclarationRunsOncePerProcess() throws Exception {
 		MethodNode declare = method("registerDataPackRegistries");
-		assumeTrue(declare != null, "KernelLifecycle not compiled yet");
+		assertTrue(declare != null,
+				"KernelLifecycle.registerDataPackRegistries not found in the compiled src/main classes, which exist "
+						+ "before any test runs");
 
 		MethodInsnNode first = null;
 		for (AbstractInsnNode insn : declare.instructions.toArray()) {
@@ -343,7 +351,9 @@ class DatapackRegistryDeclarationTest {
 
 		// And these are the names the kernel looks up.
 		MethodNode reconcile = method("reconcileLoaderRegistriesIntoNeoForge");
-		assumeTrue(reconcile != null, "KernelLifecycle not compiled yet");
+		assertTrue(reconcile != null,
+				"KernelLifecycle.reconcileLoaderRegistriesIntoNeoForge not found in the compiled src/main classes, "
+						+ "which exist before any test runs");
 		List<Object> constants = new ArrayList<>();
 		for (AbstractInsnNode insn : reconcile.instructions) {
 			if (insn instanceof org.objectweb.asm.tree.LdcInsnNode ldc) constants.add(ldc.cst);

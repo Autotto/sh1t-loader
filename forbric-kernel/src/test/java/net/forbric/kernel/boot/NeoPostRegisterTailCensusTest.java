@@ -59,7 +59,8 @@ class NeoPostRegisterTailCensusTest {
 		assertEquals(REPLICATED.keySet(), tail, "NeoForge's tail changed: take the new step in KernelLifecycle and list it here");
 
 		Path compiled = Path.of(System.getProperty("user.dir"), "build/classes/java/main/net/forbric/kernel/boot/KernelLifecycle.class");
-		Assumptions.assumeTrue(Files.isRegularFile(compiled), "KernelLifecycle not compiled yet");
+		assertTrue(Files.isRegularFile(compiled),
+				"KernelLifecycle not found in the compiled src/main classes, which exist before any test runs");
 		ClassNode lifecycle = new ClassNode();
 		new ClassReader(Files.readAllBytes(compiled)).accept(lifecycle, 0);
 		Set<Object> constants = new LinkedHashSet<>();

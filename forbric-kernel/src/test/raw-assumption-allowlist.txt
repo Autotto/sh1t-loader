@@ -6,9 +6,7 @@
 #
 # Paths are relative to forbric-kernel/, one per line, sorted. FixturePolicyExtensionTest stays for good: what the
 # extension does with a skip it did not make is the thing it tests.
-src/test/java/net/forbric/api/ApiLayeringTest.java
 src/test/java/net/forbric/api/ForeignTypeCarrierTest.java
-src/test/java/net/forbric/api/ForeignTypeTest.java
 src/test/java/net/forbric/api/GameEventBridgeInventoryTest.java
 src/test/java/net/forbric/kernel/FixturePolicyExtensionTest.java
 src/test/java/net/forbric/kernel/access/CarrierAccessTransformerTest.java
@@ -20,34 +18,23 @@ src/test/java/net/forbric/kernel/boot/ConfigPortBridgeForwardingTest.java
 src/test/java/net/forbric/kernel/boot/CrashAttributionTest.java
 src/test/java/net/forbric/kernel/boot/DatapackRegistryDeclarationTest.java
 src/test/java/net/forbric/kernel/boot/DeadEventAuditStagedTest.java
-src/test/java/net/forbric/kernel/boot/DependencyAuditOrderingTest.java
 src/test/java/net/forbric/kernel/boot/DuplicateModArbiterStagedTest.java
 src/test/java/net/forbric/kernel/boot/DuplicateModArbiterTest.java
-src/test/java/net/forbric/kernel/boot/FabricMainEntrypointWindowTest.java
 src/test/java/net/forbric/kernel/boot/FmlTomlShapeOracleTest.java
 src/test/java/net/forbric/kernel/boot/ForgeClientCanaryTest.java
-src/test/java/net/forbric/kernel/boot/ForgeConstructorWindowTest.java
 src/test/java/net/forbric/kernel/boot/HookCallSiteCensusStagedTest.java
-src/test/java/net/forbric/kernel/boot/InstallerLoaderBrandTest.java
 src/test/java/net/forbric/kernel/boot/KernelBootNeutersTest.java
 src/test/java/net/forbric/kernel/boot/KernelBundledMixinExtrasStagedTest.java
 src/test/java/net/forbric/kernel/boot/KernelBusSupportTest.java
-src/test/java/net/forbric/kernel/boot/KernelEventSubscribersArbitrationTest.java
-src/test/java/net/forbric/kernel/boot/KernelEventSubscribersTest.java
 src/test/java/net/forbric/kernel/boot/KernelForgeGatherStatesTest.java
 src/test/java/net/forbric/kernel/boot/KernelForgeInternalSubscribersTest.java
 src/test/java/net/forbric/kernel/boot/KernelForgeLoadingStateTest.java
 src/test/java/net/forbric/kernel/boot/KernelHudBridgeTest.java
-src/test/java/net/forbric/kernel/boot/KernelLifecycleFailureReportingTest.java
 src/test/java/net/forbric/kernel/boot/KernelLifecycleForgeConfigTest.java
-src/test/java/net/forbric/kernel/boot/KernelLifecycleLateConfigTest.java
-src/test/java/net/forbric/kernel/boot/KernelLifecycleRegistrationWindowTest.java
-src/test/java/net/forbric/kernel/boot/KernelLifecycleSetupPhaseReachTest.java
 src/test/java/net/forbric/kernel/boot/KernelLoadReportTest.java
 src/test/java/net/forbric/kernel/boot/KernelModContainerFactoryTest.java
 src/test/java/net/forbric/kernel/boot/KernelModLoaderClasslessTest.java
 src/test/java/net/forbric/kernel/boot/KernelModLoaderLowCodeForgeTest.java
-src/test/java/net/forbric/kernel/boot/KernelRegistrationIsolationTest.java
 src/test/java/net/forbric/kernel/boot/KernelTransferInteropTest.java
 src/test/java/net/forbric/kernel/boot/LaunchInputCheckTest.java
 src/test/java/net/forbric/kernel/boot/MergedLambdaCaptureTest.java
@@ -66,7 +53,6 @@ src/test/java/net/forbric/kernel/boot/ResultBridgeFidelityTest.java
 src/test/java/net/forbric/kernel/boot/RuntimeMixinConfigsTest.java
 src/test/java/net/forbric/kernel/boot/TransformerRegistrationOrderTest.java
 src/test/java/net/forbric/kernel/boot/WorldgenCanaryDataTest.java
-src/test/java/net/forbric/kernel/classloading/DelegationPolicyTest.java
 src/test/java/net/forbric/kernel/classloading/FabricLoaderInternalsTest.java
 src/test/java/net/forbric/kernel/classloading/LoaderProbePolicyTest.java
 src/test/java/net/forbric/kernel/compat/PrepareWorldTest.java
@@ -91,7 +77,6 @@ src/test/java/net/forbric/kernel/mixin/FmlTransformerViewTest.java
 src/test/java/net/forbric/kernel/mixin/GuiItemCaptureMixinAdapterTest.java
 src/test/java/net/forbric/kernel/mixin/InsertedLambdaArgumentShimTest.java
 src/test/java/net/forbric/kernel/mixin/KernelClientHookMixinAnchorsTest.java
-src/test/java/net/forbric/kernel/mixin/KernelMixinBootstrapDecorationTest.java
 src/test/java/net/forbric/kernel/mixin/LambdaPermutationCensusTest.java
 src/test/java/net/forbric/kernel/mixin/MergedBaseAbsorbedCallsTest.java
 src/test/java/net/forbric/kernel/mixin/MixinAddedMembersTest.java
@@ -270,7 +255,6 @@ src/test/java/net/forbric/kernel/transform/SoundRegistryIdentityInjectorTest.jav
 src/test/java/net/forbric/kernel/transform/SpawnPositionCallsInjectorTest.java
 src/test/java/net/forbric/kernel/transform/SpawnerFinalizeInjectorTest.java
 src/test/java/net/forbric/kernel/transform/TransferTransactionHooksTest.java
-src/test/java/net/forbric/kernel/transform/TransformerAnchorCensusTest.java
 src/test/java/net/forbric/kernel/transform/VanillaDamageReadInjectorTest.java
 src/test/java/net/forbric/kernel/transform/VanillaEarlyReturnsCensusTest.java
 src/test/java/net/forbric/kernel/transform/WrapperEntryAddedInjectorTest.java

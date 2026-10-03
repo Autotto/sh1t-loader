@@ -221,7 +221,8 @@ class RegistrationEventStepsTest {
 	void theTransferBridgeIsGatedOnCapabilitiesOnly() throws Exception {
 		Path compiled = Path.of(System.getProperty("user.dir"), "build", "classes", "java", "main",
 				"net", "forbric", "kernel", "boot", "KernelLifecycle.class");
-		assumeTrue(Files.isRegularFile(compiled), "KernelLifecycle not compiled yet");
+		assertTrue(Files.isRegularFile(compiled),
+				"KernelLifecycle not found in the compiled src/main classes, which exist before any test runs");
 		ClassNode node = new ClassNode();
 		new ClassReader(Files.readAllBytes(compiled)).accept(node, 0);
 		MethodNode fire = node.methods.stream().filter(m -> "fireRegistrationEvents".equals(m.name)).findFirst()

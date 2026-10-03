@@ -630,7 +630,8 @@ class EnvironmentStripTransformerTest {
 		// Read from the compiled class, as TransformerRegistrationOrderTest does: KernelBoot.java has defeated grep.
 		Path compiled = Path.of(System.getProperty("user.dir"), "build", "classes", "java", "main",
 				"net", "forbric", "kernel", "boot", "KernelBoot.class");
-		assumeTrue(Files.isRegularFile(compiled), "KernelBoot not compiled yet");
+		assertTrue(Files.isRegularFile(compiled),
+				"KernelBoot not found in the compiled src/main classes, which exist before any test runs");
 		ClassNode boot = node(Files.readAllBytes(compiled));
 
 		boolean phase = false;
