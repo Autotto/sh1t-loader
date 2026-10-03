@@ -65,7 +65,7 @@ class InjectorExecutionCensusTest {
 			"ClientPartTrackingInjector",
 			"CommonNetworkInteropInjector", "CompatPluginPlatformInjector",
 			"CompostablesFallbackInjector",
-			"CreativePagerBridgeInjector", "DragonPartsInjector",
+			"CreativePagerBridgeInjector",
 			"DuplicateLambdaPruneInjector", "EventChainAuditInjector",
 			"FabricFuelValuesInjector",
 			"FlowerPotRepairInjector", "FluidInteractionsInjector",
