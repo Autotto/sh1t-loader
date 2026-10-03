@@ -107,6 +107,10 @@ public final class CrashSuspectOffer {
 		List<String> listed = alreadyListed(gameDir);
 		List<DependencyReport.IsolationRow> without = new ArrayList<>();
 		for (CrashAttribution.Suspect line : linesOf(crash)) {
+			// Only a name the file can hold as one line, and so only a jar directly in mods/: the JSON is a file on
+			// disk like any other, and "../x.jar" would otherwise resolve outside mods/ and be written as a line
+			// that DisabledMods then skips as malformed.
+			if (!DisabledMods.parse(List.of(line.jar())).equals(List.of(line.jar()))) continue;
 			Path jar = gameDir.resolve("mods").resolve(line.jar());
 			if (!Files.isRegularFile(jar) || listed.contains(line.jar())) continue;
 			without.add(new DependencyReport.IsolationRow(line.modId(), line.name(), line.jar()));

@@ -217,6 +217,19 @@ class CrashSuspectOfferTest {
 	}
 
 	@Test
+	void aJarNameTheFileCannotHoldIsNeverOffered() throws Exception {
+		fabricJar("sodium.jar", "sodium");
+		Files.writeString(game.resolve("outside.jar"), "not in mods/");
+		crashPointingAt("crash-1.txt", suspect("outside", "Outside", "../outside.jar"),
+				suspect("hash", "Hash", "a#b.jar"), suspect("sodium", "Sodium", "sodium.jar"));
+
+		CrashSuspectOffer.run(game, null, answering(DependencyDialogMain.WITHOUT), TODAY);
+
+		assertEquals(List.of(new DependencyReport.IsolationRow("sodium", "Sodium", "sodium.jar")), asked.get(0).without());
+		assertEquals(List.of("sodium.jar"), DisabledMods.parse(Files.readAllLines(game.resolve(DisabledMods.FILE))));
+	}
+
+	@Test
 	void nothingLeftToSwitchOffAsksNothing() throws Exception {
 		crashPointingAt("crash-1.txt", suspect("gone", "Gone", "gone.jar"));
 
