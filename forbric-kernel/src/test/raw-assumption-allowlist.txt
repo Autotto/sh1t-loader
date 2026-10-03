@@ -7,21 +7,3 @@
 # Paths are relative to forbric-kernel/, one per line, sorted. FixturePolicyExtensionTest stays for good: what the
 # extension does with a skip it did not make is the thing it tests.
 src/test/java/net/forbric/kernel/FixturePolicyExtensionTest.java
-src/test/java/net/forbric/kernel/runtime/KernelClientPackSourceTest.java
-src/test/java/net/forbric/kernel/runtime/KernelCompostablesTest.java
-src/test/java/net/forbric/kernel/runtime/KernelConditionKillSwitchesTest.java
-src/test/java/net/forbric/kernel/runtime/KernelCreativePagerMergedScreenTest.java
-src/test/java/net/forbric/kernel/runtime/KernelFabricFluidBehaviorsTest.java
-src/test/java/net/forbric/kernel/runtime/KernelFeatureFlagsTest.java
-src/test/java/net/forbric/kernel/runtime/KernelForeignSkipConsumerTest.java
-src/test/java/net/forbric/kernel/runtime/KernelForgeModInfoTest.java
-src/test/java/net/forbric/kernel/runtime/KernelForgeWorldgenSeamsTest.java
-src/test/java/net/forbric/kernel/runtime/KernelGameBlockEventsTest.java
-src/test/java/net/forbric/kernel/runtime/KernelGameEntityEventsTest.java
-src/test/java/net/forbric/kernel/runtime/KernelLootModifiersTest.java
-src/test/java/net/forbric/kernel/runtime/KernelModInfoConfigTest.java
-src/test/java/net/forbric/kernel/runtime/KernelModelFormatsTest.java
-src/test/java/net/forbric/kernel/runtime/KernelNeoConditionsOverlayTest.java
-src/test/java/net/forbric/kernel/runtime/KernelNeoWorldgenTest.java
-src/test/java/net/forbric/kernel/runtime/KernelRuntimePackMetadataTest.java
-src/test/java/net/forbric/kernel/runtime/StagedGameClassLoader.java
