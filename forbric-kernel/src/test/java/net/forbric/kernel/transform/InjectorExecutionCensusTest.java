@@ -80,7 +80,7 @@ class InjectorExecutionCensusTest {
 			"LootTableEventBridgeInjector", "ModelFormatFunnelInjector",
 			"NeoConversionPostInjector",
 			"NeoScreenEventsInjector", "NeoTooltipAppendersInjector",
-			"ParticleGroupsInjector", "PayloadCodecFunnelInjector", "PortalSpawnInjector",
+			"PayloadCodecFunnelInjector", "PortalSpawnInjector",
 			"RecipeSyncFailSoftInjector", "RegistryDirectoryOwnerInjector",
 			"RegistrySyncParityInjector", "ServerCompatibilityTickInjector",
 			"SoundRegistryIdentityInjector",
