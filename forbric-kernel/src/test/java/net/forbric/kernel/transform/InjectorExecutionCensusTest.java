@@ -73,7 +73,7 @@ class InjectorExecutionCensusTest {
 			"ForgeAttributeValidationInjector",
 			"ForgeBlockTintInjector",
 			"ForgeClientConsumersInjector",
-			"ForgeCreativeTabsInjector", "ForgeDamageSeamsInjector",
+			"ForgeDamageSeamsInjector",
 			"ForgeLootPoolConditionsInjector",
 			"ForgePartTrackingInjector", "ForgeSpawnPlacementsInjector",
 			"ForgeWorldModifierInjector", "HopperFabricStorageInjector",
