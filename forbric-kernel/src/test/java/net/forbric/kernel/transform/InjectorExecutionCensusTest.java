@@ -82,7 +82,7 @@ class InjectorExecutionCensusTest {
 			"NeoClientSetupHookInjector", "NeoConversionPostInjector",
 			"NeoScreenEventsInjector", "NeoTooltipAppendersInjector",
 			"ParticleGroupsInjector", "PayloadCodecFunnelInjector", "PortalSpawnInjector",
-			"RecipeSyncFailSoftInjector", "RegistryAliasParityInjector", "RegistryDirectoryOwnerInjector",
+			"RecipeSyncFailSoftInjector", "RegistryDirectoryOwnerInjector",
 			"RegistrySyncParityInjector", "ServerCompatibilityTickInjector", "ServerReloadListenerNamesInjector",
 			"SoundRegistryIdentityInjector",
 			"SpawnPositionCallsInjector", "SpawnerFinalizeInjector",
