@@ -255,7 +255,12 @@ class DisabledModsTest {
 		ModCatalog.publish(List.of());
 		Path report = rundir.resolve("load-report.txt");
 
-		String said = KernelLoadReportTest.capture(() -> KernelLoadReport.writeTo(report));
+		// The pre-game boundary writes first, as evidence, and must not spend the success line the end of loading
+		// says: gate-m24c caught exactly that order.
+		String said = KernelLoadReportTest.capture(() -> {
+			KernelLoadReport.writeTo(report, false);
+			KernelLoadReport.writeTo(report, true);
+		});
 
 		assertTrue(said.contains("every mod finished loading"), "switching a mod off is not a failure: " + said);
 		assertTrue(said.contains("1 mod(s) switched off in forbric-disabled.txt: off.jar"), said);

@@ -166,7 +166,8 @@ public final class KernelLoadReport {
 					ForbricLog.warn("[Forbric/Load] %d confirmed compatibility finding(s) belong to no installed mod: %s — "
 							+ "details in .forbric-kernel/%s", unattributed.size(), String.join(", ", keys), FILE);
 				}
-				reported.set(true);
+				// Only a failure takes the success line away; a file naming switched-off jars alone does not.
+				if (!clean) reported.set(true);
 				lastRendered = rendered;
 				if (file == null) return;
 				Files.createDirectories(file.getParent());
