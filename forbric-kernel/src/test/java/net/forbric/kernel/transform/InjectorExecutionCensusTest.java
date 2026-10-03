@@ -82,7 +82,7 @@ class InjectorExecutionCensusTest {
 			"SoundRegistryIdentityInjector",
 			"SpawnerFinalizeInjector",
 			"SplitterPacketContextInjector", "TooltipOrderScrapeInjector",
-			"VanillaDamageReadInjector", "WidenedFieldTwinInjector");
+			"VanillaDamageReadInjector");
 
 	@Test void everyInjectorIsExecutedOrListedWithAReason() throws Exception {
 		Map<String, String> injectors = injectors(classesBeside(ClassTransformer.class));
