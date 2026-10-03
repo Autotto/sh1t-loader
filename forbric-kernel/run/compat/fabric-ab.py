@@ -283,6 +283,16 @@ def minimise(lab, budget, mode="all"):
                 minimalForbricSignature=forbric_minimal.get("signature"))
 
 
+def write_report(report, lab, summary):
+    """The committed evidence: manifest (Modrinth sha1 per jar), closure, summary and every session without its path."""
+    report.mkdir(parents=True, exist_ok=True)
+    (report / "summary.json").write_text(json.dumps(summary, indent=1) + "\n")
+    (report / "manifest.json").write_text(json.dumps(lab.manifest, indent=1) + "\n")
+    (report / "closure.json").write_text(json.dumps(lab.closure, indent=1, sort_keys=True) + "\n")
+    current = [r for r in lab.records() if r.get("identityDigest") in (lab.kernel, lab.launcher)]
+    (report / "sessions.jsonl").write_text("".join(json.dumps({k: v for k, v in r.items() if k != "result"}) + "\n" for r in current))
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--data", required=True)
@@ -321,9 +331,7 @@ def main(argv=None):
         (lab.out / "summary.json").write_text(json.dumps(summary, indent=1) + "\n")
         print(json.dumps(dict(pack=summary["pack"]["verdict"], perModCounts=summary["perModCounts"])))
         if args.report:
-            report = Path(args.report)
-            report.mkdir(parents=True, exist_ok=True)
-            (report / "summary.json").write_text(json.dumps(summary, indent=1) + "\n")
+            write_report(Path(args.report), lab, summary)
     return 0
 
 

@@ -121,6 +121,12 @@ class LabRuns(unittest.TestCase):
         self.assertEqual(ab.FORBRIC_ONLY, summary["pack"]["verdict"])
         self.assertNotIn(str(self.data), json.dumps(summary))
         self.assertNotIn("/nonexistent", json.dumps(summary))
+        report = Path(self.tmp.name) / "report"
+        ab.write_report(report, lab, summary)
+        for path in report.iterdir():
+            self.assertNotIn(self.tmp.name, path.read_text(), path.name)
+            self.assertNotIn("/nonexistent", path.read_text(), path.name)
+        self.assertEqual(len(lab.records()), len((report / "sessions.jsonl").read_text().splitlines()))
 
     def test_narrower_packs_read_each_subjects_own_sessions(self):
         lab = self.lab()
