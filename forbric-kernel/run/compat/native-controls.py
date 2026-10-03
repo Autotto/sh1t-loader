@@ -575,6 +575,8 @@ def main():
     run_set_parser.add_argument("--xmx", default="3G")
     run_set_parser.add_argument("--level-type", default="minecraft:normal")
     run_set_parser.add_argument("--keep", action="store_true", help="keep the instance directory")
+    run_set_parser.add_argument("--policy", choices=["strict", "continue", "ask"], default="strict",
+                                help="Forbric arm only: -Dforbric.compatibilityPolicy (continue shows what a refused launch would do)")
     args = parser.parse_args(); BASE.mkdir(parents=True, exist_ok=True)
     if args.action == "prepare":
         for family in VERSIONS if args.family == "all" else [args.family]:
@@ -600,7 +602,7 @@ def main():
     elif args.action == "compare":
         return 0 if compare(args.results) else 1
     elif args.action == "run-set":
-        result = run_set(args.engine, args.family, args.mods, args.ticks, args.timeout, args.xmx, args.level_type, keep=args.keep)
+        result = run_set(args.engine, args.family, args.mods, args.ticks, args.timeout, args.xmx, args.level_type, args.policy, args.keep)
         print(json.dumps({k: result[k] for k in ("engine", "outcome", "signature", "modSetSha256", "jars", "seconds", "result")}))
         return 0 if result["outcome"] == DONE else 1
     return 0

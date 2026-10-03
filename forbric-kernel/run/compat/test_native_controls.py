@@ -1,8 +1,11 @@
 """native-controls.py run-set: how one server console is classified, and what identifies a mod set."""
 import importlib.util
+import io
+import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 _spec = importlib.util.spec_from_file_location("native_controls", Path(__file__).with_name("native-controls.py"))
 nc = importlib.util.module_from_spec(_spec)
@@ -79,6 +82,20 @@ class ServerOutcome(unittest.TestCase):
         for log in logs:
             for code in (None, 0, 1, 78):
                 self.assertIn(nc.server_outcome(log, 200, code), nc.SERVER_OUTCOMES)
+
+
+class RunSetCommandLine(unittest.TestCase):
+    def test_the_policy_reaches_the_forbric_arm(self):
+        seen = {}
+
+        def fake(engine, family, mods, ticks, timeout, xmx, level_type, policy, keep):
+            seen.update(engine=engine, mods=mods, ticks=ticks, policy=policy)
+            return {"engine": engine, "outcome": nc.DONE, "signature": None, "modSetSha256": "x", "jars": len(mods), "seconds": 1.0, "result": "r"}
+        with mock.patch.object(nc, "run_set", fake), mock.patch.object(sys, "argv", ["native-controls.py", "run-set", "--engine", "forbric",
+                                                                                     "--policy", "continue", "--ticks", "40", "--mods", "a.jar", "b.jar"]), \
+                mock.patch("sys.stdout", new_callable=io.StringIO):
+            self.assertEqual(0, nc.main())
+        self.assertEqual(dict(engine="forbric", mods=["a.jar", "b.jar"], ticks=40, policy="continue"), seen)
 
 
 class ModSet(unittest.TestCase):

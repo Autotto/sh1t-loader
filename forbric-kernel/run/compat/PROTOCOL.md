@@ -357,12 +357,13 @@ kernel and merge-tools jars it is about to publish.
 or this checkout when that variable is absent. All generated files remain under this kernel's `build/`.
 
 `native-controls.py run-set --engine native|forbric --family fabric --mods JAR... [--ticks 200] [--timeout 900]
-[--xmx 3G] [--level-type minecraft:normal] [--keep]` boots one fresh server under `build/native-controls/instances/`
+[--xmx 3G] [--level-type minecraft:normal] [--policy strict] [--keep]` boots one fresh server under `build/native-controls/instances/`
 with exactly those jars (a normal world from the fixed seed, view and simulation distance 3, pause when empty off),
 waits for `Done (` as `control-diff.sh` does, asks `time query gametime` until the game has advanced `--ticks`, then
 saves and stops. The native arm is the image `prepare --family fabric` installed; the Forbric arm builds this
 checkout's kernel jar first and runs `launch-kernel-server.sh` under the strict policy (a dedicated server has no
-window, so the product default refuses the same way). `results/<run>/result.json` records `outcome`, the
+window, so the product default refuses the same way; `--policy continue` shows what a refused launch would have
+done, as a diagnostic and never as the comparison). `results/<run>/result.json` records `outcome`, the
 `modSetSha256` over the sorted jar SHA-256s (equal on both arms means they ran the same bytes), the kernel jar's
 SHA-256 (Forbric) or the launcher's (native), the measured game time, `signature` (`mac/ddmin_core.signature` of a
 failure), crash-report count, uncaught exceptions of other threads, and whether a non-daemon thread kept the JVM
