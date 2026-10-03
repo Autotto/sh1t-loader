@@ -67,7 +67,7 @@ class InjectorExecutionCensusTest {
 			"CompostablesFallbackInjector",
 			"CreativePagerBridgeInjector", "DragonPartsInjector",
 			"DuplicateLambdaPruneInjector", "EventChainAuditInjector",
-			"FabricFluidBehaviorInjector", "FabricFuelValuesInjector",
+			"FabricFuelValuesInjector",
 			"FlowerPotRepairInjector", "FluidInteractionsInjector", "ForeignFluidTypeInjector",
 			"ForgeClientConsumersInjector",
 			"ForgeLootPoolConditionsInjector",
