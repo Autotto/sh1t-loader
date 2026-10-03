@@ -67,7 +67,7 @@ class InjectorExecutionCensusTest {
 			"CreativePagerBridgeInjector",
 			"DuplicateLambdaPruneInjector", "EventChainAuditInjector",
 			"FabricFuelValuesInjector",
-			"FlowerPotRepairInjector", "FluidInteractionsInjector",
+			"FlowerPotRepairInjector",
 			"ForgeClientConsumersInjector",
 			"ForgeLootPoolConditionsInjector",
 			"ForgeSpawnPlacementsInjector",
