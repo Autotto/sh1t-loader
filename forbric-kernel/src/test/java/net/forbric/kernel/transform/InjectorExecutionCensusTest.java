@@ -73,7 +73,7 @@ class InjectorExecutionCensusTest {
 			"ForeignModPresenceInjector", "ForeignPayloadReceiveInjector", "ForgeAttributeValidationInjector",
 			"ForgeBindingsLookupInjector", "ForgeBlockTintInjector", "ForgeBrewingRecipesInjector",
 			"ForgeCapabilityTokenInjector", "ForgeClearableLazyInjector", "ForgeClientConsumersInjector",
-			"ForgeCreativeTabsInjector", "ForgeDamageSeamsInjector", "ForgeEnumExtensionInjector",
+			"ForgeCreativeTabsInjector", "ForgeDamageSeamsInjector",
 			"ForgeLauncherInfoInjector", "ForgeLoadingListHolderInjector", "ForgeLootPoolConditionsInjector",
 			"ForgeOptionsInjector", "ForgeOverlayNeuterInjector", "ForgePartTrackingInjector", "ForgeSpawnPlacementsInjector",
 			"ForgeWorldModifierInjector", "FurnaceTickCallsInjector", "HopperFabricStorageInjector",
