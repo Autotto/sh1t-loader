@@ -62,7 +62,7 @@ class InjectorExecutionCensusTest {
 	 * credited until it carries {@link ExecutesInjector} and passes the claim checks below.
 	 */
 	static final Map<String, String> NOT_EXECUTED_YET = notExecutedYet(
-			"CommonNetworkInteropInjector", "CompatPluginPlatformInjector",
+			"CompatPluginPlatformInjector",
 			"CompostablesFallbackInjector",
 			"CreativePagerBridgeInjector",
 			"DuplicateLambdaPruneInjector", "EventChainAuditInjector",
