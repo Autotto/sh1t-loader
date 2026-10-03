@@ -65,8 +65,7 @@ class InjectorExecutionCensusTest {
 			"CompatPluginPlatformInjector",
 			"EventChainAuditInjector",
 			"NeoTooltipAppendersInjector",
-			"RegistryDirectoryOwnerInjector",
-			"SpawnerFinalizeInjector");
+			"RegistryDirectoryOwnerInjector");
 
 	@Test void everyInjectorIsExecutedOrListedWithAReason() throws Exception {
 		Map<String, String> injectors = injectors(classesBeside(ClassTransformer.class));
