@@ -65,7 +65,7 @@ class InjectorExecutionCensusTest {
 			"BiomeInfoRebaseInjector",
 			"ClientPartTrackingInjector", "ClientSmokeTickInjector",
 			"CommonNetworkInteropInjector", "CompatPluginPlatformInjector", "CompatibilityPromptTickInjector",
-			"CompostablesFallbackInjector", "CreateHudContextInjector", "CreateSoundQueryInjector",
+			"CompostablesFallbackInjector",
 			"CreativePagerBridgeInjector", "DragonPartsInjector",
 			"DuplicateLambdaPruneInjector", "EventChainAuditInjector",
 			"FabricFluidBehaviorInjector", "FabricFuelValuesInjector",
