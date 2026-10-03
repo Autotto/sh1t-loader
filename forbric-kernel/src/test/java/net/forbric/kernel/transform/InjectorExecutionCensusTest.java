@@ -80,7 +80,7 @@ class InjectorExecutionCensusTest {
 			"HudElementBridgeInjector", "ItemUseOnInjector", "LiquidBlockFluidInjector",
 			"LootTableEventBridgeInjector", "ModelFormatFunnelInjector",
 			"NeoClientSetupHookInjector", "NeoConversionPostInjector",
-			"NeoEnumExtensionInjector", "NeoScreenEventsInjector", "NeoTooltipAppendersInjector",
+			"NeoScreenEventsInjector", "NeoTooltipAppendersInjector",
 			"ParticleGroupsInjector", "PayloadCodecFunnelInjector", "PortalSpawnInjector",
 			"RecipeSyncFailSoftInjector", "RegistryAliasParityInjector", "RegistryDirectoryOwnerInjector",
 			"RegistrySyncParityInjector", "ServerCompatibilityTickInjector", "ServerReloadListenerNamesInjector",
