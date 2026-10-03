@@ -46,6 +46,7 @@ import net.forbric.kernel.TestFixtures;
 import net.forbric.kernel.TestFixtures.Fixture;
 
 /** Both families' {@code ModList.isLoaded} gains the cross-ecosystem answer, and nothing else moves. */
+@ExecutesInjector(ForeignModPresenceInjector.class)
 class ForeignModPresenceInjectorTest {
 	private static final Path STAGE = TestFixtures.stagedRoot();
 	private static final Path NEOFORGE = STAGE.resolve("neoforge-runtime/neoforge-runtime.jar");

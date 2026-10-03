@@ -45,6 +45,7 @@ import net.forbric.kernel.TestFixtures.Fixture;
  * <p>A hand-built fixture would be the wrong subject: the whole premise is what a third-party jar compiled
  * against, and the shim's refusal condition is "that jar changed". Skips when the jar is not staged.
  */
+@ExecutesInjector(PortingLayerAbiInjector.class)
 class PortingLayerAbiInjectorTest {
 	private static final Path PORT = Path.of(System.getProperty("user.dir"), "run", "client-kernel", "mods",
 			"ForgeConfigAPIPort-v26.2.1-mc26.2.x-Fabric.jar").normalize();
