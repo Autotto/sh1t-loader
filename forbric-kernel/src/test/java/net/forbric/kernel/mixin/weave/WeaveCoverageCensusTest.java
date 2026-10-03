@@ -37,30 +37,31 @@ class WeaveCoverageCensusTest {
 	private static final String BOOTSTRAP = "net/forbric/kernel/mixin/KernelMixinBootstrap";
 
 	/**
-	 * The off switch a stage's weave test flips: a constant {@code property} declared by {@code owner} — the stage's own
-	 * class unless the stage stands down on another class's switch. An empty property is an audit with no switch.
+	 * The off switches a stage's weave tests flip: constant {@code properties} declared by {@code owner} — the stage's
+	 * own class unless the stage stands down on another class's switch. One per behaviour of the stage a test covers;
+	 * none is an audit with no switch.
 	 */
-	record Switch(String property, String owner) {
-		static Switch own(String property) {
-			return new Switch(property, null);
+	record Switch(List<String> properties, String owner) {
+		static Switch own(String... properties) {
+			return new Switch(List.of(properties), null);
 		}
 	}
 
 	/** stage (simple class name) -> the switch its weave test flips. The comment names the test. */
 	static final Map<String, Switch> WOVEN = Map.ofEntries(
-			Map.entry("FinalMixinApplications", Switch.own("")),                 // WeaveHarnessSelfTest, MixinOutcomeWeaveTest
+			Map.entry("FinalMixinApplications", Switch.own()),                   // WeaveHarnessSelfTest, MixinOutcomeWeaveTest
 			Map.entry("MixinAtWidenedCall", Switch.own("forbric.mixinAtWiden")), // MixinOutcomeWeaveTest
 			Map.entry("MixinStubRebind", Switch.own("forbric.mixinStubRebind")),
 			Map.entry("MixinSubtypeOwnerRetarget", Switch.own("forbric.mixinSubtypeOwner")),
 			Map.entry("MixinWrapOperationShim", Switch.own("forbric.wrapOperationShim")),
 			Map.entry("MixinRelocatedCall", Switch.own("forbric.mixinRelocatedCall")),
-			// soften() only: softenRequirements (forbric.requireFailSoft) has no scenario yet.
-			Map.entry("MixinLocalsCapture", Switch.own("forbric.localsFailSoft")),
+			// soften() in MixinLocalsCaptureWeaveTest, softenRequirements() in MixinRequireFailSoftWeaveTest.
+			Map.entry("MixinLocalsCapture", Switch.own("forbric.localsFailSoft", "forbric.requireFailSoft")),
 			Map.entry("MixinAtShape", Switch.own("forbric.mixinAtShape")),
 			Map.entry("MixinOverloadPin", Switch.own("forbric.mixinOverloadPin")),
 			Map.entry("MixinMergedTwin", Switch.own("forbric.mixinMergedTwins")),
 			// MixinNativeTail stands down with VanillaEarlyReturns, whose split its test puts on the run's pre-Mixin chain.
-			Map.entry("MixinNativeTail", new Switch("forbric.vanillaEarlyReturns", "net.forbric.kernel.transform.VanillaEarlyReturns")),
+			Map.entry("MixinNativeTail", new Switch(List.of("forbric.vanillaEarlyReturns"), "net.forbric.kernel.transform.VanillaEarlyReturns")),
 			Map.entry("MixinHandlerShim", Switch.own("forbric.mixinHandlerShim")),
 			Map.entry("MixinAnonymousRetarget", Switch.own("forbric.mixinAnonymousDrift")),
 			Map.entry("InterfaceDefaultConflictRepair", Switch.own("forbric.defaultConflictRepair")));
@@ -92,7 +93,7 @@ class WeaveCoverageCensusTest {
 		stages.addAll(postMixin);
 		assertEquals(List.of(), problems(stages, WOVEN.keySet(), NOT_WOVEN_YET.keySet()));
 		for (var woven : WOVEN.entrySet()) {
-			if (!woven.getValue().property().isEmpty()) assertSwitchBelongsTo(woven.getKey(), woven.getValue());
+			for (String property : woven.getValue().properties()) assertSwitchBelongsTo(woven.getKey(), property, woven.getValue().owner());
 		}
 
 		long pre = preMixin.stream().filter(WOVEN::containsKey).count();
@@ -132,15 +133,15 @@ class WeaveCoverageCensusTest {
 	 * A scenario cannot claim adapter X while flipping Y's switch: the switch must be one of X's own constants, or of
 	 * the one class X is declared to stand down with.
 	 */
-	private static void assertSwitchBelongsTo(String stage, Switch flipped) throws Exception {
-		Class<?> type = flipped.owner() != null ? Class.forName(flipped.owner()) : stageClass(stage);
+	private static void assertSwitchBelongsTo(String stage, String property, String owner) throws Exception {
+		Class<?> type = owner != null ? Class.forName(owner) : stageClass(stage);
 		for (Field field : type.getDeclaredFields()) {
 			if (Modifier.isStatic(field.getModifiers()) && field.getType() == String.class) {
 				field.setAccessible(true);
-				if (flipped.property().equals(field.get(null))) return;
+				if (property.equals(field.get(null))) return;
 			}
 		}
-		fail(type.getSimpleName() + " declares no constant " + flipped.property() + ", so the weave scenario for "
+		fail(type.getSimpleName() + " declares no constant " + property + ", so the weave scenario for "
 				+ stage + " does not switch it off");
 	}
 
