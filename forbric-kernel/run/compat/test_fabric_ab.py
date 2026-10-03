@@ -19,21 +19,33 @@ def result(engine, outcome, signature=None, digest="x"):
 
 
 class FakeServer:
-    """Forbric fails with SIGNATURE whenever a.jar and c.jar are both loaded; native runs everything."""
+    """Forbric fails with SIGNATURE whenever a.jar and c.jar are both loaded; native runs everything.
+
+    With an evidence directory, a failing session leaves the compatibility report the kernel would: a.jar's row and
+    the row of c.jar's library d.jar are not OK, which is what the minimiser's seeds are read from.
+    """
     SIGNATURE = "java.lang.IllegalStateException: duplicate registration"
 
-    def __init__(self, kernel=KERNEL):
-        self.kernel, self.launches = kernel, []
+    def __init__(self, kernel=KERNEL, evidence=None):
+        self.kernel, self.launches, self.evidence = kernel, [], evidence
 
     def __call__(self, engine, jars, ticks, timeout, xmx):
         names = {Path(j).name for j in jars}
         self.launches.append((engine, sorted(names)))
         failing = engine == "forbric" and {"a.jar", "c.jar"} <= names
         identity = {"kernel": {"sha256": self.kernel}} if engine == "forbric" else {"launcher": {"sha256": LAUNCHER}}
+        result = "/nonexistent/result.json"
+        if self.evidence is not None:
+            run = Path(self.evidence) / str(len(self.launches))
+            (run / ".forbric-kernel").mkdir(parents=True)
+            rows = [dict(modId=Path(j).stem, jar=Path(j).name, status="FAILED" if failing and Path(j).name in ("a.jar", "d.jar") else "OK")
+                    for j in jars]
+            (run / ".forbric-kernel/compatibility-report.json").write_text(json.dumps(dict(mods=rows)))
+            result = str(run / "result.json")
         return dict(outcome=nc.CRASH if failing else nc.DONE, signature=self.SIGNATURE if failing else None,
                     modSetSha256=nc.mod_set(jars)[1], inputDrift=[], identity=identity, seconds=1.0, secondsToDone=0.5,
                     gametime=[1, 201], exitCode=0, lingeredAfterStop=False, otherThreadFailures=[], crashReports=int(failing),
-                    result="/nonexistent/result.json")
+                    result=result)
 
 
 def pack(tmp, rows=None, closure=None):
@@ -103,6 +115,25 @@ class LabRuns(unittest.TestCase):
         self.assertEqual(ab.FORBRIC_ONLY, outcome["minimalVerdict"])
         # every Forbric launch carried c.jar's dependency whenever it carried c.jar
         self.assertTrue(all("d.jar" in names for engine, names in self.server.launches if "c.jar" in names))
+
+    def test_a_library_the_evidence_names_seeds_the_candidate_that_needs_it(self):
+        server = FakeServer(evidence=Path(self.tmp.name) / "evidence")
+        lab = self.lab(launch=server)
+        outcome = ab.minimise(lab, budget=40)
+        self.assertEqual(["a.jar", "c.jar"], outcome["seeds"])
+        self.assertEqual({"a.jar", "c.jar"}, set(outcome["minimal"]))
+        forbric = [names for engine, names in server.launches if engine == "forbric"]
+        # the pack, then the closed seed set straight away
+        self.assertEqual(["a.jar", "c.jar", "d.jar"], forbric[1])
+        unseeded = FakeServer()
+        ab.minimise(ab.Lab(self.data, Path(self.tmp.name) / "unseeded", 200, 900, "2G", kernel=KERNEL, launcher=LAUNCHER,
+                           launch=unseeded, verbose=False), budget=40)
+        self.assertLess(len(server.launches), len(unseeded.launches))
+
+    def test_a_widely_shared_library_seeds_nothing(self):
+        self.assertEqual([], ab.seed_candidates(["lib.jar"], ["a.jar", "b.jar", "c.jar", "e.jar"],
+                                                {name: ["lib.jar"] for name in ("a.jar", "b.jar", "c.jar", "e.jar")}))
+        self.assertEqual(["a.jar"], ab.seed_candidates(["lib.jar", "a.jar"], ["a.jar", "b.jar"], {"a.jar": ["lib.jar"]}))
 
     def test_a_passing_pack_has_nothing_to_minimise(self):
         lab = ab.Lab(pack(Path(self.tmp.name) / "p", [("a.jar", "popular"), ("b.jar", "random")], {}), Path(self.tmp.name) / "p/ab",

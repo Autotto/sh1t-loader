@@ -243,6 +243,25 @@ def confirm(lab):
                 lab.run(label, engine, lab.closed([name]), fresh=True)
 
 
+# A library more candidates than this need says nothing about which of them failed.
+SEED_DEPENDENTS = 3
+
+
+def seed_candidates(named, candidates, closure):
+    """The evidence's jars as candidates. A jar the evidence names that is only a dependency (a library whose
+    mixin or entrypoint failed, a nested mod) stands for the few candidates that pull it in, since ddmin can only
+    take candidates out; without this the seed set misses the failure and the search starts from the whole pack."""
+    allowed, out = set(candidates), []
+    for jar in named:
+        if jar in allowed:
+            out.append(jar)
+            continue
+        dependents = [c for c in candidates if jar in ddmin_core.closed([c], closure)]
+        if len(dependents) <= SEED_DEPENDENTS:
+            out += dependents
+    return list(dict.fromkeys(out))
+
+
 def minimise(lab, budget, mode="all"):
     """ddmin over a pack's Forbric failure, then the minimal set on native: who else fails on it says whose it is."""
     names, chosen = pack_jars(lab, mode)
@@ -263,8 +282,9 @@ def minimise(lab, budget, mode="all"):
     evidence = Path(reference["result"]).parent
     crash = next(iter(sorted((evidence / "crash-reports").glob("*.txt"))), None)
     read = lambda p: p.read_text(errors="replace") if p and p.is_file() else ""
-    seeds = ddmin_core.seeds(read(crash), read(evidence / ".forbric-kernel/crash-analysis.txt"),
-                             read(evidence / ".forbric-kernel/compatibility-report.json"), candidates)
+    named = ddmin_core.seeds(read(crash), read(evidence / ".forbric-kernel/crash-analysis.txt"),
+                             read(evidence / ".forbric-kernel/compatibility-report.json"), names)
+    seeds = seed_candidates(named, candidates, lab.closure)
     try:
         reduction = ddmin_core.minimise(candidates, oracle, lab.closure, seeds)
     except ddmin_core.NotReproduced as failure:

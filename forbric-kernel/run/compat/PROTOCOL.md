@@ -384,7 +384,8 @@ every jar together (`--subjects native-pass` only the subjects that ran alone on
 that ran alone on both, each with its dependencies); `per-mod --jobs N` runs each subject with its `closure.json`
 dependencies; `confirm` reruns, one at a time, each per-mod pair whose arms disagree; `ddmin [--subjects ...]`
 minimises a pack's Forbric failure with `mac/ddmin_core.py` (oracle: the Forbric arm; FAIL: the pack session's
-signature; seeds: that session's own evidence) and then runs the minimal set on native Fabric, so the result says
+signature; seeds: that session's own evidence, where a named library or nested mod stands for the at most three
+candidates that pull it in, since only candidates can be taken out) and then runs the minimal set on native Fabric, so the result says
 `FORBRIC_ONLY` or `BOTH_FAIL` from a run rather than an argument. Every session is a line of `<out>/runs.jsonl`
 keyed by engine, mod-set SHA-256, ticks and the engine's identity (the kernel jar's SHA-256 or the launcher's), so a
 repeated or interrupted command runs only what it has not seen, and a session of another kernel is never reused.
