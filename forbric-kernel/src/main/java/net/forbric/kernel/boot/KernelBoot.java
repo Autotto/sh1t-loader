@@ -203,6 +203,10 @@ public final class KernelBoot {
 		Path gameDir = extractGameDir(gameArgs, side.stripGameDir);
 		String gameVersion = detectGameVersion(gameJar);
 
+		// After a crash the last run attributed, offer to start without its suspects. Here, before arbitration,
+		// because "start without" is a line in forbric-disabled.txt and arbitration is what reads that file.
+		if (!CrashSuspectOffer.run(gameDir, side == Side.CLIENT)) return;
+
 		// Two separate jars can declare the SAME mod id — inevitable the moment a Fabric pack and a NeoForge pack
 		// are merged. MultiLoaderArbiter cannot see that (it is keyed by jar path), and left alone both jars enter
 		// `owned` and shadow each other class-for-class, contribute each other's mixin configs, and register the
