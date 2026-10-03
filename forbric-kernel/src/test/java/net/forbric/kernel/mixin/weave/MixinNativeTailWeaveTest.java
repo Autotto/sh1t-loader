@@ -19,6 +19,7 @@ import org.objectweb.asm.tree.MethodNode;
 
 import net.fabricmc.api.EnvType;
 import net.forbric.api.Ecosystem;
+import net.forbric.kernel.transform.VanillaEarlyReturns;
 
 /**
  * MixinNativeTail through the real weave: a NeoForge or MinecraftForge mod's {@code @At("TAIL")} on a method whose
@@ -35,8 +36,8 @@ import net.forbric.api.Ecosystem;
  *   <li>fabric — the same split, but a Fabric mod's TAIL keeps vanilla's meaning, so its handler sees only SHORT.
  *       This is what a NeoForge mod's handler would see without the rewrite, and what the RED mutation shows.</li>
  * </ul>
- * The harness installs no pre-Mixin chain, so the fixture's config plugin ({@code ChainStandIn}) installs
- * VanillaEarlyReturns the way KernelBoot does before Mixin prepares the config.
+ * VanillaEarlyReturns is the production stage on the run's pre-Mixin chain, registered as KernelBoot registers it:
+ * last in the coremod phase, and only while its switch is on.
  */
 class MixinNativeTailWeaveTest {
 	private static final Path SOURCES = Path.of("src/test/resources/weave/nativetail");
@@ -46,6 +47,10 @@ class MixinNativeTailWeaveTest {
 	private static final String HANDLER = "nativetail$countEveryChoice";
 	private static final String SAW_BOTH = WeaveHarnessMain.DONE + " least(1048576)=INT least(16)=SHORT tail saw [INT, SHORT]";
 	private static final String SAW_TAIL_ONLY = WeaveHarnessMain.DONE + " least(1048576)=INT least(16)=SHORT tail saw [SHORT]";
+	private static final String INSTALLED = "[WeaveHarness] pre-Mixin chain installed: COREMOD VanillaEarlyReturns sort "
+			+ Integer.MAX_VALUE + " (behind its enabled())";
+	private static final String NOT_REGISTERED = "[WeaveHarness] pre-Mixin chain: VanillaEarlyReturns.enabled() is false, "
+			+ "so KernelBoot would not register it";
 	private static final String REWRITTEN = "fixture.nativetail.mixin.IndexTypeMixin#" + HANDLER
 			+ ": its TAIL still runs at all 2 return(s)";
 
@@ -56,7 +61,6 @@ class MixinNativeTailWeaveTest {
 	@BeforeAll static void weaveEveryOwner() throws Exception {
 		fixture = WeaveHarness.fixture(work, "nativetail", List.of(
 				SOURCES.resolve("com/mojang/blaze3d/IndexType.java"),
-				SOURCES.resolve("fixture/nativetail/ChainStandIn.java"),
 				SOURCES.resolve("fixture/nativetail/Probe.java"),
 				SOURCES.resolve("fixture/nativetail/Seen.java"),
 				SOURCES.resolve("fixture/nativetail/mixin/IndexTypeMixin.java")),
@@ -70,7 +74,7 @@ class MixinNativeTailWeaveTest {
 	@Test void aForgeFamilyTailStillSeesThePathVanillaReturnsEarlyFrom() throws Exception {
 		for (String label : List.of("neoforge", "forge")) {
 			WeaveHarness.Result run = RUNS.get(label);
-			assertTrue(run.printed("[NativeTail] chain stand-in: VanillaEarlyReturns installed"), run.describe());
+			assertTrue(run.printed(INSTALLED), run.describe());
 			assertTrue(run.printed(SAW_BOTH), label + ": the TAIL handler missed the early path — " + run.describe());
 			assertEquals(2, returns(run), label + ": least was not split — " + run.describe());
 			assertEquals(2, handlerCalls(run), label + ": the handler is not woven before both returns — " + run.describe());
@@ -82,7 +86,8 @@ class MixinNativeTailWeaveTest {
 
 	@Test void switchedOffNothingIsSplitAndTheFoldedTailStillSeesBoth() throws Exception {
 		WeaveHarness.Result off = RUNS.get("neoforge-off");
-		assertTrue(off.printed("[NativeTail] chain stand-in: VanillaEarlyReturns is switched off"), off.describe());
+		assertTrue(off.printed(NOT_REGISTERED), off.describe());
+		assertFalse(off.printed(INSTALLED), off.describe());
 		assertTrue(off.printed(SAW_BOTH), off.describe());
 		assertEquals(1, returns(off), off.describe());
 		assertEquals(1, handlerCalls(off), off.describe());
@@ -124,8 +129,9 @@ class MixinNativeTailWeaveTest {
 	}
 
 	private static WeaveHarness.Result run(String label, Ecosystem owner, String earlyReturns) throws Exception {
-		return WeaveHarness.run(work, label, fixture, CONFIG, "nativetail", owner, EnvType.CLIENT,
-				"fixture.nativetail.Probe", "probe", Map.of("forbric.vanillaEarlyReturns", earlyReturns));
+		return WeaveHarness.run(work, label, fixture, List.of(new WeaveHarness.Config(CONFIG, "nativetail", owner)),
+				List.of(VanillaEarlyReturns.class), EnvType.CLIENT, "fixture.nativetail.Probe", "probe",
+				Map.of("forbric.vanillaEarlyReturns", earlyReturns));
 	}
 
 	/** Return instructions in the woven least: 2 once the INT path has its own return again. */

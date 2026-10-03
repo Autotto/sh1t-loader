@@ -59,8 +59,7 @@ class WeaveCoverageCensusTest {
 			Map.entry("MixinAtShape", Switch.own("forbric.mixinAtShape")),
 			Map.entry("MixinOverloadPin", Switch.own("forbric.mixinOverloadPin")),
 			Map.entry("MixinMergedTwin", Switch.own("forbric.mixinMergedTwins")),
-			// MixinNativeTail stands down with VanillaEarlyReturns, whose split its test installs through a fixture
-			// plugin because the harness runs no pre-Mixin transform chain yet.
+			// MixinNativeTail stands down with VanillaEarlyReturns, whose split its test puts on the run's pre-Mixin chain.
 			Map.entry("MixinNativeTail", new Switch("forbric.vanillaEarlyReturns", "net.forbric.kernel.transform.VanillaEarlyReturns")),
 			Map.entry("MixinHandlerShim", Switch.own("forbric.mixinHandlerShim")),
 			Map.entry("MixinAnonymousRetarget", Switch.own("forbric.mixinAnonymousDrift")),
