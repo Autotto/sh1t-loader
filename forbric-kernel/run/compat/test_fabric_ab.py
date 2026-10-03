@@ -198,5 +198,29 @@ class LabRuns(unittest.TestCase):
         self.assertEqual(ab.MATCHED_PASS, ab.summarise(lab.manifest, lab.records(), KERNEL, LAUNCHER, 200)["perModNotMatched"].get(name, {}).get("verdict", ab.MATCHED_PASS))
 
 
+class CommittedReport(unittest.TestCase):
+    """reports/2026-10-03-pure-fabric-server: its summary is what its own sessions say, and it names no machine."""
+    REPORT = Path(__file__).parent / "reports/2026-10-03-pure-fabric-server"
+
+    def test_the_summary_is_recomputed_from_the_committed_sessions(self):
+        summary = json.loads((self.REPORT / "summary.json").read_text(encoding="utf-8"))
+        manifest = json.loads((self.REPORT / "manifest.json").read_text())
+        sessions = [json.loads(line) for line in (self.REPORT / "sessions.jsonl").read_text().splitlines()]
+        again = ab.summarise(manifest, sessions, summary["kernelSha256"], summary["nativeLauncherSha256"], 200)
+        self.assertEqual(summary["perModCounts"], again["perModCounts"])
+        self.assertEqual(summary["perModMatchedPass"], again["perModMatchedPass"])
+        self.assertEqual({k: v["verdict"] for k, v in summary["packs"].items()}, {k: v["verdict"] for k, v in again["packs"].items()})
+        self.assertEqual(130, summary["subjects"])
+        self.assertEqual(130, sum(summary["perModCounts"].values()))
+
+    def test_every_jar_is_pinned_and_no_local_path_is_committed(self):
+        for row in json.loads((self.REPORT / "manifest.json").read_text()):
+            self.assertRegex(row["sha1"], "^[0-9a-f]{40}$", row["filename"])
+        for path in self.REPORT.iterdir():
+            text = path.read_text(encoding="utf-8")
+            for marker in ("/Users/", "/home/", "C:\\", "/private/"):
+                self.assertNotIn(marker, text, path.name)
+
+
 if __name__ == "__main__":
     unittest.main()
