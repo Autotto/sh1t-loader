@@ -73,8 +73,7 @@ class InjectorExecutionCensusTest {
 			"LootTableEventBridgeInjector", "ModelFormatFunnelInjector",
 			"NeoTooltipAppendersInjector",
 			"RegistryDirectoryOwnerInjector",
-			"SpawnerFinalizeInjector",
-			"SplitterPacketContextInjector");
+			"SpawnerFinalizeInjector");
 
 	@Test void everyInjectorIsExecutedOrListedWithAReason() throws Exception {
 		Map<String, String> injectors = injectors(classesBeside(ClassTransformer.class));
