@@ -36,10 +36,35 @@ class WeaveCoverageCensusTest {
 	private static final String SERVICE = "net/forbric/kernel/mixin/ForbricMixinService";
 	private static final String BOOTSTRAP = "net/forbric/kernel/mixin/KernelMixinBootstrap";
 
-	/** stage (simple class name) -> the off switch its weave test flips, or "" for an audit with no switch. */
-	static final Map<String, String> WOVEN = Map.of(
-			"MixinAtWidenedCall", "forbric.mixinAtWiden",   // MixinOutcomeWeaveTest, widened vs widened-off
-			"FinalMixinApplications", "");                  // the audit itself: WeaveHarnessSelfTest + MixinOutcomeWeaveTest
+	/**
+	 * The off switch a stage's weave test flips: a constant {@code property} declared by {@code owner} — the stage's own
+	 * class unless the stage stands down on another class's switch. An empty property is an audit with no switch.
+	 */
+	record Switch(String property, String owner) {
+		static Switch own(String property) {
+			return new Switch(property, null);
+		}
+	}
+
+	/** stage (simple class name) -> the switch its weave test flips. The comment names the test. */
+	static final Map<String, Switch> WOVEN = Map.ofEntries(
+			Map.entry("FinalMixinApplications", Switch.own("")),                 // WeaveHarnessSelfTest, MixinOutcomeWeaveTest
+			Map.entry("MixinAtWidenedCall", Switch.own("forbric.mixinAtWiden")), // MixinOutcomeWeaveTest
+			Map.entry("MixinStubRebind", Switch.own("forbric.mixinStubRebind")),
+			Map.entry("MixinSubtypeOwnerRetarget", Switch.own("forbric.mixinSubtypeOwner")),
+			Map.entry("MixinWrapOperationShim", Switch.own("forbric.wrapOperationShim")),
+			Map.entry("MixinRelocatedCall", Switch.own("forbric.mixinRelocatedCall")),
+			// soften() only: softenRequirements (forbric.requireFailSoft) has no scenario yet.
+			Map.entry("MixinLocalsCapture", Switch.own("forbric.localsFailSoft")),
+			Map.entry("MixinAtShape", Switch.own("forbric.mixinAtShape")),
+			Map.entry("MixinOverloadPin", Switch.own("forbric.mixinOverloadPin")),
+			Map.entry("MixinMergedTwin", Switch.own("forbric.mixinMergedTwins")),
+			// MixinNativeTail stands down with VanillaEarlyReturns, whose split its test installs through a fixture
+			// plugin because the harness runs no pre-Mixin transform chain yet.
+			Map.entry("MixinNativeTail", new Switch("forbric.vanillaEarlyReturns", "net.forbric.kernel.transform.VanillaEarlyReturns")),
+			Map.entry("MixinHandlerShim", Switch.own("forbric.mixinHandlerShim")),
+			Map.entry("MixinAnonymousRetarget", Switch.own("forbric.mixinAnonymousDrift")),
+			Map.entry("InterfaceDefaultConflictRepair", Switch.own("forbric.defaultConflictRepair")));
 
 	private static final String NO_SCENARIO = "no weave scenario yet; ClassNode-level tests only";
 	/** Only shrinks. Every row is a stage whose output no CI test has yet run through the real weave. */
@@ -53,11 +78,9 @@ class WeaveCoverageCensusTest {
 			"FabricMiningMixinAdapter", "FabricRegistryInitializationMixinAdapter", "FabricRegistryLoaderMixinAdapter",
 			"FabricSectionCompilerMixinAdapter", "FabricServerLanguageMixinAdapter", "FabricSoundMixinAdapter",
 			"GuiItemCaptureMixinAdapter", "InsertedLambdaArgumentShim", "KernelClientHookMixinAnchors",
-			"MixinAnonymousRetarget", "MixinAtShape", "MixinHandlerShim", "MixinLocalsCapture", "MixinMergedTwin",
-			"MixinNativeTail", "MixinOverloadPin", "MixinRelocatedCall", "MixinRetarget", "MixinShearsRelay", "MixinStubRebind",
-			"MixinSubtypeOwnerRetarget", "MixinWrapOperationShim",
+			"MixinRetarget", "MixinShearsRelay",
 			// post-Mixin stages
-			"NativeCoremodParity", "PostMixinFixups", "InterfaceDefaultConflictRepair", "ForgeTransferShapeAudit");
+			"NativeCoremodParity", "PostMixinFixups", "ForgeTransferShapeAudit");
 
 	@Test void everyPipelineStageIsWovenOrListedWithAReason() throws Exception {
 		Set<String> preMixin = preMixinAdapters();
@@ -70,7 +93,7 @@ class WeaveCoverageCensusTest {
 		stages.addAll(postMixin);
 		assertEquals(List.of(), problems(stages, WOVEN.keySet(), NOT_WOVEN_YET.keySet()));
 		for (var woven : WOVEN.entrySet()) {
-			if (!woven.getValue().isEmpty()) assertSwitchBelongsTo(woven.getKey(), woven.getValue());
+			if (!woven.getValue().property().isEmpty()) assertSwitchBelongsTo(woven.getKey(), woven.getValue());
 		}
 
 		long pre = preMixin.stream().filter(WOVEN::containsKey).count();
@@ -106,16 +129,28 @@ class WeaveCoverageCensusTest {
 		return problems;
 	}
 
-	/** A scenario cannot claim adapter X while flipping Y's switch: the switch must be one of X's own constants. */
-	private static void assertSwitchBelongsTo(String stage, String property) throws Exception {
-		Class<?> type = Class.forName("net.forbric.kernel.mixin." + stage);
+	/**
+	 * A scenario cannot claim adapter X while flipping Y's switch: the switch must be one of X's own constants, or of
+	 * the one class X is declared to stand down with.
+	 */
+	private static void assertSwitchBelongsTo(String stage, Switch flipped) throws Exception {
+		Class<?> type = flipped.owner() != null ? Class.forName(flipped.owner()) : stageClass(stage);
 		for (Field field : type.getDeclaredFields()) {
 			if (Modifier.isStatic(field.getModifiers()) && field.getType() == String.class) {
 				field.setAccessible(true);
-				if (property.equals(field.get(null))) return;
+				if (flipped.property().equals(field.get(null))) return;
 			}
 		}
-		fail(stage + " declares no constant " + property + ", so its weave scenario does not switch it off");
+		fail(type.getSimpleName() + " declares no constant " + flipped.property() + ", so the weave scenario for "
+				+ stage + " does not switch it off");
+	}
+
+	private static Class<?> stageClass(String stage) throws ClassNotFoundException {
+		try {
+			return Class.forName("net.forbric.kernel.mixin." + stage);
+		} catch (ClassNotFoundException notAnAdapter) {
+			return Class.forName("net.forbric.kernel.transform." + stage); // a post-Mixin stage
+		}
 	}
 
 	/** Every class getClassNode hands a guest mixin's ClassNode to. */
