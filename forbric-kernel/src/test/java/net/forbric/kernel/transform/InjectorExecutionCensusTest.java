@@ -63,10 +63,10 @@ class InjectorExecutionCensusTest {
 	 */
 	static final Map<String, String> NOT_EXECUTED_YET = notExecutedYet(
 			"BiomeInfoRebaseInjector",
-			"ClientEntrypointHookInjector", "ClientPackHookInjector", "ClientPartTrackingInjector", "ClientSmokeTickInjector",
+			"ClientPartTrackingInjector", "ClientSmokeTickInjector",
 			"CommonNetworkInteropInjector", "CompatPluginPlatformInjector", "CompatibilityPromptTickInjector",
 			"CompostablesFallbackInjector", "CreateHudContextInjector", "CreateSoundQueryInjector",
-			"CreativePagerBridgeInjector", "DataPackHookInjector", "DragonPartsInjector",
+			"CreativePagerBridgeInjector", "DragonPartsInjector",
 			"DuplicateLambdaPruneInjector", "EventChainAuditInjector",
 			"FabricFluidBehaviorInjector", "FabricFluidModelsInjector", "FabricFuelValuesInjector",
 			"FlowerPotRepairInjector", "FluidInteractionsInjector", "ForeignFluidTypeInjector",
@@ -78,7 +78,7 @@ class InjectorExecutionCensusTest {
 			"ForgeOptionsInjector", "ForgePartTrackingInjector", "ForgeSpawnPlacementsInjector",
 			"ForgeWorldModifierInjector", "HopperFabricStorageInjector",
 			"LootTableEventBridgeInjector", "ModelFormatFunnelInjector",
-			"NeoClientSetupHookInjector", "NeoConversionPostInjector",
+			"NeoConversionPostInjector",
 			"NeoScreenEventsInjector", "NeoTooltipAppendersInjector",
 			"ParticleGroupsInjector", "PayloadCodecFunnelInjector", "PortalSpawnInjector",
 			"RecipeSyncFailSoftInjector", "RegistryDirectoryOwnerInjector",
