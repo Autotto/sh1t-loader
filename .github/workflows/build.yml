@@ -68,9 +68,33 @@ jobs:
       # net.fabricmc.api surface it needs and is otherwise its own code.
       # check now includes portable Python tools and the packaged link gate's negative controls.
       # This remains a boot-only check: the integrationTest task is for machines with prepared game fixtures.
+      # Without game files about a third of the unit tests skip. skipBaseline holds that set to the committed
+      # forbric-kernel/src/test/skip-baseline/ci-unstaged.tsv: a test that starts skipping turns this job red.
       - name: Build and check (boot only)
         shell: bash
-        run: cd forbric-kernel && ./gradlew build
+        run: cd forbric-kernel && ./gradlew build -Pforbric.skipBaseline=ci-unstaged
+
+      # A skipped test passes the build, so say on the run page how many ran and how many skipped, and why.
+      - name: Test summary
+        if: always()
+        shell: bash
+        run: >-
+          python tools/junit_report.py summary --title 'Kernel tests (no game files)'
+          --results forbric-kernel/build/test-results --root "$GITHUB_WORKSPACE"
+          --baseline forbric-kernel/src/test/skip-baseline/ci-unstaged.tsv >> "$GITHUB_STEP_SUMMARY"
+
+      # This runner has no Mojang, Forge or NeoForge bytes (the game-side set is not compiled), so the raw reports
+      # are safe to publish: anyone can see which test skipped and why.
+      - uses: actions/upload-artifact@v5
+        if: always()
+        with:
+          name: kernel-test-results
+          path: |
+            forbric-kernel/build/test-results/
+            forbric-kernel/build/reports/tests/
+            forbric-kernel/build/skip-baseline/
+          if-no-files-found: warn
+          retention-days: 30
 
       - uses: actions/upload-artifact@v5
         with:
