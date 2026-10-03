@@ -221,6 +221,7 @@ class MixinOverlapLintTest {
 			assertEquals("mixin-overlap:t.Target.tick()V", f.id());
 			assertEquals(CompatibilityFinding.Confidence.SUSPECTED, f.confidence());
 			assertFalse(f.required());
+			assertTrue(f.detail().contains("higher priority"), "says which overwrite Mixin keeps: " + f.detail());
 			for (String other : List.of("alpha", "beta", "gamma")) {
 				assertEquals(!other.equals(f.modId()), f.detail().contains(other), f.modId() + ": " + f.detail());
 			}

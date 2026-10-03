@@ -315,7 +315,7 @@ Mixin (via MixinWeaverSlot) → NativeCoremodParity → PostMixinFixups → Inte
 
 | 规则 | 组合 | 类别 |
 | --- | --- | --- |
-| R1 | 同一方法上的两个 `@Overwrite` —— Mixin 最后应用的那个会悄悄替换掉另一个 | 冲突 |
+| R1 | 同一方法上的两个 `@Overwrite` —— 只留下一个方法体：优先级高的那个，优先级相同时留先应用的那个 | 冲突 |
 | R2 | 同一调用上的两个 `@Redirect`，ordinal 相同或未指定 —— Mixin 只保留一个 | 冲突 |
 | R3 | 一个 `@Overwrite`，加上另一个 mod 在该方法里的任意注入器 | 冲突 |
 | R4 | 同一调用上的 `@Redirect` 和另一个 mod 的 `@WrapOperation`/`@ModifyExpressionValue` | 提示 |

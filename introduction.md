@@ -588,7 +588,7 @@ counts as its installed jar, and two jars of one mod id as one mod:
 
 | Rule | Pair | Kind |
 | --- | --- | --- |
-| R1 | two `@Overwrite` of one method — the one Mixin applies last silently replaces the other | conflict |
+| R1 | two `@Overwrite` of one method — one body survives: the higher priority, or the first at equal priority | conflict |
 | R2 | two `@Redirect` of one call, equal or open ordinals — Mixin keeps one | conflict |
 | R3 | an `@Overwrite` and another mod's injector in that method | conflict |
 | R4 | a `@Redirect` and another mod's `@WrapOperation`/`@ModifyExpressionValue` on one call | note |

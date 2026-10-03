@@ -51,11 +51,12 @@ import net.forbric.kernel.util.ForbricLog;
  * Two mods' mixins that claim the same method in ways that cannot both take effect.
  *
  * <p>{@link MixinFit} asks whether ONE mixin still fits the merged base. A mixed pack fails a second way that no
- * single-mixin judgement can see: each mod fits, and the two of them together do not. Mixin applies every mixin of a
- * target in priority order, so when two mods {@code @Overwrite} the same method the one applied last silently
- * replaces the other; when two {@code @Redirect} the same call the second is a redirect conflict (skipped, under the
- * guest relaxation, without a word); and an {@code @Overwrite} replaces the body another mod's injector was written
- * against. Which mod "wins" depends on priorities neither author chose with the other in mind.
+ * single-mixin judgement can see: each mod fits, and the two of them together do not. When two mods {@code @Overwrite}
+ * the same method only one body survives: a higher-priority overwrite replaces a lower one without a word, and at
+ * equal priority the second is skipped with one WARN line ({@code MixinApplicatorStandard.mergeMethod}). When two
+ * {@code @Redirect} the same call Mixin keeps one of them. And every overwrite is merged before any injector is
+ * applied, so another mod's injector always lands in the overwrite's body, not the one it was written against. Which
+ * mod "wins" depends on priorities neither author chose with the other in mind.
  *
  * <p>The rules, each between claims of DIFFERENT mods on one target method:
  * <ul>
@@ -507,8 +508,8 @@ public final class MixinOverlapLint {
 
 	private static String detail(Overlap o, String modId, String others) {
 		return switch (o.rule()) {
-			case R1 -> String.format("its @Overwrite of %s and %s's cannot both take effect: the one Mixin applies last "
-					+ "replaces the other", o.where(), others);
+			case R1 -> String.format("its @Overwrite of %s and %s's cannot both take effect: Mixin keeps the one with the "
+					+ "higher priority, or the first at equal priority", o.where(), others);
 			case R2 -> String.format("its @Redirect of the call to %s in %s and %s's cannot both apply: Mixin keeps one "
 					+ "redirect and skips the other", member(o.at()), o.where(), others);
 			case R3 -> o.first().modId().equals(modId)
