@@ -919,8 +919,15 @@ java -cp <boot-cp> net.forbric.kernel.boot.Main --scan --mods <dir> --report out
   a Windows machine through the installed profile (`push-and-run.sh`, `win/*.py`, `pick_mods.py`, `evidence.py`),
   plus static tools (`abi-audit.py`, `field-drift.py`, `fapi-usage.py`, `hook-worklist.sh`, `repair-drift.sh`,
   `control-diff.sh` — same Fabric mods on native Fabric vs Forbric).
-- **CI** (`.github/workflows/build.yml`, JDK 21): job `kernel` runs `./gradlew jar test` in `forbric-kernel/` with
-  no staged artifacts; job `build` bootstraps and builds `forbric-loader/`.
+- **CI** (`.github/workflows/build.yml`): job `build` bootstraps and builds `forbric-loader/`. Job `kernel` (JDK 21,
+  no game files) runs `./gradlew build -Pforbric.skipBaseline=ci-unstaged` in `forbric-kernel/`: the boot side
+  compiles and the unit tests that need no game files run. About a third of the suite skips without game files,
+  and that skipped set must equal `src/test/skip-baseline/ci-unstaged.tsv` line for line (`skipRatchet`,
+  `tools/junit_report.py`): a test that starts skipping fails the job, and a line that stops skipping has to be
+  deleted. The run page shows tests / executed / skipped with the most common skip reasons, and the JUnit reports
+  are uploaded as `kernel-test-results`; regenerate the baseline from that artifact's `skips-actual-ci-unstaged.tsv`
+  or with `-Pforbric.writeSkipBaseline`. Job `development-tools` runs `tools/dev.py tool-test` and the packaged
+  link gate on Windows, Linux and macOS. No `gate-m*` runs in CI.
 
 ## 17. System properties
 
