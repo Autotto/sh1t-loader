@@ -298,6 +298,11 @@ test {
 	doFirst { systemProperty 'forbric.log4jApiForTests', configurations.compileClasspath.files.find { it.name.startsWith('log4j-api-') }?.absolutePath ?: '' }
 	// Game-side tests that name MixinExtras (KernelWrapOperationsTest) load it beside build/classes/java/runtime.
 	doFirst { systemProperty 'forbric.mixinExtrasForTests', configurations.nestedMods.files.find { it.name.startsWith('mixinextras-') }?.absolutePath ?: '' }
+	// The real-Mixin weave harness (net.forbric.kernel.mixin.weave) runs each bootstrap in a child JVM on this
+	// classpath, because Mixin's bootstrap is one-shot per JVM. Its fixtures include the mixin-outcome canary's
+	// sources, read in place, so editing that canary must re-run the tests.
+	doFirst { systemProperty 'forbric.weaveHarnessClasspath', sourceSets.test.runtimeClasspath.asPath }
+	inputs.files(fileTree('canary/mixin-outcome')).withPropertyName('weaveCanaries')
 	// Component/decision tests do not own macOS's first UI thread. Actual windows are exercised
 	// by the separately forked dialog/client gates, not by the Gradle worker's AppKit instance.
 	systemProperty 'java.awt.headless', 'true'
