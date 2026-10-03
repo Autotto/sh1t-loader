@@ -68,7 +68,7 @@ class InjectorExecutionCensusTest {
 			"CompostablesFallbackInjector", "CreateHudContextInjector", "CreateSoundQueryInjector",
 			"CreativePagerBridgeInjector", "DragonPartsInjector",
 			"DuplicateLambdaPruneInjector", "EventChainAuditInjector",
-			"FabricFluidBehaviorInjector", "FabricFluidModelsInjector", "FabricFuelValuesInjector",
+			"FabricFluidBehaviorInjector", "FabricFuelValuesInjector",
 			"FlowerPotRepairInjector", "FluidInteractionsInjector", "ForeignFluidTypeInjector",
 			"ForgeAttributeValidationInjector",
 			"ForgeBlockTintInjector", "ForgeBrewingRecipesInjector",
