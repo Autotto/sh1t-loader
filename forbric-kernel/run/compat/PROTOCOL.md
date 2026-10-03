@@ -456,6 +456,13 @@ for a new candidate; unfinished or differently fingerprinted individual results 
 `mac/dependency_selection.py` keeps already required API providers ahead of unrelated sampled hosts;
 `mac/test_archive.py` also verifies this selection rule.
 
+What a run says is decided in one place, `mac/sweep_verdict.py` (standard library only; it reads no file and no
+environment): `classify_run` (PASS, CRASH, STALL, STALL_IN_WORLD, NO_WORLD, NOT_DRAWN, FAIL), `mod_status` (a jar's
+worst row, its bundled rows included; ABSENT when the kernel never listed it), `subject_strict` (per-mod's strict
+pass) and `pack_strict` (mixed's). per-mod.py, mixed.py and the minimiser below all read runs through it.
+`mac/test_sweep_verdict.py` pins each outcome and compares every predicate, over input grids, with the code the two
+scripts carried before it moved here.
+
 ## Minimise a failing pack
 
 `mac/ddmin_core.py` is the game-free half of replacing hand bisection (halving a failing mixed pack, or

@@ -8,6 +8,7 @@ import shutil
 import subprocess
 import sys
 import time
+import sweep_verdict
 from world_save import saved_since
 
 DATA = Path(os.environ['PERMOD_DATA']).resolve()
@@ -40,12 +41,12 @@ def run(label, ticks):
     console = (evidence / 'client-console.log').read_text(errors='replace') if (evidence / 'client-console.log').exists() else ''
     report = json.loads((evidence / 'compatibility-report.json').read_text()) if (evidence / 'compatibility-report.json').exists() else {}
     crashes = list(evidence.glob('crash-*.txt'))
-    verdict = permod.classify_run(driver, console, crashes)
-    bad = [row for row in report.get('mods', []) if row.get('status') != 'OK']
-    missing = [name for name in subjects if permod.mod_status(name, report)[0] != 'OK']
+    verdict = sweep_verdict.classify_run(driver, console, crashes)
+    bad = sweep_verdict.bad_rows(report)
+    missing = sweep_verdict.missing_subjects(subjects, report)
     world = permod.INST / 'saves' / 'compat-world'
     saved = saved_since(world, start)
-    strict = process.returncode == 0 and verdict == 'PASS' and bool(report.get('mods')) and not bad and not missing and saved and not report.get('catalogFailures') and report.get('confirmedRequired', 0) == 0
+    strict = sweep_verdict.pack_strict(process.returncode, verdict, report, missing, saved)
     result = dict(run=verdict, strict=strict, bad_mods=bad, missing_subjects=missing, saved=saved, world_ticks=ticks, seconds=int(time.time() - start))
     (evidence / 'result.json').write_text(json.dumps(result, indent=2) + '\n')
     print(label, result, flush=True)
