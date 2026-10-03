@@ -62,7 +62,6 @@ class InjectorExecutionCensusTest {
 	 * credited until it carries {@link ExecutesInjector} and passes the claim checks below.
 	 */
 	static final Map<String, String> NOT_EXECUTED_YET = notExecutedYet(
-			"CompatPluginPlatformInjector",
 			"EventChainAuditInjector");
 
 	@Test void everyInjectorIsExecutedOrListedWithAReason() throws Exception {
