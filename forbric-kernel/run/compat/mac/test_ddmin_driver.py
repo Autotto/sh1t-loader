@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import shutil
 import tempfile
+import time
 import types
 import unittest
 from unittest import mock
@@ -46,7 +47,7 @@ class FakeGame:
         self.sessions = []
 
     def prepare(self, jars):
-        shutil.rmtree(self.instance, ignore_errors=True)
+        clear(self.instance)
         (self.instance / 'mods').mkdir(parents=True)
         for jar in jars:
             (self.instance / 'mods' / jar).write_bytes(b'')
@@ -99,6 +100,24 @@ class FakeGame:
         write(instance / 'client-console.log', console + '[Render thread/INFO]: joined world via quick-play\n')
         write(log, 'PASS client exit=0 joined=True drew=True\n')
         return 0
+
+
+def clear(directory):
+    """Remove a session's instance, or fail. ignore_errors hid a delete Windows refused while a scanner still held a
+    file the last session wrote: its crash report survived, the next clean session read as a crash, and the
+    minimiser kept jars it should have dropped (a flake seen only on windows-latest)."""
+    for attempt in range(50):
+        try:
+            shutil.rmtree(directory)
+        except FileNotFoundError:
+            return
+        except OSError:
+            if attempt == 49:
+                raise
+            time.sleep(0.1)
+        if not directory.exists():
+            return
+    raise AssertionError(f'{directory} could not be cleared')
 
 
 def write(path, text):
