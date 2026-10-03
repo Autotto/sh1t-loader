@@ -2,7 +2,6 @@ package net.forbric.kernel.boot;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -85,7 +84,9 @@ class TransformerRegistrationOrderTest {
 		List<String> order = transformerConstructionOrder();
 		int composition = order.indexOf("net/forbric/kernel/transform/ForgeCapabilityCompositionTransformer");
 		int compat = order.indexOf("net/forbric/kernel/transform/ForbricMergedBaseCompatTransformer");
-		assumeTrue(composition >= 0 && compat >= 0, "one of the two is no longer constructed in launch()");
+		// Both are src/main and constructed by every launch() today; retiring one retires this test with it.
+		assertTrue(composition >= 0 && compat >= 0,
+				"one of the two is no longer constructed in launch(). Full order: " + order);
 		// The compat transformer's addTheMissingCapabilityLifecycleStubs stands down when composition has
 		// already run. Reversed, it adds bare-return stubs the composition then has to work around, and its own
 		// claim ledger records a repair that did nothing useful.

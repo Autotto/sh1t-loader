@@ -11,7 +11,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.zip.ZipFile;
 
-import org.junit.jupiter.api.Assumptions;
+import net.forbric.kernel.TestFixtures;
+import net.forbric.kernel.TestFixtures.Fixture;
 import org.junit.jupiter.api.Test;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.Opcodes;
@@ -23,7 +24,7 @@ import org.objectweb.asm.tree.*;
  * lines without a word. Each step NeoForge takes after its RegisterEvent loop must be one the kernel names.
  */
 class NeoPostRegisterTailCensusTest {
-	private static final Path STAGED = Path.of(System.getProperty("forbric.stagedRoot", "../forbric-loader/run"));
+	private static final Path STAGED = TestFixtures.stagedRoot();
 	private static final Path NEO_RT = STAGED.resolve("neoforge-runtime/neoforge-runtime.jar");
 
 	/** NeoForge's step → the strings the kernel's copy uses to take it. */
@@ -38,7 +39,7 @@ class NeoPostRegisterTailCensusTest {
 	}
 
 	@Test void everyStepAfterNeoForgesRegisterLoopIsOneTheKernelTakes() throws Exception {
-		Assumptions.assumeTrue(Files.isRegularFile(NEO_RT), NEO_RT + " absent");
+		TestFixtures.require(Fixture.STAGED, Files.isRegularFile(NEO_RT), NEO_RT + " absent");
 		ClassNode gameData = new ClassNode();
 		try (ZipFile zip = new ZipFile(NEO_RT.toFile())) {
 			new ClassReader(zip.getInputStream(zip.getEntry("net/neoforged/neoforge/registries/GameData.class")).readAllBytes())

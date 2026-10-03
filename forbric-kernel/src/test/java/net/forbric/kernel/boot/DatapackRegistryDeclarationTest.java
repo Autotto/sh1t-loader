@@ -22,7 +22,6 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import java.io.InputStream;
 import java.lang.reflect.InvocationTargetException;
@@ -44,6 +43,8 @@ import org.objectweb.asm.tree.MethodNode;
 
 import net.forbric.api.CompatibilityFinding;
 import net.forbric.api.Side;
+import net.forbric.kernel.TestFixtures;
+import net.forbric.kernel.TestFixtures.Fixture;
 
 /**
  * Where a client declares its datapack registries, and what happens to the list when the two initialisers behind
@@ -334,7 +335,8 @@ class DatapackRegistryDeclarationTest {
 	void theReconcilesReflectiveTargetsExistWithTheseShapes() throws Exception {
 		Path runtime = staged("neoforge-runtime", "neoforge-runtime.jar");
 		Path merged = staged("merged-base", "patched-mc-merged-26.2.jar");
-		assumeTrue(Files.isRegularFile(runtime) && Files.isRegularFile(merged), "carrier or merged base not staged");
+		TestFixtures.require(Fixture.STAGED, Files.isRegularFile(runtime) && Files.isRegularFile(merged),
+				"carrier or merged base not staged");
 
 		ClassNode wrapper = classIn(runtime, "net/neoforged/neoforge/registries/DataPackRegistryEvent$DataPackRegistryData");
 		assertTrue(declares(wrapper, "<init>", "(Lnet/minecraft/resources/RegistryDataLoader$RegistryData;"
@@ -538,8 +540,7 @@ class DatapackRegistryDeclarationTest {
 	}
 
 	private static Path staged(String dir, String jar) {
-		return Path.of(System.getenv().getOrDefault("FORBRIC_OLD", System.getProperty("user.dir") + "/../forbric-loader"),
-				"run", dir, jar).normalize();
+		return TestFixtures.stagedRoot().resolve(dir).resolve(jar).normalize();
 	}
 
 	private static ClassNode classIn(Path jar, String internalName) throws Exception {
