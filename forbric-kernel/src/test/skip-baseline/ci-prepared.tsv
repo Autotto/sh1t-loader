@@ -3,12 +3,6 @@
 # Regenerate: ./gradlew check -Pforbric.skipBaseline=ci-prepared -Pforbric.writeSkipBaseline
 # or copy skips-actual-ci-prepared.tsv from the CI artifact.
 test	net.forbric.kernel.boot.AbiLinkAuditStagedTest	theStagedClientPackHasNoDanglingForgeFamilyReference()	staged pack or carriers absent
-test	net.forbric.kernel.boot.CrashAttributionTest	aJarNameIsNeverTurnedIntoAModId()	no such crash report in run/
-test	net.forbric.kernel.boot.CrashAttributionTest	mixinsOwnWordsAreBelievedWhenTheyNameAMod()	no captured crash report
-test	net.forbric.kernel.boot.CrashAttributionTest	onlyTheExceptionChainIsRead()	no such crash report in run/
-test	net.forbric.kernel.boot.CrashAttributionTest	theKernelAndTheGameAreNeverSuspects()	no such crash report in run/
-test	net.forbric.kernel.boot.CrashAttributionTest	theTopFrameSJarNamesTheMod()	no such crash report in run/
-test	net.forbric.kernel.boot.CrashAttributionTest	theWholePathWritesAFileBesideTheCrashReport()	no such crash report in run/
 test	net.forbric.kernel.boot.DuplicateModArbiterStagedTest	theStagedJadePairReproducesTheJavadocsNumbers()	staged pack absent
 test	net.forbric.kernel.boot.ForgeClientCanaryTest	packagedCanarySubscribesTheThreeEventsOnlyBehindItsClientClassBoundary()	build canaries with forbric-loader/run/build-testmods.sh
 test	net.forbric.kernel.boot.ForgeClientCanaryTest	presetListenerUsesTheModsBusGroupAndTheGateRequiresItsDelivery()	build canaries with forbric-loader/run/build-testmods.sh

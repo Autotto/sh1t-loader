@@ -17,12 +17,6 @@ test	net.forbric.kernel.boot.ConfigPortBridgeForwardingTest	allThreeConfigEvents
 test	net.forbric.kernel.boot.ConfigPortBridgeForwardingTest	bothRegistrationFormsOpenTheConfigRightAfterRegisteringIt()	game-side classes not compiled yet
 test	net.forbric.kernel.boot.ConfigPortBridgeForwardingTest	theContainerIsBuiltWithABusRatherThanANull()	game-side classes not compiled yet
 test	net.forbric.kernel.boot.ConfigPortBridgeForwardingTest	thePortingLayerIsReachedByNameSoItCanBeAbsent()	game-side classes not compiled yet
-test	net.forbric.kernel.boot.CrashAttributionTest	aJarNameIsNeverTurnedIntoAModId()	no such crash report in run/
-test	net.forbric.kernel.boot.CrashAttributionTest	mixinsOwnWordsAreBelievedWhenTheyNameAMod()	no captured crash report
-test	net.forbric.kernel.boot.CrashAttributionTest	onlyTheExceptionChainIsRead()	no such crash report in run/
-test	net.forbric.kernel.boot.CrashAttributionTest	theKernelAndTheGameAreNeverSuspects()	no such crash report in run/
-test	net.forbric.kernel.boot.CrashAttributionTest	theTopFrameSJarNamesTheMod()	no such crash report in run/
-test	net.forbric.kernel.boot.CrashAttributionTest	theWholePathWritesAFileBesideTheCrashReport()	no such crash report in run/
 test	net.forbric.kernel.boot.DatapackRegistryDeclarationTest	theReconcilesReflectiveTargetsExistWithTheseShapes()	carrier or merged base not staged
 test	net.forbric.kernel.boot.DeadEventAuditStagedTest	theMergedItemStackPostsOnlyMinecraftForgesTooltipEvent()	staged merged base absent
 test	net.forbric.kernel.boot.DuplicateModArbiterStagedTest	theStagedJadePairReproducesTheJavadocsNumbers()	staged pack absent

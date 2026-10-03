@@ -18,8 +18,10 @@ package net.forbric.kernel.boot;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -35,15 +37,22 @@ import net.forbric.api.ModCatalog;
 /**
  * Naming the mods a crash report points at.
  *
- * <p>The inputs are real crash reports this loader produced, kept in {@code run/}, rather than hand-written
- * traces: the whole value of this feature is that it works on what the game actually writes, and a fixture I
- * wrote myself would agree with my code by construction.
+ * <p>The inputs are real crash reports this loader produced rather than hand-written traces: the whole value of
+ * this feature is that it works on what the game actually writes, and a fixture I wrote myself would agree with my
+ * code by construction. They are copied into crash-attribution/ beside this class, with the machine's hardware
+ * values blanked and every section kept, because the originals under run/ exist only on the machine that crashed,
+ * and every test here that read them skipped everywhere else.
  */
 class CrashAttributionTest {
 	@TempDir
 	Path tmp;
 
-	private static final Path RUN = Path.of("run");
+	/** supermartijn642corelib's own frame on top: "Container screen registered with null menu type!". */
+	private static final String CORE_LIB = "crash-2026-09-20_17.17.35-client.txt";
+	/** A worldgen crash ("Feature placement") with Minecraft's whole walkthrough below the trace. */
+	private static final String WORLDGEN = "crash-2026-07-12_13.23.39-client.txt";
+	/** Mixin naming the mod that failed to apply, from the old forbric-loader (the repository's crash/ folder). */
+	private static final String MIXIN_APPLY = "crash-report.txt";
 
 	@AfterEach
 	void clearCatalogue() {
@@ -54,38 +63,36 @@ class CrashAttributionTest {
 		return new ModCatalog.Entry(Ecosystem.FABRIC, id, name, "1.0", "", List.of(), jar, "", "");
 	}
 
-	private static String read(Path report) throws Exception {
-		return Files.readString(report, StandardCharsets.UTF_8);
+	/**
+	 * The fixture {@code name}, which must still carry Minecraft's own sections: several tests here assert that
+	 * the attribution does NOT read them, and against a file without them those assertions would pass vacuously.
+	 */
+	private static String report(String name) throws Exception {
+		try (InputStream in = CrashAttributionTest.class.getResourceAsStream("crash-attribution/" + name)) {
+			assertNotNull(in, "crash-attribution/" + name + " is a committed test resource");
+			String text = new String(in.readAllBytes(), StandardCharsets.UTF_8);
+			assertTrue(text.contains("-- System Details --") && text.contains("Mod List:"),
+					name + " must keep the System Details section and its Mod List");
+			return text;
+		}
 	}
 
-	/** The first crash report under {@code run/} whose text contains {@code marker}, or null. */
-	private static Path find(String marker) throws Exception {
-		if (!Files.isDirectory(RUN)) return null;
-		try (var walk = Files.walk(RUN, 3)) {
-			for (Path p : walk.filter(Files::isRegularFile)
-					.filter(p -> p.getParent() != null
-							&& p.getParent().getFileName().toString().equals("crash-reports"))
-					.toList()) {
-				try {
-					if (Files.readString(p, StandardCharsets.UTF_8).contains(marker)) return p;
-				} catch (Exception unreadable) {
-					// A half-written report from an interrupted gate is not this test's problem.
-				}
-			}
+	@Test
+	void everyFixtureKeepsTheSectionsTheAttributionMustIgnore() throws Exception {
+		for (String name : List.of(CORE_LIB, WORLDGEN, MIXIN_APPLY)) {
+			String text = report(name);
+			assertTrue(CrashAttribution.exceptionChain(text).length() < text.length(), name);
 		}
-		return null;
 	}
 
 	@Test
 	void theTopFrameSJarNamesTheMod() throws Exception {
-		Path report = find("supermartijn642corelib");
-		org.junit.jupiter.api.Assumptions.assumeTrue(report != null, "no such crash report in run/");
 		ModCatalog.publish(List.of(
 				mod("supermartijn642corelib", "SuperMartijn642's Core Lib",
 						"supermartijn642corelib-1.1.24a-forge-mc26.2.jar"),
 				mod("sodium", "Sodium", "sodium-fabric-0.9.0.jar")));
 
-		List<CrashAttribution.Suspect> suspects = CrashAttribution.suspects(read(report));
+		List<CrashAttribution.Suspect> suspects = CrashAttribution.suspects(report(CORE_LIB));
 
 		assertFalse(suspects.isEmpty(), "the top frame of this crash is a mod jar");
 		assertEquals("supermartijn642corelib", suspects.get(0).modId(),
@@ -96,26 +103,22 @@ class CrashAttributionTest {
 
 	@Test
 	void theKernelAndTheGameAreNeverSuspects() throws Exception {
-		Path report = find("supermartijn642corelib");
-		org.junit.jupiter.api.Assumptions.assumeTrue(report != null, "no such crash report in run/");
 		// Nothing published at all: the catalogue is the deny-list. Every frame in this report belongs to the
 		// merged base, a runtime carrier, the kernel jar or the JDK, and none of those is a mod.
 		ModCatalog.publish(List.of());
 
-		assertEquals(List.of(), CrashAttribution.suspects(read(report)),
+		assertEquals(List.of(), CrashAttribution.suspects(report(CORE_LIB)),
 				"patched-mc-merged, the carriers and forbric-kernel's own jar are not mods");
 	}
 
 	@Test
 	void aJarNameIsNeverTurnedIntoAModId() throws Exception {
-		Path report = find("supermartijn642corelib");
-		org.junit.jupiter.api.Assumptions.assumeTrue(report != null, "no such crash report in run/");
 		// The jar is in the trace and the catalogue has a mod, but the mod's jar is spelled differently. A
 		// file name is not a mod id -- xaeroworldmap-*.jar carries xaerominimap-family ids, and jars renamed to
 		// a content hash are real -- so this must find nothing rather than guess from the name.
 		ModCatalog.publish(List.of(mod("supermartijn642corelib", "Core Lib", "some-other-name.jar")));
 
-		assertEquals(List.of(), CrashAttribution.suspects(read(report)));
+		assertEquals(List.of(), CrashAttribution.suspects(report(CORE_LIB)));
 	}
 
 	@Test
@@ -189,11 +192,9 @@ class CrashAttributionTest {
 
 	@Test
 	void mixinsOwnWordsAreBelievedWhenTheyNameAMod() throws Exception {
-		Path report = Path.of("..", "crash", "crash-report.txt");
-		org.junit.jupiter.api.Assumptions.assumeTrue(Files.isRegularFile(report), "no captured crash report");
 		ModCatalog.publish(List.of(mod("sodium", "Sodium", "sodium-fabric-0.9.0.jar")));
 
-		List<CrashAttribution.Suspect> suspects = CrashAttribution.suspects(read(report));
+		List<CrashAttribution.Suspect> suspects = CrashAttribution.suspects(report(MIXIN_APPLY));
 
 		// "Mixin [sodium-common.mixins.json:...LevelExtractorMixin from mod sodium] ... FAILED during APPLY".
 		// The whole crash is sodium's, and the Suspected Mods line in that very file says NONE.
@@ -203,9 +204,7 @@ class CrashAttributionTest {
 
 	@Test
 	void onlyTheExceptionChainIsRead() throws Exception {
-		Path report = find("-- Head --");
-		org.junit.jupiter.api.Assumptions.assumeTrue(report != null, "no such crash report in run/");
-		String whole = read(report);
+		String whole = report(WORLDGEN);
 		String chain = CrashAttribution.exceptionChain(whole);
 
 		assertTrue(chain.length() < whole.length(), "the walkthrough divider must cut the file");
@@ -288,12 +287,9 @@ class CrashAttributionTest {
 	void theWholePathWritesAFileBesideTheCrashReport() throws Exception {
 		// The write path end to end, on a real crash report, without needing to crash a game: stage it in a
 		// rundir, say the run started before it, and run the shutdown hook's body.
-		Path source = find("supermartijn642corelib");
-		org.junit.jupiter.api.Assumptions.assumeTrue(source != null, "no such crash report in run/");
 		Path dir = tmp.resolve("crash-reports");
 		Files.createDirectories(dir);
-		Path staged = dir.resolve(source.getFileName().toString());
-		Files.copy(source, staged);
+		Path staged = Files.writeString(dir.resolve(CORE_LIB), report(CORE_LIB));
 		Files.setLastModifiedTime(staged, java.nio.file.attribute.FileTime.fromMillis(System.currentTimeMillis()));
 		ModCatalog.publish(List.of(mod("supermartijn642corelib", "SuperMartijn642's Core Lib",
 				"supermartijn642corelib-1.1.24a-forge-mc26.2.jar")));
@@ -305,7 +301,7 @@ class CrashAttributionTest {
 		assertTrue(Files.isRegularFile(written), "nothing was written");
 		String text = Files.readString(written, StandardCharsets.UTF_8);
 		assertTrue(text.contains("SuperMartijn642's Core Lib"), text);
-		assertTrue(text.contains(source.getFileName().toString()), "it must point at the real report: " + text);
+		assertTrue(text.contains(CORE_LIB), "it must point at the real report: " + text);
 	}
 
 	@Test

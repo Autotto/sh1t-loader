@@ -15,7 +15,6 @@ src/test/java/net/forbric/kernel/boot/AbiLinkAuditStagedTest.java
 src/test/java/net/forbric/kernel/boot/CarrierLanguagesTest.java
 src/test/java/net/forbric/kernel/boot/ClientSetupRefusalTest.java
 src/test/java/net/forbric/kernel/boot/ConfigPortBridgeForwardingTest.java
-src/test/java/net/forbric/kernel/boot/CrashAttributionTest.java
 src/test/java/net/forbric/kernel/boot/DatapackRegistryDeclarationTest.java
 src/test/java/net/forbric/kernel/boot/DeadEventAuditStagedTest.java
 src/test/java/net/forbric/kernel/boot/DuplicateModArbiterStagedTest.java
