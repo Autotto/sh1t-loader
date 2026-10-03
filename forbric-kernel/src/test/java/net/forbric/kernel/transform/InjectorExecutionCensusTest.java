@@ -70,7 +70,7 @@ class InjectorExecutionCensusTest {
 			"FlowerPotRepairInjector", "FluidInteractionsInjector",
 			"ForgeClientConsumersInjector",
 			"ForgeLootPoolConditionsInjector",
-			"ForgePartTrackingInjector", "ForgeSpawnPlacementsInjector",
+			"ForgeSpawnPlacementsInjector",
 			"ForgeWorldModifierInjector", "HopperFabricStorageInjector",
 			"LootTableEventBridgeInjector", "ModelFormatFunnelInjector",
 			"NeoTooltipAppendersInjector",
