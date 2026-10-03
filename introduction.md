@@ -909,7 +909,7 @@ java -cp <boot-cp> net.forbric.kernel.boot.Main --scan --mods <dir> --report out
 | m18, m19, m20 | cross-ecosystem presence; a nested library initialised once; unmet dependency reaches the player |
 | m21, m26, m28, m29 | MinecraftForge setup, client registration events, configs + live file watcher, capabilities |
 | m22, m23 | quitting survives a replaced kernel jar; elytra flight |
-| m24, m30 | a failing mod, and a partly failing mod, attributed on every surface |
+| m24, m24b, m30 | a failing mod, a mod whose metadata cannot be read, and a partly failing mod, attributed on every surface |
 | m25, m31, m32 | both biome-modifier pipelines; zero-mod worldgen parity with vanilla; a save opens with a mod removed |
 | m33, m39, m40, m52 | item/fluid/energy transfer across ecosystems; hoppers into Fabric storages |
 | m34 | ≥ 7200 s occupied simulation soak with retention checks |
