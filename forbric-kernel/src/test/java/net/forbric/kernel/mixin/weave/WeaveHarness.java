@@ -27,6 +27,7 @@ import org.objectweb.asm.util.CheckClassAdapter;
 
 import net.fabricmc.api.EnvType;
 import net.forbric.api.Ecosystem;
+import net.forbric.kernel.transform.ClassTransformer;
 
 /**
  * Weaves guest-style mixins into fixture classes with the REAL Mixin and Forbric's real pipeline, then runs them.
@@ -120,10 +121,27 @@ final class WeaveHarness {
 		return jar;
 	}
 
-	/** One child JVM: bootstrap Mixin on {@code fixture}, call {@code probeClass.probeMethod()}, record findings. */
+	/** One mixin config of a run and the mod that declared it, as KernelBoot publishes it to MixinConfigOwners. */
+	record Config(String name, String modId, Ecosystem ecosystem) {
+	}
+
+	/** One child JVM: bootstrap Mixin on {@code fixture} with one config, call {@code probeClass.probeMethod()}, record findings. */
 	static Result run(Path work, String label, Path fixture, String config, String modId, Ecosystem ecosystem,
 			EnvType side, String probeClass, String probeMethod, Map<String, String> properties)
 			throws IOException, InterruptedException {
+		return run(work, label, fixture, List.of(new Config(config, modId, ecosystem)), List.of(), side, probeClass,
+				probeMethod, properties);
+	}
+
+	/**
+	 * One child JVM as a boot runs it: {@code chain} installed on the loader first, each transformer registered as
+	 * KernelBoot registers it ({@link KernelBootChain}); then {@code configs} published and registered in KernelBoot's
+	 * order, the Fabric ones as given with the Forge family's appended; Mixin up on {@code side}; then the probe.
+	 */
+	static Result run(Path work, String label, Path fixture, List<Config> configs,
+			List<Class<? extends ClassTransformer>> chain, EnvType side, String probeClass, String probeMethod,
+			Map<String, String> properties) throws IOException, InterruptedException {
+		assertFalse(configs.isEmpty(), "a weave run needs at least one mixin config");
 		Path dir = Files.createDirectories(work.resolve("run-" + label));
 		List<String> argfile = new ArrayList<>();
 		argfile.add("-cp");
@@ -136,10 +154,10 @@ final class WeaveHarness {
 		argfile.add("-Dmixin.debug.export=true");
 		for (var property : properties.entrySet()) argfile.add(quote("-D" + property.getKey() + "=" + property.getValue()));
 		argfile.add(WeaveHarnessMain.class.getName());
-		for (String arg : List.of(fixture.toString(), mixinExtrasJar(), config, modId, ecosystem.name(), side.name(),
-				probeClass, probeMethod, dir.toString())) {
-			argfile.add(quote(arg));
-		}
+		List<String> childArgs = new ArrayList<>(List.of(fixture.toString(), mixinExtrasJar(), side.name(), probeClass,
+				probeMethod, dir.toString(), String.join(",", chain.stream().map(Class::getName).toList())));
+		for (Config config : configs) childArgs.addAll(List.of(config.name(), config.modId(), config.ecosystem().name()));
+		for (String arg : childArgs) argfile.add(quote(arg));
 		Path args = dir.resolve("java.args");
 		Files.write(args, argfile, StandardCharsets.UTF_8);
 

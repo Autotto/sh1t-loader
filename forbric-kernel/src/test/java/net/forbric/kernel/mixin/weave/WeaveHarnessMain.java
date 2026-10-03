@@ -19,19 +19,23 @@ import net.forbric.kernel.mixin.MixinConfigOwners;
 /**
  * The child half of {@link WeaveHarness}: one JVM, one real Mixin bootstrap.
  *
- * <p>Everything a production boot does to a guest mixin happens here, through the same entry point
- * ({@link KernelMixinBootstrap#init}): {@code ForbricMixinService} serves the fixture jar's bytes and runs its
- * pre-Mixin adapter chain, real sponge-mixin weaves, the post-Mixin stages run, and
- * {@code FinalMixinApplications} audits the woven class as {@link ForbricClassLoader} defines it. Then the probe
- * method is CALLED, so what the test asserts is what the woven code did, not what the mixin said it would do.
+ * <p>Everything a production boot does to a guest mixin happens here, through the same entry points and in KernelBoot's
+ * order: the named pre-Mixin transformers go on the loader as a {@code TransformChain} ({@link KernelBootChain}), the
+ * config owners are published, and {@link KernelMixinBootstrap#init} registers the configs Fabric first with the Forge
+ * family appended. {@code ForbricMixinService} then serves the fixture jar's bytes through that chain and its own
+ * adapters, real sponge-mixin weaves, the post-Mixin stages run, and {@code FinalMixinApplications} audits the woven
+ * class as {@link ForbricClassLoader} defines it. Then the probe method is CALLED, so what the test asserts is what
+ * the woven code did, not what the mixin said it would do.
  *
  * <p>A child JVM because the bootstrap is one-shot per JVM and leaves Mixin's and the kernel's global state behind.
  *
- * <p>Arguments: fixtureJar mixinExtrasJar config modId ecosystem side probeClass probeMethod outDir.
+ * <p>Arguments: fixtureJar mixinExtrasJar side probeClass probeMethod outDir chain, then config modId ecosystem for
+ * each config; chain is a comma-separated list of transformer classes, empty for none.
  */
 public final class WeaveHarnessMain {
 	static final String DONE = "[WeaveHarness] probe returned";
 	static final String THREW = "[WeaveHarness] probe threw ";
+	static final String REGISTERED = "[WeaveHarness] mixin configs in registration order: ";
 
 	private WeaveHarnessMain() {
 	}
@@ -39,25 +43,36 @@ public final class WeaveHarnessMain {
 	public static void main(String[] args) throws Exception {
 		Path fixture = Path.of(args[0]);
 		String mixinExtras = args[1];
-		String config = args[2];
-		String modId = args[3];
-		Ecosystem ecosystem = Ecosystem.valueOf(args[4]);
-		EnvType side = EnvType.valueOf(args[5]);
-		String probeClass = args[6];
-		String probeMethod = args[7];
-		Path out = Path.of(args[8]);
+		EnvType side = EnvType.valueOf(args[2]);
+		String probeClass = args[3];
+		String probeMethod = args[4];
+		Path out = Path.of(args[5]);
+		List<String> chain = args[6].isEmpty() ? List.of() : List.of(args[6].split(","));
+		List<MixinConfigOwners.Owned> declared = new ArrayList<>();
+		for (int i = 7; i + 2 < args.length; i += 3) {
+			declared.add(new MixinConfigOwners.Owned(args[i], args[i + 1], Ecosystem.valueOf(args[i + 2]), ""));
+		}
 
 		List<URL> owned = new ArrayList<>();
 		owned.add(fixture.toUri().toURL());
 		if (!mixinExtras.isEmpty()) owned.add(Path.of(mixinExtras).toUri().toURL());
 		ForbricClassLoader loader = new ForbricClassLoader(owned.toArray(URL[]::new), ClassLoader.getSystemClassLoader());
+		// KernelBoot puts the chain on the loader before Mixin exists, so Mixin is only ever shown its output.
+		if (!chain.isEmpty()) KernelBootChain.install(loader, side, chain);
 		Thread.currentThread().setContextClassLoader(loader);
 
-		MixinConfigOwners.publish(List.of(new MixinConfigOwners.Owned(config, modId, ecosystem, "")));
+		// KernelBoot's order: the Fabric configs as they come, the Forge family's appended, every owner published first.
+		List<MixinConfigOwners.Owned> ordered = new ArrayList<>();
+		for (MixinConfigOwners.Owned one : declared) if (one.ecosystem() == Ecosystem.FABRIC) ordered.add(one);
+		for (MixinConfigOwners.Owned one : declared) if (one.ecosystem() != Ecosystem.FABRIC) ordered.add(one);
+		List<String> configs = new ArrayList<>();
+		for (MixinConfigOwners.Owned one : ordered) if (!configs.contains(one.config())) configs.add(one.config());
+		MixinConfigOwners.publish(ordered);
+		System.out.println(REGISTERED + String.join(", ", configs));
 		if ("off".equals(System.getProperty("forbric.weaveHarness.bootstrap"))) {
 			System.out.println("[WeaveHarness] bootstrap skipped (control run)");
 		} else {
-			KernelMixinBootstrap.init(loader, side, List.of(config));
+			KernelMixinBootstrap.init(loader, side, configs);
 		}
 
 		try {
