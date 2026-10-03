@@ -44,6 +44,8 @@ import org.objectweb.asm.tree.ClassNode;
 import org.objectweb.asm.tree.MethodNode;
 
 import net.forbric.api.CompatibilityFinding;
+import net.forbric.api.CompatibilityFindings;
+import net.forbric.kernel.util.ForbricLog;
 
 /**
  * Two mods' mixins that claim the same method in ways that cannot both take effect.
@@ -69,10 +71,13 @@ import net.forbric.api.CompatibilityFinding;
  * method (a wildcard, a regex, a bare name it cannot resolve) contributes no claim, and slices are not read, so two
  * redirects confined to different slices of one method still read as the same call.
  *
- * <p>{@link #findings}: one {@link CompatibilityFinding.Confidence#SUSPECTED} finding per mod and conflict. Offline:
- * {@code MixinOverlapLint <merged-base.jar> <mods-dir> [--json out]}.
+ * <p>Runtime ({@link #reportRegistered}): one {@link CompatibilityFinding.Confidence#SUSPECTED} finding per mod and
+ * conflict, and {@link #conflictsIn} for {@code CrashAttribution}. {@code -Dforbric.mixinOverlapLint=off} skips both.
+ * Offline: {@code MixinOverlapLint <merged-base.jar> <mods-dir> [--json out]}.
  */
 public final class MixinOverlapLint {
+	public static final String SWITCH = "forbric.mixinOverlapLint";
+
 	private static final String OVERWRITE_DESC = "Lorg/spongepowered/asm/mixin/Overwrite;";
 	private static final String REDIRECT = "Redirect";
 	private static final String OVERWRITE = "Overwrite";
@@ -161,7 +166,13 @@ public final class MixinOverlapLint {
 		}
 	}
 
+	private static volatile List<Overlap> recorded = List.of();
+
 	private MixinOverlapLint() {
+	}
+
+	static boolean enabled() {
+		return !"off".equalsIgnoreCase(System.getProperty(SWITCH, "on"));
 	}
 
 	// ---------------------------------------------------------------------------------------------------------------
@@ -350,8 +361,113 @@ public final class MixinOverlapLint {
 	}
 
 	// ---------------------------------------------------------------------------------------------------------------
-	// Findings
+	// Runtime
 	// ---------------------------------------------------------------------------------------------------------------
+
+	/** What the last {@link #reportRegistered} found; read by {@code CrashAttribution} from its shutdown hook. */
+	public static void publish(List<Overlap> overlaps) {
+		recorded = overlaps == null ? List.of() : List.copyOf(overlaps);
+	}
+
+	public static List<Overlap> recorded() {
+		return recorded;
+	}
+
+	/**
+	 * The recorded conflicts (not notes) in a method named {@code name} of {@code dottedOwner}, any descriptor: a stack
+	 * frame carries no descriptor, so an overload of the same name answers too.
+	 */
+	public static List<Overlap> conflictsIn(String dottedOwner, String name) {
+		if (dottedOwner == null || name == null) return List.of();
+		String owner = dottedOwner.replace('.', '/');
+		List<Overlap> out = new ArrayList<>();
+		for (Overlap o : recorded) {
+			if (o.rule().conflict && o.owner().equals(owner) && o.method().equals(name)) out.add(o);
+		}
+		return out;
+	}
+
+	/**
+	 * Lints every registered config as Mixin was served it — after the kernel's own drops, on this side — once Mixin has
+	 * prepared them. Records the findings and publishes the overlaps; logs how long it took.
+	 */
+	public static void reportRegistered() {
+		if (!enabled()) return;
+		report(ForbricMixinService.registeredConfigNames(), ForbricMixinService::servedConfig,
+				ForbricMixinService.adapterResource(), ForbricMixinService.side(), MixinConfigOwners::modIdOf,
+				installedAs(net.forbric.api.ModCatalog.everything()));
+	}
+
+	/** The mod a player installed that carries a mod id: itself, or the jar it is bundled in, followed up. */
+	static Function<String, String> installedAs(List<net.forbric.api.ModCatalog.Entry> catalog) {
+		Map<String, String> bundledBy = new java.util.HashMap<>();
+		for (net.forbric.api.ModCatalog.Entry e : catalog) bundledBy.putIfAbsent(e.modId(), e.bundledBy());
+		return modId -> {
+			String current = modId;
+			for (int guard = 0; guard < 8; guard++) {
+				String parent = bundledBy.get(current);
+				if (parent == null || parent.isEmpty() || parent.equals(current)) break;
+				current = parent;
+			}
+			return current;
+		};
+	}
+
+	/**
+	 * @param served   a config name to the JSON Mixin read
+	 * @param resource a mixin or target class ({@code some/pkg/Name.class}) to its bytes
+	 * @param owner    a config name to its one owning mod, or null; a config no single mod owns is not linted, since an
+	 *                 overlap "between" two names of one mod would be an accusation with nobody behind it
+	 * @param family   a mod id to the mod a player installed that carries it; see {@link Claim#family}
+	 */
+	static List<Overlap> report(Iterable<String> configs, Function<String, byte[]> served,
+			Function<String, byte[]> resource, net.fabricmc.api.EnvType side, Function<String, String> owner,
+			Function<String, String> family) {
+		long started = System.nanoTime();
+		List<Claim> claims = new ArrayList<>();
+		int linted = 0;
+		int mixins = 0;
+		List<String> unowned = new ArrayList<>();
+		for (String config : configs) {
+			String modId = owner.apply(config);
+			if (modId == null) {
+				unowned.add(config);
+				continue;
+			}
+			byte[] json = served.apply(config);
+			UnmodifiableConfig parsed = json == null ? null : parse(json);
+			if (parsed == null) continue;
+			Object pkg = parsed.get(List.of("package"));
+			if (pkg == null || pkg.toString().isEmpty()) continue;
+			linted++;
+			String pkgPath = pkg.toString().replace('.', '/');
+			for (String entry : KernelGuestMixinAdapter.appliedEntries(parsed, side)) {
+				byte[] bytes = resource.apply(pkgPath + "/" + entry.replace('.', '/') + ".class");
+				if (bytes == null) continue;
+				mixins++;
+				try {
+					claims.addAll(claims(modId, family.apply(modId), config, "mixins", bytes, resource));
+				} catch (RuntimeException unreadable) {
+					ForbricLog.debug("[Forbric/MixinOverlap] could not read %s:%s: %s", config, entry, unreadable);
+				}
+			}
+		}
+		List<Overlap> overlaps = overlaps(claims);
+		publish(overlaps);
+		for (CompatibilityFinding finding : findings(overlaps)) CompatibilityFindings.record(finding);
+
+		long ms = (System.nanoTime() - started) / 1_000_000;
+		Map<Rule, Integer> counts = counts(overlaps);
+		ForbricLog.info("[Forbric/MixinOverlap] linted %d mixin(s) in %d config(s) in %d ms: R1=%d R2=%d R3=%d R4=%d "
+				+ "(%d config(s) with no single owner not linted)", mixins, linted, ms, counts.get(Rule.R1),
+				counts.get(Rule.R2), counts.get(Rule.R3), counts.get(Rule.R4), unowned.size());
+		for (Overlap o : overlaps) {
+			String line = String.format("[Forbric/MixinOverlap] %s %s: %s (%s) and %s (%s)", o.rule(), o.id(),
+					o.first().modId(), o.first().site(), o.second().modId(), o.second().site());
+			if (o.rule().conflict) ForbricLog.warn("%s", line); else ForbricLog.debug("%s", line);
+		}
+		return overlaps;
+	}
 
 	static Map<Rule, Integer> counts(List<Overlap> overlaps) {
 		Map<Rule, Integer> counts = new LinkedHashMap<>();

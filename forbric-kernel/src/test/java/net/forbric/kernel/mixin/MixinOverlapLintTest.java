@@ -18,19 +18,31 @@ package net.forbric.kernel.mixin;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.objectweb.asm.AnnotationVisitor;
+import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Opcodes;
+import org.objectweb.asm.tree.AbstractInsnNode;
+import org.objectweb.asm.tree.ClassNode;
+import org.objectweb.asm.tree.MethodInsnNode;
+import org.objectweb.asm.tree.MethodNode;
 
 import net.forbric.api.CompatibilityFinding;
+import net.forbric.api.CompatibilityFindings;
 
 /**
  * Two mods' mixins claiming one method in ways that cannot both take effect, on hand-built mixins against a hand-built
@@ -48,6 +60,13 @@ class MixinOverlapLintTest {
 	private static final String OTHER = "Lt/Callee;other()V";
 
 	private static final Map<String, byte[]> CLASSES = Map.of("t/Target.class", target(), "t/Base.class", base());
+
+	@AfterEach
+	void forget() {
+		MixinOverlapLint.publish(List.of());
+		CompatibilityFindings.reset();
+		System.clearProperty(MixinOverlapLint.SWITCH);
+	}
 
 	// -------------------------------------------------------------------------------------------------------------
 	// The rules
@@ -184,7 +203,7 @@ class MixinOverlapLintTest {
 	}
 
 	// -------------------------------------------------------------------------------------------------------------
-	// Findings
+	// Findings, the runtime pass, the crash lookup
 	// -------------------------------------------------------------------------------------------------------------
 
 	@Test
@@ -208,6 +227,73 @@ class MixinOverlapLintTest {
 		}
 	}
 
+	@Test
+	void theRuntimePassReadsTheConfigsAsServedAndRecordsWhatItFinds() {
+		Map<String, byte[]> resources = new HashMap<>(CLASSES);
+		resources.put("a/AMixin.class", mixin("a/AMixin", cw -> overwrite(cw, "tick", "()V")));
+		resources.put("a/AIdle.class", mixin("a/AIdle", cw -> overwrite(cw, "idle", "()V")));
+		resources.put("b/BMixin.class", mixin("b/BMixin", cw -> overwrite(cw, "tick", "()V")));
+		resources.put("b/Dropped.class", mixin("b/Dropped", cw -> overwrite(cw, "idle", "()V")));
+		resources.put("c/CMixin.class", mixin("c/CMixin", cw -> overwrite(cw, "idle", "()V")));
+		Map<String, byte[]> served = Map.of(
+				"a.mixins.json", config("a", "AMixin", "AIdle"),
+				// The kernel dropped Dropped from b's config before Mixin read it: it cannot be half of an overlap.
+				"b.mixins.json", config("b", "BMixin"),
+				// No single mod owns c's config: its overwrite of idle would be an accusation with nobody behind it.
+				"c.mixins.json", config("c", "CMixin"));
+		Map<String, String> owners = Map.of("a.mixins.json", "alpha", "b.mixins.json", "beta");
+
+		List<MixinOverlapLint.Overlap> found = MixinOverlapLint.report(List.of("a.mixins.json", "b.mixins.json",
+				"c.mixins.json"), served::get, resources::get, net.fabricmc.api.EnvType.CLIENT, owners::get, id -> id);
+
+		assertEquals(List.of(MixinOverlapLint.Rule.R1), found.stream().map(MixinOverlapLint.Overlap::rule).toList());
+		assertEquals(found, MixinOverlapLint.recorded());
+		assertEquals(List.of("alpha:mixin-overlap:t.Target.tick()V", "beta:mixin-overlap:t.Target.tick()V"),
+				CompatibilityFindings.suspected().stream().map(CompatibilityFinding::key).toList());
+		assertEquals(1, MixinOverlapLint.conflictsIn("t.Target", "tick").size());
+		assertEquals(List.of(), MixinOverlapLint.conflictsIn("t.Target", "idle"));
+	}
+
+	@Test
+	void theSwitchTurnsTheRuntimePassOff() {
+		List<MixinOverlapLint.Overlap> seeded = MixinOverlapLint.overlaps(join(
+				claims("alpha", mixin("a/AMixin", cw -> overwrite(cw, "tick", "()V"))),
+				claims("beta", mixin("b/BMixin", cw -> overwrite(cw, "tick", "()V")))));
+		MixinOverlapLint.publish(seeded);
+
+		System.setProperty(MixinOverlapLint.SWITCH, "off");
+		MixinOverlapLint.reportRegistered();
+		assertEquals(seeded, MixinOverlapLint.recorded(), "off must not run the pass");
+
+		System.clearProperty(MixinOverlapLint.SWITCH);
+		MixinOverlapLint.reportRegistered();
+		assertEquals(List.of(), MixinOverlapLint.recorded(), "on, with no config registered, the pass finds nothing");
+	}
+
+	@Test
+	void theKernelLintsAfterMixinReadTheConfigsAndBeforeTheFirstReport() throws Exception {
+		// Read from the compiled bytecode: KernelBoot.java carries NUL bytes that make grep skip lines.
+		Path compiled = Path.of(System.getProperty("user.dir"), "build", "classes", "java", "main",
+				"net", "forbric", "kernel", "boot", "KernelBoot.class");
+		ClassNode boot = new ClassNode();
+		new ClassReader(Files.readAllBytes(compiled)).accept(boot, ClassReader.SKIP_FRAMES | ClassReader.SKIP_DEBUG);
+		List<String> calls = new ArrayList<>();
+		for (MethodNode m : boot.methods) {
+			if (m.instructions == null) continue;
+			for (AbstractInsnNode insn = m.instructions.getFirst(); insn != null; insn = insn.getNext()) {
+				if (insn instanceof MethodInsnNode call && call.getOpcode() == Opcodes.INVOKESTATIC) {
+					calls.add(m.name + ">" + call.owner.substring(call.owner.lastIndexOf('/') + 1) + "." + call.name);
+				}
+			}
+		}
+		int init = calls.indexOf("launch>KernelMixinBootstrap.init");
+		int lint = calls.indexOf("launch>MixinOverlapLint.reportRegistered");
+		int evidence = calls.indexOf("launch>KernelLoadReport.writeEvidence");
+		assertTrue(init >= 0 && lint >= 0 && evidence >= 0, calls.toString());
+		assertEquals(lint, calls.lastIndexOf("launch>MixinOverlapLint.reportRegistered"), "called once");
+		assertTrue(init < lint && lint < evidence, "init " + init + ", lint " + lint + ", evidence " + evidence);
+	}
+
 	// -------------------------------------------------------------------------------------------------------------
 	// Fixtures
 	// -------------------------------------------------------------------------------------------------------------
@@ -221,6 +307,12 @@ class MixinOverlapLintTest {
 		List<MixinOverlapLint.Claim> out = new ArrayList<>();
 		for (List<MixinOverlapLint.Claim> list : lists) out.addAll(list);
 		return out;
+	}
+
+	private static byte[] config(String pkg, String... mixins) {
+		StringBuilder json = new StringBuilder("{\"package\":\"").append(pkg).append("\",\"mixins\":[");
+		for (int i = 0; i < mixins.length; i++) json.append(i == 0 ? "" : ",").append('"').append(mixins[i]).append('"');
+		return json.append("]}").toString().getBytes(StandardCharsets.UTF_8);
 	}
 
 	private static byte[] base() {

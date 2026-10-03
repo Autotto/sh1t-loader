@@ -1078,6 +1078,10 @@ public final class KernelBoot {
 		PassiveSeeder.seedAll(loader, gameDir, side.api());
 		FabricApiModuleLossAudit.report(side.api());
 		FieldDriftAudit.report();
+		// After Mixin has read every config (on registration, in KernelMixinBootstrap.init) and the adapter has dropped
+		// what it drops from them: the lint reads each config as Mixin was served it, so a mixin the kernel removed is not
+		// half of an overlap. Before writeEvidence, so its findings are in the first report.
+		net.forbric.kernel.mixin.MixinOverlapLint.reportRegistered();
 		AbiLinkAudit.report();
 		// Evidence, not the end of loading: no mod has initialised yet, so this boundary may name what already
 		// failed but must not be the one that says every mod finished loading.
