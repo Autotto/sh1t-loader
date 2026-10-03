@@ -75,7 +75,6 @@ class InjectorExecutionCensusTest {
 			"ForgeWorldModifierInjector", "HopperFabricStorageInjector",
 			"LootTableEventBridgeInjector", "ModelFormatFunnelInjector",
 			"NeoTooltipAppendersInjector",
-			"PortalSpawnInjector",
 			"RegistryDirectoryOwnerInjector",
 			"RegistrySyncParityInjector",
 			"SoundRegistryIdentityInjector",
