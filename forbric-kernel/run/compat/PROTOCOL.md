@@ -432,6 +432,11 @@ the known missing-field error because the actual original constructor is execute
 
 `mac/pick.py <data-dir> <seed> <exclude-manifest> ...` selects up to 38 previously untested popular projects from the top 200
 and fills the remaining places with random projects for the selected game version, then downloads and verifies required dependencies.
+`PICK_COUNT` changes the 100 subjects (38 in 100 stay popular), `PICK_LOADER=fabric|neoforge|forge` takes every subject's
+build for that loader and skips a project without one instead of substituting another ecosystem's build, and
+`PICK_SIDE=server` keeps only projects whose Modrinth server side is required or optional and, for Fabric, whose own
+`fabric.mod.json` does not declare `"environment": "client"`. Without them the selection is the earlier sweeps' for the
+same seed. `mac/test_pick.py` checks the loader choice, the settings and a whole selection against a fake registry.
 `mac/api.py` supplies registry requests; `mac/archive.py` reads declared nested dependencies recursively.
 Set `PERMOD_DATA=<data-dir>` and run `mac/closure.py` to produce the per-subject transitive dependency sets.
 `mac/per-mod.py` runs each subject separately; dependency libraries are not counted as subjects. Configure

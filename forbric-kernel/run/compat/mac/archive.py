@@ -40,3 +40,14 @@ def jar_ids(data, depth=0):
     provided.discard(None)
     required.discard(None)
     return provided, required - provided
+
+
+def environment(data):
+    """The side a Fabric jar declares it runs on ('*', 'client' or 'server'); '*' when it declares none.
+
+    Fabric Loader's default is both sides, and a jar without fabric.mod.json declares nothing either way.
+    """
+    with zipfile.ZipFile(io.BytesIO(data)) as archive:
+        if 'fabric.mod.json' not in archive.namelist():
+            return '*'
+        return json.loads(archive.read('fabric.mod.json')).get('environment') or '*'
