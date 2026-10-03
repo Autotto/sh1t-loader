@@ -131,10 +131,11 @@ jobs:
       - name: Prepare the game files (no assets)
         run: python tools/dev.py prepare --no-assets
       # Same ratchet as the boot-only job, against its own baseline: what still skips here needs third-party mod
-      # packs that are not in this repository.
+      # packs that are not in this repository. Every other kind of fixture is prepared above, so requireFixtures
+      # turns a skip for any of them (or an untagged skip) into a failure at the test that skipped.
       - name: Unit and transfer tests with the game files
         shell: bash
-        run: cd forbric-kernel && ./gradlew jar test transferTest skipRatchet -Pforbric.skipBaseline=ci-prepared -Pforbric.requireTransfer=true
+        run: cd forbric-kernel && ./gradlew jar test transferTest skipRatchet -Pforbric.skipBaseline=ci-prepared -Pforbric.requireTransfer=true -Pforbric.requireFixtures=staged,game-side,mc-libraries,java-25
       # Real dedicated servers through the kernel, on the same prepared files: a zero-mod boot (m1) and the gates whose
       # mods are canaries built from this repository's sources. m36 weaves real guest mixins in a running server and
       # checks what they did (its weave-level half also runs in the unit suite, see MixinOutcomeWeaveTest); m46 and m53
