@@ -75,7 +75,8 @@ class WeaveCoverageCensusTest {
 			Map.entry("FabricEnchantmentMixinAdapter", new Switch(List.of("forbric.fabricItemContracts"), "net.forbric.kernel.transform.FabricItemContractTransformer")),
 			Map.entry("FabricRegistryLoaderMixinAdapter", Switch.own("forbric.fabricRegistryLoader")),
 			Map.entry("FabricFluidFlowMixinAdapter", Switch.own("forbric.fabricFluidFlow")),
-			Map.entry("FabricBlockStateCodecMixinAdapter", Switch.own("forbric.blockStateModelFormats")));
+			Map.entry("FabricBlockStateCodecMixinAdapter", Switch.own("forbric.blockStateModelFormats")),
+			Map.entry("FabricEntityMixinAnchors", Switch.own("forbric.fabricEntityAnchors")));
 
 	private static final String NO_SCENARIO = "no weave scenario yet; ClassNode-level tests only";
 	/** Only shrinks. Every row is a stage whose output no CI test has yet run through the real weave. */
@@ -85,7 +86,6 @@ class WeaveCoverageCensusTest {
 			"CreateFluidMixinAdapter", "CreateHudMixinAdapter", "CreateInjectionAdapters", "CreateInteractionMixinAdapters",
 			"CreateKeyboardMixinAdapter", "CreateStructureMixinAdapter", "FabricBlockBreakMixinAdapter",
 			"FabricClientMixinAnchors",
-			"FabricEntityMixinAnchors",
 			"FabricMiningMixinAdapter",
 			"FabricSectionCompilerMixinAdapter",
 			"GuiItemCaptureMixinAdapter", "InsertedLambdaArgumentShim", "KernelClientHookMixinAnchors",
