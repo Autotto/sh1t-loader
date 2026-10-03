@@ -64,7 +64,7 @@ class InjectorExecutionCensusTest {
 	static final Map<String, String> NOT_EXECUTED_YET = notExecutedYet(
 			"CompatPluginPlatformInjector",
 			"CompostablesFallbackInjector",
-			"DuplicateLambdaPruneInjector", "EventChainAuditInjector",
+			"EventChainAuditInjector",
 			"FabricFuelValuesInjector",
 			"ForgeClientConsumersInjector",
 			"ForgeLootPoolConditionsInjector",
