@@ -31,6 +31,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 import net.forbric.api.ModCatalog;
+import net.forbric.kernel.mixin.MixinOverlapLint;
 import net.forbric.kernel.util.ForbricLog;
 
 /**
@@ -114,6 +115,16 @@ public final class CrashAttribution {
 	/** The reason a suspect carries when the error names it as one side of a clash. */
 	static final String CLASH = "the error names it as clashing with another mod";
 
+	/**
+	 * The reason a suspect carries when the crash ran through a method its mixin and another mod's both claim in a way
+	 * that cannot both take effect ({@link MixinOverlapLint}). The overwritten method is the one frame that names neither
+	 * mod: its code is whichever overwrite Mixin applied last, under the vanilla class name and jar.
+	 */
+	static final String OVERLAP = "its mixin and another mod's collide in a method the crash went through";
+
+	/** A stack frame's class and method: {@code \tat net.minecraft.Foo$Bar.tick(Foo.java:1)}, module prefix dropped. */
+	private static final Pattern FRAME_METHOD = Pattern.compile("^\\s*at (?:[^\\s(]*/)?([\\w$.]+)\\.([\\w$<>]+)\\(");
+
 	private static volatile Path rundir;
 
 	/**
@@ -137,10 +148,18 @@ public final class CrashAttribution {
 	 *              own, or for a mod another jar carries inside itself, that jar's. Empty when no installed jar
 	 *              can be named, which leaves the mod out of the lines this suggests
 	 */
-	record Suspect(String modId, String name, String version, String reason, int depth, String jar) {
+	record Suspect(String modId, String name, String version, String reason, int depth, String jar, Collision collision) {
 		Suspect(String modId, String name, String version, String reason, int depth) {
-			this(modId, name, version, reason, depth, "");
+			this(modId, name, version, reason, depth, "", null);
 		}
+
+		Suspect(String modId, String name, String version, String reason, int depth, String jar) {
+			this(modId, name, version, reason, depth, jar, null);
+		}
+	}
+
+	/** For an {@link #OVERLAP} suspect: the other mod's display name, and the method as {@code Class.method}. */
+	record Collision(String other, String method) {
 	}
 
 	/** Where to look. Set from the boot, which is the only place that knows the instance directory. */
@@ -295,6 +314,17 @@ public final class CrashAttribution {
 				while (clashing.find()) {
 					for (String id : clashing.group(1).split(", and |, ?| and ")) remember(byId, id.strip(), CLASH, depth);
 				}
+			} else {
+				Matcher frame = FRAME_METHOD.matcher(line);
+				if (frame.find()) {
+					for (MixinOverlapLint.Overlap o : MixinOverlapLint.conflictsIn(frame.group(1), frame.group(2))) {
+						String first = o.first().modId();
+						String second = o.second().modId();
+						String where = o.where().replace('$', '.');
+						remember(byId, first, OVERLAP, depth, new Collision(displayName(second), where));
+						remember(byId, second, OVERLAP, depth, new Collision(displayName(first), where));
+					}
+				}
 			}
 			Matcher jar = FRAME_JAR.matcher(line);
 			while (jar.find()) {
@@ -318,14 +348,25 @@ public final class CrashAttribution {
 	 * thing an answer like this cannot afford to be.
 	 */
 	private static void remember(Map<String, Suspect> byId, String modId, String reason, int depth) {
+		remember(byId, modId, reason, depth, null);
+	}
+
+	private static void remember(Map<String, Suspect> byId, String modId, String reason, int depth, Collision collision) {
 		if (modId == null || modId.isBlank() || byId.containsKey(modId)) return;
 		for (ModCatalog.Entry entry : ModCatalog.everything()) {
 			if (entry.modId().equalsIgnoreCase(modId)) {
 				byId.put(entry.modId(), new Suspect(entry.modId(), entry.name(), entry.version(), reason, depth,
-						installedJar(entry)));
+						installedJar(entry), collision));
 				return;
 			}
 		}
+	}
+
+	private static String displayName(String modId) {
+		for (ModCatalog.Entry entry : ModCatalog.everything()) {
+			if (entry.modId().equalsIgnoreCase(modId)) return entry.name();
+		}
+		return modId;
 	}
 
 	/**
@@ -383,7 +424,9 @@ public final class CrashAttribution {
 				sb.append("  ").append(s.name());
 				if (!s.version().isEmpty()) sb.append(' ').append(s.version());
 				sb.append("  (").append(s.modId()).append(")\n");
-				sb.append("    ").append(zhReason(s.reason())).append("\n\n");
+				sb.append("    ").append(s.collision() == null ? zhReason(s.reason())
+						: "它和 " + s.collision().other() + " 的 mixin 都改了 " + s.collision().method()
+								+ "，两边不能同时生效，而这次崩溃正好经过这个方法").append("\n\n");
 			}
 			sb.append("怎么办\n");
 			sb.append("------\n");
@@ -391,6 +434,9 @@ public final class CrashAttribution {
 				sb.append(clashNames(suspects, "、")).append(" 不能装在一起：只留其中一个，把其余的从 mods 文件夹里拿出来再开一次。\n");
 			} else {
 				sb.append("先把最上面那个 mod 从 mods 文件夹里拿出来再开一次。还是崩就换下一个。\n");
+			}
+			for (String pair : collisions(suspects, true)) {
+				sb.append(pair).append("：先只留其中一个再开一次。\n");
 			}
 			List<String> lines = startWithout(suspects);
 			if (!lines.isEmpty()) {
@@ -419,7 +465,9 @@ public final class CrashAttribution {
 			sb.append("  ").append(s.name());
 			if (!s.version().isEmpty()) sb.append(' ').append(s.version());
 			sb.append("  (").append(s.modId()).append(")\n");
-			sb.append("    ").append(s.reason()).append("\n\n");
+			sb.append("    ").append(s.collision() == null ? s.reason()
+					: "its mixin and one from " + s.collision().other() + " both change " + s.collision().method()
+							+ " in ways that cannot both take effect, and the crash went through it").append("\n\n");
 		}
 		sb.append("What to do\n");
 		sb.append("----------\n");
@@ -428,6 +476,9 @@ public final class CrashAttribution {
 			sb.append("other").append(clashing(suspects) > 2 ? "s" : "").append(" out of your mods folder and start again.\n");
 		} else {
 			sb.append("Take the first one out of your mods folder and start again. If it still crashes, try the next.\n");
+		}
+		for (String pair : collisions(suspects, false)) {
+			sb.append(pair).append(": try the game with only one of them.\n");
 		}
 		List<String> lines = startWithout(suspects);
 		if (!lines.isEmpty()) {
@@ -438,6 +489,25 @@ public final class CrashAttribution {
 		sb.append("This is a guess: it says these mods were in the error, not that they are at fault.\n");
 		sb.append("The full error is in crash-reports/").append(reportName).append(".\n");
 		return sb.toString();
+	}
+
+	/**
+	 * One line per pair of {@link #OVERLAP} suspects, {@code "A and B both change Foo.tick"}: the pair is the finding,
+	 * and either one alone reads like the generic advice.
+	 */
+	private static List<String> collisions(List<Suspect> suspects, boolean zh) {
+		List<String> out = new ArrayList<>();
+		java.util.Set<String> seen = new java.util.HashSet<>();
+		for (Suspect s : suspects) {
+			if (s.collision() == null) continue;
+			String a = s.name();
+			String b = s.collision().other();
+			String key = (a.compareTo(b) < 0 ? a + "|" + b : b + "|" + a) + "|" + s.collision().method();
+			if (!seen.add(key)) continue;
+			out.add(zh ? a + " 和 " + b + " 都改了 " + s.collision().method()
+					: a + " and " + b + " both change " + s.collision().method());
+		}
+		return out;
 	}
 
 	/** The display names of the mods the error named as clashing, joined by {@code separator}. */

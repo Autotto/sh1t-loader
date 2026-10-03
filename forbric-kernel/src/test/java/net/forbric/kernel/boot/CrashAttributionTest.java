@@ -33,6 +33,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 import net.forbric.api.Ecosystem;
 import net.forbric.api.ModCatalog;
+import net.forbric.kernel.mixin.MixinOverlapLint;
 
 /**
  * Naming the mods a crash report points at.
@@ -57,7 +58,28 @@ class CrashAttributionTest {
 	@AfterEach
 	void clearCatalogue() {
 		ModCatalog.publish(List.of());
+		MixinOverlapLint.publish(List.of());
 	}
+
+	/** An overlap of {@code rule} between {@code first} and {@code second} on {@code ClassInstanceMultiMap.find}. */
+	private static MixinOverlapLint.Overlap overlap(MixinOverlapLint.Rule rule, String first, String second) {
+		String owner = "net/minecraft/util/ClassInstanceMultiMap";
+		String desc = "(Ljava/lang/Class;)Ljava/util/Collection;";
+		boolean call = rule == MixinOverlapLint.Rule.R4;
+		return new MixinOverlapLint.Overlap(rule,
+				new MixinOverlapLint.Claim(first, first + ".mixins.json", "a.FindMixin", "find", call ? "Redirect" : "Overwrite",
+						owner, "find", desc, call ? "INVOKE" : null, call ? "Lx/Y;z()V" : null, -1, "mixins", first),
+				new MixinOverlapLint.Claim(second, second + ".mixins.json", "b.FindMixin", "find",
+						call ? "WrapOperation" : "Overwrite", owner, "find", desc, call ? "INVOKE" : null,
+						call ? "Lx/Y;z()V" : null, -1, "mixins", second));
+	}
+
+	/** A trace whose only frame of interest is the overwritten method, under Minecraft's jar and name. */
+	private static final String THROUGH_FIND = "java.lang.ClassCastException: class a cannot be cast to class b\n"
+			+ "\tat forbric/net.minecraft.util.ClassInstanceMultiMap.find(ClassInstanceMultiMap.java:62) "
+			+ "~[patched-mc-merged-26.2.jar:?] {}\n"
+			+ "\tat forbric/net.minecraft.world.level.entity.EntitySection.getEntities(EntitySection.java:40) "
+			+ "~[patched-mc-merged-26.2.jar:?] {}\n";
 
 	private static ModCatalog.Entry mod(String id, String name, String jar) {
 		return new ModCatalog.Entry(Ecosystem.FABRIC, id, name, "1.0", "", List.of(), jar, "", "");
@@ -227,6 +249,40 @@ class CrashAttributionTest {
 		List<CrashAttribution.Suspect> suspects = CrashAttribution.suspects(trace.toString());
 		assertEquals(CrashAttribution.MOST, suspects.size(), "past a handful this stops being an answer");
 		assertEquals("mod0", suspects.get(0).modId(), "topmost frame first");
+	}
+
+	@Test
+	void aCrashThroughAMethodTwoModsOverwriteNamesBothOfThem() {
+		ModCatalog.publish(List.of(mod("lithium", "Lithium", "lithium-fabric-0.25.3+mc26.2.jar"),
+				mod("vmp", "Very Many Players", "vmp-fabric-mc26.2-0.2.0.jar"),
+				mod("minecraft", "Minecraft", "patched-mc-merged-26.2.jar")));
+		MixinOverlapLint.publish(List.of(overlap(MixinOverlapLint.Rule.R1, "lithium", "vmp")));
+
+		List<CrashAttribution.Suspect> suspects = CrashAttribution.suspects(THROUGH_FIND);
+
+		// Without the overlap the frame's jar is the only signal, and it names Minecraft.
+		assertEquals(List.of("lithium", "vmp", "minecraft"), suspects.stream().map(CrashAttribution.Suspect::modId).toList());
+		assertEquals(CrashAttribution.OVERLAP, suspects.get(0).reason());
+		assertEquals(CrashAttribution.OVERLAP, suspects.get(1).reason());
+		assertEquals("Very Many Players", suspects.get(0).collision().other());
+		assertEquals("ClassInstanceMultiMap.find", suspects.get(0).collision().method());
+		String en = CrashAttribution.render(false, "crash.txt", suspects);
+		assertTrue(en.contains("Lithium and Very Many Players both change ClassInstanceMultiMap.find"), en);
+		assertTrue(en.contains("its mixin and one from Lithium both change ClassInstanceMultiMap.find"), en);
+		String zh = CrashAttribution.render(true, "crash.txt", suspects);
+		assertTrue(zh.contains("Lithium 和 Very Many Players 都改了 ClassInstanceMultiMap.find"), zh);
+	}
+
+	@Test
+	void aNoteOrAnotherMethodNamesNobody() {
+		ModCatalog.publish(List.of(mod("lithium", "Lithium", "lithium.jar"), mod("vmp", "Very Many Players", "vmp.jar")));
+		// A redirect beside a WrapOperation is how MixinExtras is meant to be used: not something to accuse.
+		MixinOverlapLint.publish(List.of(overlap(MixinOverlapLint.Rule.R4, "lithium", "vmp")));
+		assertEquals(List.of(), CrashAttribution.suspects(THROUGH_FIND));
+
+		MixinOverlapLint.publish(List.of(overlap(MixinOverlapLint.Rule.R1, "lithium", "vmp")));
+		assertEquals(List.of(), CrashAttribution.suspects(THROUGH_FIND.replace("ClassInstanceMultiMap.find(",
+				"ClassInstanceMultiMap.getAllInstances(")));
 	}
 
 	@Test
