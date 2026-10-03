@@ -72,7 +72,7 @@ class InjectorExecutionCensusTest {
 			"FlowerPotRepairInjector", "FluidInteractionsInjector", "ForeignFluidTypeInjector",
 			"ForeignPayloadReceiveInjector", "ForgeAttributeValidationInjector",
 			"ForgeBindingsLookupInjector", "ForgeBlockTintInjector", "ForgeBrewingRecipesInjector",
-			"ForgeCapabilityTokenInjector", "ForgeClientConsumersInjector",
+			"ForgeClientConsumersInjector",
 			"ForgeCreativeTabsInjector", "ForgeDamageSeamsInjector",
 			"ForgeLauncherInfoInjector", "ForgeLootPoolConditionsInjector",
 			"ForgeOptionsInjector", "ForgePartTrackingInjector", "ForgeSpawnPlacementsInjector",
