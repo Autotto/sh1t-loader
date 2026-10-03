@@ -349,6 +349,10 @@ classpath (first-URL-wins would otherwise let it shadow the winner and contribut
 - **Overrides** — `-Dforbric.modOwner=sodium=fabric,…` or `<rundir>/forbric-mods.txt` (`<mod id> = <loader>`, one
   per line; the kernel writes a commented template the first time an instance has duplicates). The command line
   wins over the file.
+- **Switched off** — `<rundir>/forbric-disabled.txt` lists jar file names in `mods/` (comments and bad lines as in
+  `forbric-mods.txt`). `DisabledMods` keeps those jars out of the scan, so they never become claims, and they go
+  into `Decision.suppressedJars` but never `rescueJars`; with `-Dforbric.crossJarArbitration=off` a decision
+  holding only them is still cached. `load-report.txt` names them.
 - **Residuals** — the losing ecosystem gets a presence-only alias so `isLoaded(id)` still answers
   (`Decision.aliases`); the other ecosystem's build of a mod that did load may lend a missing class as a last
   resort (`rescueJars`); `ArbitratedAwayClasses` measures what the losing build had that the winner lacks.
@@ -692,6 +696,7 @@ deferred-work failures, the static audits of §3.2, `KernelTransferInterop`, and
 | `compatibility-report.json` | beside it, the machine-readable findings |
 | `merge-report.txt` | when two jars claimed one mod id (§4.3) |
 | `crash-analysis.txt` | after a crash report: which mods the stack points at (`CrashAttribution`; `-Dforbric.crashAnalysis=off`). The Forge `Suspected Mods:` line depends on a module layer the kernel does not build |
+| `crash-suspects.json` | beside it: `{schema:1, report, clash, suspects:[{modId,name,jar,reason,depth}]}`. On the next client launch, before arbitration, `CrashSuspectOffer` offers to start without those jars (for a clash, every side but the first-named), appends them to `<gameDir>/forbric-disabled.txt` on "Start without", and renames the file `crash-suspects.offered.json` whatever the answer. A server, a headless run and `-Dforbric.dependencyDialog=off` only log the lines |
 
 Working directories in the same place: `lib/` (extracted bundled jars), `jij/`, `jarjar/`, `candidates/`.
 
@@ -702,7 +707,9 @@ Working directories in the same place: `lib/` (extracted bundled jars), `jij/`, 
 the game runs with `-XstartOnFirstThread` and AWT cannot share thread one with GLFW. Parent and child share only
 the tab-separated file format in `DependencyReport`; strings are in `DialogLang` (system language,
 `-Dforbric.dialogLanguage=<code>` forces one). `-Dforbric.dependencyDialog=on` (default) | `off` | `dryRun` (forks
-the real child with AWT disabled — what gates assert on). The child times out after 10 minutes.
+the real child with AWT disabled — what gates assert on). The child times out after 10 minutes. The same child
+has a third window, `--isolation`: the crash-suspects offer of §12.2, whose exit code `2` means start without them;
+anything but its two explicit buttons starts with every mod.
 
 ### 12.4 Policy — `-Dforbric.compatibilityPolicy`
 
@@ -910,6 +917,7 @@ java -cp <boot-cp> net.forbric.kernel.boot.Main --scan --mods <dir> --report out
 | m21, m26, m28, m29 | MinecraftForge setup, client registration events, configs + live file watcher, capabilities |
 | m22, m23 | quitting survives a replaced kernel jar; elytra flight |
 | m24, m24b, m30 | a failing mod, a mod whose metadata cannot be read, and a partly failing mod, attributed on every surface |
+| m24c | a jar listed in `forbric-disabled.txt` is loaded by nobody and named in the load report; a server only logs the crash-suspects offer |
 | m25, m31, m32 | both biome-modifier pipelines; zero-mod worldgen parity with vanilla; a save opens with a mod removed |
 | m33, m39, m40, m52 | item/fluid/energy transfer across ecosystems; hoppers into Fabric storages |
 | m34 | ≥ 7200 s occupied simulation soak with retention checks |

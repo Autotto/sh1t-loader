@@ -197,6 +197,7 @@ Fabric 和 NeoForge 在构造函数里需要的状态正好相反，所以内核
 - **选择** —— `ReachableCandidateSelector` 为整个实例构建一个布尔模型（内嵌候选只能经由被选中的父 jar 存在），并用 SAT4J 求解；`JointCandidateSelector` 提供子句：硬依赖/软依赖、`breaks`/`incompatible` 互斥，以及来自 `CandidateContractScanner` 的符号契约（只采用强到足以约束选择的证据 —— 例如某个 mixin 必需的成员）。搜索按工作量设限，从不按时钟设限（`CONFLICT_BUDGET`、`VARIABLE_LIMIT`、`-Dforbric.arbitrationMaxNodes`，默认 100 000），所以同一个文件夹在任何机器上都会选出同样的 jar。
 - **偏好** —— 顶层重复：`-Dforbric.dupeIdPreference`，未设置时回退到 `multiLoaderPreference`。内嵌重复：`-Dforbric.nestedDupePreference`，默认 NeoForge、Fabric、MinecraftForge —— 之所以这样排，是因为多加载器库针对各加载器的构建会把该加载器缺少的阶段换成存根，而这个顺序能让调用空方法的调用方最少（javadoc 里记录了定下这个顺序的两个案例）。
 - **覆盖设置** —— `-Dforbric.modOwner=sodium=fabric,…` 或 `<rundir>/forbric-mods.txt`（每行一条 `<mod id> = <loader>`；实例第一次出现重复时，内核会写出一份带注释的模板）。命令行优先于文件。
+- **关掉的 jar** —— `<rundir>/forbric-disabled.txt` 列出 `mods/` 里的 jar 文件名（注释和写错的行与 `forbric-mods.txt` 的处理方式相同）。`DisabledMods` 让这些 jar 不进入扫描，所以它们不会成为声明；它们进入 `Decision.suppressedJars`，但绝不进入 `rescueJars`；`-Dforbric.crossJarArbitration=off` 时仍会缓存一份只含这些 jar 的决定。`load-report.txt` 会列出它们。
 - **残留处理** —— 落败的生态会得到一个仅在场的别名，让 `isLoaded(id)` 仍能作答（`Decision.aliases`）；对于已加载的 mod，它在另一个生态的构建可以作为最后手段借出缺失的类（`rescueJars`）；`ArbitratedAwayClasses` 统计落败构建里有、胜出方却缺少的内容。`MergeReport` 写出 `.forbric-kernel/merge-report.txt`，逐条解释每项决定。
 - `-Dforbric.crossJarArbitration=off` 会完全关闭这一机制。
 
@@ -375,12 +376,13 @@ NeoForge 的 `mod_resources` 来源在合并基底上是孤立的。`ClientPackH
 | `compatibility-report.json` | 与它放在一起，机器可读的检出项 |
 | `merge-report.txt` | 两个 jar 声明同一个 mod id 时（§4.3） |
 | `crash-analysis.txt` | 生成崩溃报告之后：调用栈指向哪些 mod（`CrashAttribution`；`-Dforbric.crashAnalysis=off`）。Forge 的 `Suspected Mods:` 那一行依赖一个模块层，而内核不构建这个模块层 |
+| `crash-suspects.json` | 与它放在一起：`{schema:1, report, clash, suspects:[{modId,name,jar,reason,depth}]}`。下一次客户端启动时，在仲裁之前，`CrashSuspectOffer` 提出不加载这些 jar 启动（冲突时保留第一个被点名的一方），选“不加载启动”就把它们追加进 `<gameDir>/forbric-disabled.txt`；无论怎么回答，都把文件改名为 `crash-suspects.offered.json`。服务器、无显示环境和 `-Dforbric.dependencyDialog=off` 只在日志里写出这些行 |
 
 同一位置还有几个工作目录：`lib/`（解压出来的自带 jar）、`jij/`、`jarjar/`、`candidates/`。
 
 ### 12.3 依赖对话框
 
-`ui.DependencyDialog` 向玩家显示未满足的硬依赖和跨 mod 的 mixin 失效。这个窗口是一个**独立的 JVM**（`DependencyDialogMain`，启动时 classpath 里只有内核 jar 这一项），因为在 macOS 上游戏带着 `-XstartOnFirstThread` 运行，AWT 无法和 GLFW 共用第一个线程。父子进程之间只共享 `DependencyReport` 里的制表符分隔文件格式；文案在 `DialogLang` 里（跟随系统语言，`-Dforbric.dialogLanguage=<code>` 可强制指定一种）。`-Dforbric.dependencyDialog=on`（默认）| `off` | `dryRun`（派生真正的子进程，但禁用 AWT——闸门断言的就是它）。子进程 10 分钟后超时。
+`ui.DependencyDialog` 向玩家显示未满足的硬依赖和跨 mod 的 mixin 失效。这个窗口是一个**独立的 JVM**（`DependencyDialogMain`，启动时 classpath 里只有内核 jar 这一项），因为在 macOS 上游戏带着 `-XstartOnFirstThread` 运行，AWT 无法和 GLFW 共用第一个线程。父子进程之间只共享 `DependencyReport` 里的制表符分隔文件格式；文案在 `DialogLang` 里（跟随系统语言，`-Dforbric.dialogLanguage=<code>` 可强制指定一种）。`-Dforbric.dependencyDialog=on`（默认）| `off` | `dryRun`（派生真正的子进程，但禁用 AWT——闸门断言的就是它）。子进程 10 分钟后超时。同一个子进程还有第三种窗口 `--isolation`，即 §12.2 的崩溃嫌疑提示：退出码 `2` 表示不加载它们启动；除了那两个明确的按钮，其他任何情况都按加载全部 mod 启动处理。
 
 ### 12.4 策略 —— `-Dforbric.compatibilityPolicy`
 
@@ -521,6 +523,7 @@ java -cp <boot-cp> net.forbric.kernel.boot.Main --scan --mods <dir> --report out
 | m21, m26, m28, m29 | MinecraftForge 初始化、客户端注册事件、配置 + 实时文件监视器、capability |
 | m22, m23 | 内核 jar 被替换后仍能正常退出；鞘翅飞行 |
 | m24, m24b, m30 | 一个失败的 mod、一个元数据读不出来的 mod、一个部分失败的 mod，在每个呈现面上都有归因 |
+| m24c | 写进 `forbric-disabled.txt` 的 jar 谁都不加载，并在加载报告里点名；服务器对崩溃嫌疑提示只写日志 |
 | m25, m31, m32 | 两条生物群系修改器流水线；零 mod 时世界生成与原版一致；移除一个 mod 后存档仍能打开 |
 | m33, m39, m40, m52 | 跨生态的物品/流体/能量传输；漏斗向 Fabric 存储输送 |
 | m34 | ≥ 7200 s 有玩家在线的模拟 soak 测试，带留存检查 |
