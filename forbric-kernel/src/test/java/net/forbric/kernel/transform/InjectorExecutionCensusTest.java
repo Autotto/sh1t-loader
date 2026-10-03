@@ -70,7 +70,7 @@ class InjectorExecutionCensusTest {
 			"ForgeLootPoolConditionsInjector",
 			"ForgeSpawnPlacementsInjector",
 			"ForgeWorldModifierInjector", "HopperFabricStorageInjector",
-			"LootTableEventBridgeInjector", "ModelFormatFunnelInjector",
+			"LootTableEventBridgeInjector",
 			"NeoTooltipAppendersInjector",
 			"RegistryDirectoryOwnerInjector",
 			"SpawnerFinalizeInjector");
