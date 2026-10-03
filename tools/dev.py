@@ -503,6 +503,9 @@ def main(argv=None):
         if args.command == 'tool-test':
             subprocess.run([sys.executable, '-m', 'unittest', 'discover', '-s', str(ROOT / 'tools'), '-p', 'test_*.py'], check=True, cwd=ROOT)
             subprocess.run([sys.executable, '-m', 'unittest', 'discover', '-s', str(KERNEL / 'run/compat'), '-p', 'test_*.py'], check=True, cwd=KERNEL)
+            # mac/ is not a package, so the call above never descends into it; its tools import each other flat.
+            mac = KERNEL / 'run/compat/mac'
+            subprocess.run([sys.executable, '-m', 'unittest', 'discover', '-s', str(mac), '-t', str(mac), '-p', 'test_*.py'], check=True, cwd=KERNEL)
             return 0
         java = java_bin(args.java)
         env = java_environment(java, minimum=21 if args.command == 'test' else 25)
