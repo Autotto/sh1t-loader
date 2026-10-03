@@ -68,6 +68,13 @@ public final class CrashAttribution {
 
 	private static final String FILE = "crash-analysis.txt";
 
+	/**
+	 * The same answer for a program: {@code {schema:1, report, clash, suspects:[{modId,name,jar,reason,depth}]}}.
+	 * {@link CrashSuspectOffer} reads it on the next launch, so the player can switch the suspects off in one step
+	 * instead of finding their jars by hand.
+	 */
+	static final String JSON = "crash-suspects.json";
+
 	/** How many mods the file names. Past a handful this stops being an answer and becomes a second list. */
 	static final int MOST = 5;
 
@@ -126,8 +133,14 @@ public final class CrashAttribution {
 	 *
 	 * @param depth how far down the trace it first appears; the ordering the answer is sorted by, because the
 	 *              frame that threw is a better suspect than the frame that called it
+	 * @param jar   the jar in {@code mods/} that a {@code forbric-disabled.txt} line would switch off: the mod's
+	 *              own, or for a mod another jar carries inside itself, that jar's. Empty when no installed jar
+	 *              can be named, which leaves the mod out of the lines this suggests
 	 */
-	record Suspect(String modId, String name, String version, String reason, int depth) {
+	record Suspect(String modId, String name, String version, String reason, int depth, String jar) {
+		Suspect(String modId, String name, String version, String reason, int depth) {
+			this(modId, name, version, reason, depth, "");
+		}
 	}
 
 	/** Where to look. Set from the boot, which is the only place that knows the instance directory. */
@@ -165,6 +178,7 @@ public final class CrashAttribution {
 			Path out = dir.resolve(".forbric-kernel").resolve(FILE);
 			Files.createDirectories(out.getParent());
 			Files.writeString(out, rendered, StandardCharsets.UTF_8);
+			Files.writeString(out.resolveSibling(JSON), json(report.getFileName().toString(), suspects), StandardCharsets.UTF_8);
 
 			// Printed as well as written. A launcher shows the tail of stdout when the game dies, and that is
 			// where a player is already looking; the file is for the person they send it to.
@@ -175,6 +189,49 @@ public final class CrashAttribution {
 		} catch (Throwable t) {
 			ForbricLog.debug("[Forbric/Crash] could not analyse the crash report: %s", String.valueOf(t));
 		}
+	}
+
+	/** The machine form of the answer; see {@link #JSON}. */
+	static String json(String reportName, List<Suspect> suspects) {
+		List<Object> rows = new ArrayList<>();
+		for (Suspect s : suspects) {
+			Map<String, Object> row = new LinkedHashMap<>();
+			row.put("modId", s.modId());
+			row.put("name", s.name());
+			row.put("jar", s.jar());
+			row.put("reason", s.reason());
+			row.put("depth", s.depth());
+			rows.add(row);
+		}
+		Map<String, Object> out = new LinkedHashMap<>();
+		out.put("schema", 1);
+		out.put("report", reportName);
+		out.put("clash", clashing(suspects) >= 2);
+		out.put("suspects", rows);
+		return net.forbric.kernel.soak.SoakJson.encode(out) + "\n";
+	}
+
+	/**
+	 * The {@code forbric-disabled.txt} lines that would start the game without the suspects, in order, each jar
+	 * once.
+	 *
+	 * <p>For a clash, every side but the first-named: the error says the mods cannot run TOGETHER, so the game
+	 * starts with one of them, and the first is the one the advice above already says to keep. Anything else the
+	 * clash report names — the mod whose code threw the error, usually — is not a side and stays.
+	 */
+	static List<String> startWithout(List<Suspect> suspects) {
+		boolean clash = clashing(suspects) >= 2;
+		java.util.LinkedHashSet<String> jars = new java.util.LinkedHashSet<>();
+		String kept = null;
+		for (Suspect s : suspects) {
+			if (clash && !CLASH.equals(s.reason())) continue;
+			if (clash && kept == null) {
+				kept = s.jar();
+				continue;
+			}
+			if (!s.jar().isEmpty() && !s.jar().equals(kept)) jars.add(s.jar());
+		}
+		return List.copyOf(jars);
 	}
 
 	private static String summary(List<Suspect> suspects) {
@@ -264,10 +321,30 @@ public final class CrashAttribution {
 		if (modId == null || modId.isBlank() || byId.containsKey(modId)) return;
 		for (ModCatalog.Entry entry : ModCatalog.everything()) {
 			if (entry.modId().equalsIgnoreCase(modId)) {
-				byId.put(entry.modId(), new Suspect(entry.modId(), entry.name(), entry.version(), reason, depth));
+				byId.put(entry.modId(), new Suspect(entry.modId(), entry.name(), entry.version(), reason, depth,
+						installedJar(entry)));
 				return;
 			}
 		}
+	}
+
+	/**
+	 * The jar a player put in {@code mods/} that brings {@code entry}: its own when it was installed, else the
+	 * nearest installed mod that carries it. A bundled library has no line of its own in
+	 * {@code forbric-disabled.txt} — its file is extracted, not installed — so switching it off means switching
+	 * off what carries it. Empty when the carrier is unknown.
+	 */
+	static String installedJar(ModCatalog.Entry entry) {
+		ModCatalog.Entry current = entry;
+		for (int hops = 0; current != null && hops < 16; hops++) {
+			if (current.installed()) return current.jar();
+			String parent = current.bundledBy();
+			current = null;
+			for (ModCatalog.Entry candidate : ModCatalog.everything()) {
+				if (candidate.modId().equals(parent)) { current = candidate; break; }
+			}
+		}
+		return "";
 	}
 
 	/**
@@ -315,6 +392,12 @@ public final class CrashAttribution {
 			} else {
 				sb.append("先把最上面那个 mod 从 mods 文件夹里拿出来再开一次。还是崩就换下一个。\n");
 			}
+			List<String> lines = startWithout(suspects);
+			if (!lines.isEmpty()) {
+				sb.append("也可以不挪文件：把下面几行加进 mods 文件夹旁边的 ").append(DisabledMods.FILE)
+						.append("，游戏就会不加载它们启动（删掉一行就能重新启用）：\n");
+				for (String line : lines) sb.append("    ").append(line).append('\n');
+			}
 			sb.append("这只是个猜测：它说的是这些 mod 出现在了报错里，不是说它们一定有毛病。\n");
 			sb.append("完整的报错在 crash-reports/").append(reportName).append(" 里。\n");
 			return sb.toString();
@@ -345,6 +428,12 @@ public final class CrashAttribution {
 			sb.append("other").append(clashing(suspects) > 2 ? "s" : "").append(" out of your mods folder and start again.\n");
 		} else {
 			sb.append("Take the first one out of your mods folder and start again. If it still crashes, try the next.\n");
+		}
+		List<String> lines = startWithout(suspects);
+		if (!lines.isEmpty()) {
+			sb.append("Or leave the files where they are: with these lines in ").append(DisabledMods.FILE)
+					.append(", next to your mods\nfolder, the game starts without them (delete a line to turn that mod back on):\n");
+			for (String line : lines) sb.append("    ").append(line).append('\n');
 		}
 		sb.append("This is a guess: it says these mods were in the error, not that they are at fault.\n");
 		sb.append("The full error is in crash-reports/").append(reportName).append(".\n");
