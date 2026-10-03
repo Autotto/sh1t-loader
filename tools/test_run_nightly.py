@@ -277,8 +277,10 @@ class NightlyTest(unittest.TestCase):
         # instead of reporting the timeout.
         process = Mock(pid=4242)
         for refusal in (ProcessLookupError, PermissionError):
+            # create=True: Windows has neither os.killpg nor signal.SIGKILL, and this path is the posix one.
             with patch.object(nightly.os, 'name', 'posix'), \
-                    patch.object(nightly.os, 'killpg', side_effect=refusal):
+                    patch.object(nightly.os, 'killpg', side_effect=refusal, create=True), \
+                    patch.object(nightly.signal, 'SIGKILL', 9, create=True):
                 nightly.stop(process, grace=0)
         self.assertEqual(4, process.wait.call_count)
 
