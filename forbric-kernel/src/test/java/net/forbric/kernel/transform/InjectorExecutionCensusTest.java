@@ -74,7 +74,6 @@ class InjectorExecutionCensusTest {
 			"LootTableEventBridgeInjector", "ModelFormatFunnelInjector",
 			"NeoTooltipAppendersInjector",
 			"RegistryDirectoryOwnerInjector",
-			"RegistrySyncParityInjector",
 			"SoundRegistryIdentityInjector",
 			"SpawnerFinalizeInjector",
 			"SplitterPacketContextInjector");
