@@ -70,7 +70,6 @@ class InjectorExecutionCensusTest {
 			"FabricFluidBehaviorInjector", "FabricFuelValuesInjector",
 			"FlowerPotRepairInjector", "FluidInteractionsInjector", "ForeignFluidTypeInjector",
 			"ForgeClientConsumersInjector",
-			"ForgeDamageSeamsInjector",
 			"ForgeLootPoolConditionsInjector",
 			"ForgePartTrackingInjector", "ForgeSpawnPlacementsInjector",
 			"ForgeWorldModifierInjector", "HopperFabricStorageInjector",
@@ -81,8 +80,7 @@ class InjectorExecutionCensusTest {
 			"RegistrySyncParityInjector",
 			"SoundRegistryIdentityInjector",
 			"SpawnerFinalizeInjector",
-			"SplitterPacketContextInjector", "TooltipOrderScrapeInjector",
-			"VanillaDamageReadInjector");
+			"SplitterPacketContextInjector", "TooltipOrderScrapeInjector");
 
 	@Test void everyInjectorIsExecutedOrListedWithAReason() throws Exception {
 		Map<String, String> injectors = injectors(classesBeside(ClassTransformer.class));
