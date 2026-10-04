@@ -35,12 +35,13 @@ import net.forbric.kernel.util.ForbricLog;
  * class implements {@code com.terraformersmc.modmenu.api.ModMenuApi}. Fabric itself has no config-screen API, so
  * that interface belongs to the Mod Menu MOD — and on an instance without Mod Menu the entrypoint class cannot be
  * linked at all. The kernel's Mods screen asked Mod Menu for Fabric configs and, finding none installed, showed no
- * Config button for any Fabric mod. A player's pack had 17 Fabric mods declaring one, no Mod Menu, and no way to
- * open Iris's, Xaero's or Tweakeroo's settings from the game. ({@code mods with a config screen: 0 Fabric}.)
+ * Config button for any Fabric mod. A player's pack had 17 Fabric mods declaring one and no Mod Menu, and the Mods
+ * screen offered none of their settings ({@code mods with a config screen: 0 Fabric}) — only the mods with their own
+ * way in, such as a hotkey or a button on the video settings, could be configured at all.
  *
  * <p>With the five API types present, those entrypoints link and {@code KernelModConfigScreens} reads them the way
- * Mod Menu's own client initializer does. Only the API package is stood in for: the mod id {@code modmenu} stays
- * unloaded, and Mod Menu's internals ({@code com.terraformersmc.modmenu.gui.ModsScreen}, the target of Do a Barrel
+ * Mod Menu's own client initializer does. Only the API package is stood in for, plus the {@code NullScreenFactory} its default
+ * returns: the mod id {@code modmenu} stays unloaded, and Mod Menu's internals ({@code com.terraformersmc.modmenu.gui.ModsScreen}, the target of Do a Barrel
  * Roll's Mod-Menu-only mixin) stay absent, so code guarded by {@code isModLoaded("modmenu")} keeps skipping.
  *
  * <h2>Why a real Mod Menu always wins</h2>
@@ -60,14 +61,20 @@ public final class ModMenuApiStandIn {
 	public static final String SWITCH = "forbric.modMenuStandIn";
 	/** The class whose presence in an installed jar means the real API is there. */
 	public static final String API = "com/terraformersmc/modmenu/api/ModMenuApi";
+	/** Mod Menu's "this mod has no config screen" factory, which the API's default returns. */
+	public static final String NULL_FACTORY = "com/terraformersmc/modmenu/util/NullScreenFactory";
 	/** Where the game-side jar carries the stand-in's class files, each with {@code .bin} appended to its name. */
 	static final String RESOURCES = "META-INF/forbric/modmenu-api/";
-	/** All of Mod Menu 20.0.3's API package, so a mod naming any part of it links. */
+	/**
+	 * All of Mod Menu 20.0.3's API package, so a mod naming any part of it links, and the one internal class the API
+	 * itself returns: the {@code NullScreenFactory} its default factory is, which is how a reader tells "no config".
+	 */
 	static final List<String> CLASSES = List.of(API,
 			"com/terraformersmc/modmenu/api/ConfigScreenFactory",
 			"com/terraformersmc/modmenu/api/UpdateChecker",
 			"com/terraformersmc/modmenu/api/UpdateInfo",
-			"com/terraformersmc/modmenu/api/UpdateChannel");
+			"com/terraformersmc/modmenu/api/UpdateChannel",
+			NULL_FACTORY);
 
 	/** What {@link #install} did. */
 	public enum Outcome {

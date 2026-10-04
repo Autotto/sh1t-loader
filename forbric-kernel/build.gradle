@@ -491,8 +491,9 @@ tasks.register('runtimeJar', Jar) {
 		// defined ahead of a real Mod Menu's and break every mod that uses more of Mod Menu than its API.
 		def loadable = entries.findAll { it.startsWith('com/terraformersmc/') }
 		if (loadable) throw new GradleException("forbric-kernel-runtime.jar must not carry Mod Menu classes as classes: ${loadable.take(3)}")
-		def standIn = ['ModMenuApi', 'ConfigScreenFactory', 'UpdateChecker', 'UpdateInfo', 'UpdateChannel']
-				.collect { "META-INF/forbric/modmenu-api/com/terraformersmc/modmenu/api/${it}.class.bin".toString() }
+		def standIn = ['api/ModMenuApi', 'api/ConfigScreenFactory', 'api/UpdateChecker', 'api/UpdateInfo', 'api/UpdateChannel',
+				'util/NullScreenFactory']
+				.collect { "META-INF/forbric/modmenu-api/com/terraformersmc/modmenu/${it}.class.bin".toString() }
 				.findAll { !entries.contains(it) }
 		if (standIn) throw new GradleException("forbric-kernel-runtime.jar was built without its Mod Menu API stand-in: ${standIn}")
 		def missing = ['BlockTransferBridge', 'TransferIssues', 'PairedTransactions', 'RebornEnergyBridge',

@@ -702,13 +702,17 @@ it when it came in nested.
 A Fabric mod's config screen is declared in exactly one place: a `"modmenu"` entrypoint implementing Mod Menu's
 `com.terraformersmc.modmenu.api.ModMenuApi`. That interface belongs to the Mod Menu mod, so with Mod Menu absent the
 entrypoint class cannot even link. When an installed Mod Menu is found, it is asked, as before. Otherwise
-`boot.ModMenuApiStandIn` hands `ForbricClassLoader.putGeneratedClass` a stand-in for the five API types (Mod Menu 20.0.3's
-exact public shape, compiled from `src/modmenuApi/java` and shipped as `.class.bin` resources in the game-side jar). The
+`boot.ModMenuApiStandIn` hands `ForbricClassLoader.putGeneratedClass` a stand-in for the five API types and the
+`util.NullScreenFactory` their default returns (Mod Menu 20.0.3's exact public shape, compiled from `src/modmenuApi/java`
+and shipped as `.class.bin` resources in the game-side jar). The
 loader defines offered bytes only after every owned jar has missed the class, so a real Mod Menu still wins. On the client
-only, and only the API package: `isModLoaded("modmenu")` stays false and Mod Menu's internals stay absent.
-`fabric.ModMenuConfigFactories` then reads the entrypoints the way Mod Menu's initializer does: each mod's own factory
-(counted only when its class overrides `getModConfigScreenFactory`, so building a screen is never needed just to ask),
-then every entrypoint's `getProvidedConfigScreenFactories()` merged with `putIfAbsent`. A broken entrypoint is skipped.
+only, and only the API package plus that one class: `isModLoaded("modmenu")` stays false and the rest of Mod Menu's
+internals stay absent.
+`fabric.ModMenuConfigFactories` then reads the entrypoints the way Mod Menu's initializer does: each mod's own factory,
+skipped when it is an instance of the class the interface's own default returns (Mod Menu's `instanceof
+NullScreenFactory`, so an override that falls back to the default is no Config button that opens nothing, and no screen
+is built just to ask), then every entrypoint's `getProvidedConfigScreenFactories()` merged with `putIfAbsent` — again on
+every lookup, as Mod Menu does. A broken entrypoint is skipped.
 `-Dforbric.modMenuStandIn=off` restores the old behaviour, where a Fabric mod gets a Config button only from an installed
 Mod Menu.
 
