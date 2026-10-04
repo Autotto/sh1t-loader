@@ -224,6 +224,7 @@ public final class KernelClientSmoke {
 		if (ready) keyBindsScreenIfDue(minecraft);
 		if (ready) modsScreenIfDue(minecraft);
 		if (ready) configScreensIfDue(minecraft);
+		if (ready) creativeSearchIfDue(minecraft, player);
 		if (ready && !tooltipProbed) probeTooltip(level, player);
 		if (ready && !probed && worldTicks >= Integer.getInteger(PROBE_TICKS, 160)) {
 			probed = true;
@@ -2328,6 +2329,239 @@ public final class KernelClientSmoke {
 			}
 		}
 		return false;
+	}
+
+	/**
+	 * {@code tick[,query…]}: world tick at which to put the player in creative mode, open the creative inventory,
+	 * select its search tab and type each query into the screen's OWN search box, then log what the item grid
+	 * shows. Queries default to {@link #CREATIVE_SEARCH_QUERIES}: a plain name, a namespaced id and a {@code #} tag
+	 * search, because the screen answers the three from different trees.
+	 *
+	 * <p>The grid is the judgement, not anything a producer logs. The search tab reads a tree that some earlier
+	 * call built off-thread and filed under a key; whether the screen looks under the same key as the producer
+	 * filed it is exactly what a log line from the producer cannot say, and a wrong answer is not an error — it is
+	 * an empty grid.
+	 */
+	public static final String CREATIVE_SEARCH = "forbric.clientSmokeCreativeSearch";
+	private static final String[] CREATIVE_SEARCH_QUERIES = {"stone", "minecraft:oak", "#planks"};
+	/** Ticks between the creative probe's steps: long enough for a frame of the grid to be drawn between them. */
+	private static final int CREATIVE_STEP_TICKS = 10;
+	private static int creativeStage;
+	private static int creativeStageAt;
+
+	/**
+	 * The creative-search probe, one step per {@link #CREATIVE_STEP_TICKS}: game mode, open, search (pass 1),
+	 * screenshot, search again (pass 2), every OTHER tab that has a search bar, a language-change rebuild and a
+	 * search after it, close. Pass 2 is there because the trees are built asynchronously: a grid that is empty
+	 * on the first look and full on the second is a timing problem, empty on both is a wiring one.
+	 */
+	private static void creativeSearchIfDue(Object minecraft, Object player) {
+		String spec = System.getProperty(CREATIVE_SEARCH, "");
+		if (spec.isBlank() || creativeStage > 8) return;
+		String[] parts = spec.split(",");
+		int due;
+		try {
+			due = Integer.parseInt(parts[0].trim());
+		} catch (NumberFormatException malformed) {
+			creativeStage = 9;
+			return;
+		}
+		if (due <= 0 || worldTicks < due) return;
+		if (creativeStage > 0 && worldTicks < creativeStageAt + CREATIVE_STEP_TICKS) return;
+		creativeStageAt = worldTicks;
+		int step = creativeStage++;
+		String[] queries = parts.length > 1 ? java.util.Arrays.copyOfRange(parts, 1, parts.length) : CREATIVE_SEARCH_QUERIES;
+		try {
+			ClassLoader cl = minecraft.getClass().getClassLoader();
+			switch (step) {
+				case 0 -> makeCreative(minecraft, cl);
+				case 1 -> openCreativeScreen(minecraft, player, cl);
+				case 2 -> creativeSearchPass(minecraft, cl, queries, "pass 1");
+				case 3 -> screenshotCreative(minecraft, "after pass 1, showing '" + queries[0].trim() + "'");
+				case 4 -> creativeSearchPass(minecraft, cl, queries, "pass 2");
+				case 5 -> creativeSearchOtherTabs(minecraft, cl, queries[0].trim());
+				case 6 -> {
+					Object connection = accessible(minecraft.getClass(), "getConnection").invoke(minecraft);
+					accessible(connection.getClass(), "updateSearchTrees").invoke(connection);
+					ForbricLog.info("[Forbric/ClientSmoke] creative search: rebuilt the search trees the way a "
+							+ "language change does (ClientPacketListener.updateSearchTrees)");
+				}
+				case 7 -> creativeSearchPass(minecraft, cl, new String[] {queries[0]}, "after the language rebuild");
+				default -> {
+					screenshotCreative(minecraft, "after the language rebuild, showing '" + queries[0].trim() + "'");
+					setScreen(minecraft, null);
+				}
+			}
+		} catch (Throwable t) {
+			creativeStage = 9;
+			ForbricLog.warn("[Forbric/ClientSmoke] creative search probe failed at step " + step, t);
+		}
+	}
+
+	/** Creative on the SERVER's player: the game mode is server-authoritative and reaches the client as a packet. */
+	private static void makeCreative(Object minecraft, ClassLoader cl) throws Exception {
+		Object server = accessible(minecraft.getClass(), "getSingleplayerServer").invoke(minecraft);
+		if (server == null) {
+			ForbricLog.info("[Forbric/ClientSmoke] creative search: no integrated server — using the player's own mode");
+			return;
+		}
+		Object list = accessible(server.getClass(), "getPlayerList").invoke(server);
+		java.util.List<?> players = (java.util.List<?>) accessible(list.getClass(), "getPlayers").invoke(list);
+		if (players.isEmpty()) return;
+		Object p = players.get(0);
+		Class<?> gameType = Class.forName("net.minecraft.world.level.GameType", true, cl);
+		Object creative = Enum.valueOf(gameType.asSubclass(Enum.class), "CREATIVE");
+		onServer(server, () -> {
+			Object changed = accessible(p.getClass(), "setGameMode", gameType).invoke(p, creative);
+			ForbricLog.info("[Forbric/ClientSmoke] creative search: server player set to CREATIVE (changed=%s)", changed);
+		});
+	}
+
+	private static void openCreativeScreen(Object minecraft, Object player, ClassLoader cl) throws Exception {
+		boolean infinite = (boolean) accessible(player.getClass(), "hasInfiniteMaterials").invoke(player);
+		Object connection = accessible(minecraft.getClass(), "getConnection").invoke(minecraft);
+		Object features = accessible(connection.getClass(), "enabledFeatures").invoke(connection);
+		Object options = fieldValue(minecraft, "options");
+		Object opTab = accessible(options.getClass(), "operatorItemsTab").invoke(options);
+		boolean op = (Boolean) accessible(opTab.getClass(), "get").invoke(opTab);
+		Class<?> screenCls = Class.forName(
+				"net.minecraft.client.gui.screens.inventory.CreativeModeInventoryScreen", true, cl);
+		Object screen = screenCls.getConstructor(Class.forName("net.minecraft.client.player.LocalPlayer", false, cl),
+				Class.forName("net.minecraft.world.flag.FeatureFlagSet", false, cl), boolean.class)
+				.newInstance(player, features, op);
+		setScreen(minecraft, screen);
+		Object searchTab = searchTab(cl);
+		Object shown = currentScreen(minecraft);
+		ForbricLog.info("[Forbric/ClientSmoke] creative search: opened %s (client creative=%s); search tab holds "
+						+ "%d item(s); %s", shown == null ? "<nothing>" : shown.getClass().getSimpleName(), infinite,
+				((java.util.Collection<?>) accessible(searchTab.getClass(), "getDisplayItems").invoke(searchTab)).size(),
+				searchTreeCensus(connection, cl));
+	}
+
+	/** Every query in turn, typed into the search tab's box, and what the grid shows after each. */
+	private static void creativeSearchPass(Object minecraft, ClassLoader cl, String[] queries, String label)
+			throws Exception {
+		Object screen = currentScreen(minecraft);
+		if (screen == null || !screen.getClass().getSimpleName().equals("CreativeModeInventoryScreen")) {
+			ForbricLog.warn("[Forbric/ClientSmoke] creative search %s: the creative screen is not open (%s)", label,
+					screen == null ? "<nothing>" : screen.getClass().getName());
+			return;
+		}
+		selectCreativeTab(screen, searchTab(cl));
+		// The first query last, so the grid a following screenshot captures is the one the gate names.
+		for (int i = queries.length - 1; i >= 0; i--) {
+			String query = queries[i].trim();
+			ForbricLog.info("[Forbric/ClientSmoke] creative search %s: '%s' -> %s", label, query,
+					typeIntoCreativeSearch(screen, cl, query));
+		}
+	}
+
+	/**
+	 * The first query in each tab other than the search tab that has a search bar — a mod's own searchable tab
+	 * reads a tree filed under ITS key, a different entry from the search tab's.
+	 */
+	private static void creativeSearchOtherTabs(Object minecraft, ClassLoader cl, String query) throws Exception {
+		Object screen = currentScreen(minecraft);
+		if (screen == null) return;
+		Object searchTab = searchTab(cl);
+		java.util.List<?> tabs = (java.util.List<?>) Class.forName("net.minecraft.world.item.CreativeModeTabs", true, cl)
+				.getMethod("allTabs").invoke(null);
+		int searched = 0;
+		for (Object tab : tabs) {
+			if (tab == searchTab || !(boolean) accessible(tab.getClass(), "hasSearchBar").invoke(tab)) continue;
+			searched++;
+			selectCreativeTab(screen, tab);
+			ForbricLog.info("[Forbric/ClientSmoke] creative search in tab %s (%d item(s)): '%s' -> %s",
+					accessible(tab.getClass(), "getDisplayName").invoke(tab),
+					((java.util.Collection<?>) accessible(tab.getClass(), "getDisplayItems").invoke(tab)).size(), query,
+					typeIntoCreativeSearch(screen, cl, query));
+		}
+		if (searched == 0) ForbricLog.info("[Forbric/ClientSmoke] creative search: no tab besides the search tab has "
+				+ "a search bar");
+		selectCreativeTab(screen, searchTab);
+		typeIntoCreativeSearch(screen, cl, query);
+	}
+
+	private static Object searchTab(ClassLoader cl) throws Exception {
+		return Class.forName("net.minecraft.world.item.CreativeModeTabs", true, cl).getMethod("searchTab").invoke(null);
+	}
+
+	private static void selectCreativeTab(Object screen, Object tab) throws Exception {
+		accessible(screen.getClass(), "selectTab", tab.getClass()).invoke(screen, tab);
+	}
+
+	/**
+	 * Clears the box and types {@code query} one character at a time through the screen's own {@code charTyped},
+	 * which is what refreshes the grid — a {@code setValue} would change the text and leave the grid alone.
+	 * Returns the grid: how many stacks, and the first few ids.
+	 */
+	private static String typeIntoCreativeSearch(Object screen, ClassLoader cl, String query) throws Exception {
+		Object box = fieldValue(screen, "searchBox");
+		if (box == null) return "<no search box>";
+		setField(screen, "ignoreTextInput", false);
+		box.getClass().getMethod("setValue", String.class).invoke(box, "");
+		Class<?> charEvent = Class.forName("net.minecraft.client.input.CharacterEvent", true, cl);
+		Method charTyped = accessible(screen.getClass(), "charTyped", charEvent);
+		boolean typed = true;
+		for (int i = 0; i < query.length(); ) {
+			int cp = query.codePointAt(i);
+			typed &= (boolean) charTyped.invoke(screen, charEvent.getConstructor(int.class).newInstance(cp));
+			i += Character.charCount(cp);
+		}
+		Object value = box.getClass().getMethod("getValue").invoke(box);
+		Object menu = screen.getClass().getMethod("getMenu").invoke(screen);
+		java.util.List<?> items = (java.util.List<?>) fieldValue(menu, "items");
+		StringBuilder first = new StringBuilder();
+		for (int i = 0; items != null && i < Math.min(5, items.size()); i++) {
+			Object stack = items.get(i);
+			if (first.length() > 0) first.append(", ");
+			first.append(stack.getClass().getMethod("getItem").invoke(stack));
+		}
+		return String.format("%d item(s) [%s]%s", items == null ? -1 : items.size(), first,
+				typed && query.equals(value) ? "" : " (box reads '" + value + "', typed=" + typed + ")");
+	}
+
+	/**
+	 * Where the trees are, said as data: how many name and tag trees NeoForge's registry holds and whether the
+	 * search tab's own keys are among them, and how many the merged class's private MinecraftForge map holds. The
+	 * screen reads the first; a producer that wrote the second fed nothing the player sees.
+	 */
+	private static String searchTreeCensus(Object connection, ClassLoader cl) {
+		StringBuilder out = new StringBuilder();
+		try {
+			Class<?> trees = Class.forName("net.minecraft.client.multiplayer.SessionSearchTrees", true, cl);
+			Object names = trees.getField("CREATIVE_NAMES").get(null);
+			Object tags = trees.getField("CREATIVE_TAGS").get(null);
+			Class<?> neo = Class.forName("net.neoforged.neoforge.client.CreativeModeTabSearchRegistry", true, cl);
+			java.util.Map<?, ?> neoNames = (java.util.Map<?, ?>) staticField(neo, "NAME_SEARCH_TREES");
+			java.util.Map<?, ?> neoTags = (java.util.Map<?, ?>) staticField(neo, "TAG_SEARCH_TREES");
+			out.append("neoforge name trees=").append(neoNames.size()).append(" (search tab: ")
+					.append(neoNames.containsKey(names)).append("), tag trees=").append(neoTags.size())
+					.append(" (search tab: ").append(neoTags.containsKey(tags)).append(')');
+			Object session = accessible(connection.getClass(), "searchTrees").invoke(connection);
+			Object forge = fieldValue(session, "creativeSearch");
+			if (forge instanceof java.util.Map<?, ?> map) out.append("; minecraftforge map=").append(map.size());
+		} catch (Throwable t) {
+			out.append("<census unreadable: ").append(t).append('>');
+		}
+		return out.toString();
+	}
+
+	private static Object staticField(Class<?> owner, String name) throws ReflectiveOperationException {
+		Field field = owner.getDeclaredField(name);
+		field.setAccessible(true);
+		return field.get(null);
+	}
+
+	private static void screenshotCreative(Object minecraft, String moment) {
+		try {
+			Class.forName("net.minecraft.client.Screenshot", true, minecraft.getClass().getClassLoader())
+					.getMethod("grab", minecraft.getClass(), boolean.class).invoke(null, minecraft, false);
+			ForbricLog.info("[Forbric/ClientSmoke] creative search: screenshot requested %s", moment);
+		} catch (Throwable t) {
+			ForbricLog.warn("[Forbric/ClientSmoke] creative search: could not take a screenshot %s: %s", moment,
+					String.valueOf(t));
+		}
 	}
 
 	/**
