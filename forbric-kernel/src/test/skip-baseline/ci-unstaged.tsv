@@ -533,7 +533,7 @@ test	net.forbric.kernel.transform.CommonNetworkInteropInjectorTest	everyHookSpli
 test	net.forbric.kernel.transform.CommonNetworkInteropInjectorTest	theClientRunsForgesConfigurationCompleteBeforeItEntersPlay()	[fixture:staged] staged merged base absent — skipping real-bytecode check
 test	net.forbric.kernel.transform.CommonNetworkInteropInjectorTest	theMergedConnectionStartsForgesNetworkingWhenItGoesActive()	[fixture:staged] staged merged base absent — skipping real-bytecode check
 test	net.forbric.kernel.transform.CommonNetworkInteropInjectorTest	theMergedServerGathersForgesConfigurationTasksAfterNeoForges()	[fixture:staged] staged merged base absent — skipping real-bytecode check
-test	net.forbric.kernel.transform.CommonNetworkInteropInjectorTest	thePlayServerHandlerFallsThroughToNeoForge()	[fixture:staged] staged merged base absent — skipping real-bytecode check
+test	net.forbric.kernel.transform.CommonNetworkInteropInjectorTest	thePlayServerHandlerReachesNeoForgesDispatcher()	[fixture:staged] staged merged base absent — skipping real-bytecode check
 test	net.forbric.kernel.transform.CommonNetworkInteropInjectorTest	theRealMergedListenerGetsExactlyTwoNewGuardsAndVerifies()	[fixture:staged] staged merged base absent — skipping real-bytecode check
 test	net.forbric.kernel.transform.CompatPluginPlatformInjectorTest	actualPluginsKeepValidLocalsAndNativeBranches()	[fixture:third-party] local mod fixture absent
 test	net.forbric.kernel.transform.CompatibilityPromptTickInjectorTest	gameUiCallsExistOnTheActualMinecraft262Base()	[fixture:staged] staged game absent

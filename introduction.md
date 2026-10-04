@@ -445,6 +445,14 @@ classpath (first-URL-wins would otherwise let it shadow the winner and contribut
   `KernelForgeWrapperSync` apply NeoForge's registry sync to MinecraftForge-wrapped registries through Forge's own
   `GameData.injectSnapshot`; `KernelRegistryRevert` restores pre-connection ids on disconnect;
   `NetworkChannelCensus` compares registered vs declared channels.
+  The merged `ServerGamePacketListenerImpl.handleCustomPayload` is MinecraftForge's override: it asks
+  `ForgeHooks.onCustomPayload`, drops the answer and never reaches NeoForge, so every NeoForge mod's play-phase
+  packet to the server went nowhere (Carry On's "carry key held" packet among them, which is why it could pick
+  nothing up). `CommonNetworkInteropInjector` turns the dropped answer into a branch: a payload MinecraftForge did
+  not take and NeoForge registered goes to `NetworkRegistry.handleModdedPayload`. It calls that directly rather than
+  `super`, because fabric-api's injection in the super serves only the configuration listener and throws
+  `Unknown addon` for the play one (`-Dforbric.playPayloadFallThrough=off`). `KernelClientSmoke`'s
+  `-Dforbric.clientSmokeCarry=<tick>` drill drives the whole chain through the game's own key and mouse input.
 - **Item/fluid/energy transfer** — `KernelTransferInterop` + `runtime/transfer/` bridge Fabric's transfer API,
   NeoForge's `ResourceHandler` and MinecraftForge capabilities, and Team Reborn Energy when installed
   (`-Dforbric.transferBridge=off`, `-Dforbric.hopperFabricStorage=off`). Active only when the relevant APIs are
@@ -946,6 +954,7 @@ java -cp <boot-cp> net.forbric.kernel.boot.Main --scan --mods <dir> --report out
 | m33, m39, m40, m52 | item/fluid/energy transfer across ecosystems; hoppers into Fabric storages |
 | m34 | ≥ 7200 s occupied simulation soak with retention checks |
 | m35–m38, m41–m51, m53 | per-surface behaviour: mixin outcome, entity callbacks, enchantments, event chain, coremod parity, block break and loot, interaction, everyday actions, stub rebind, damage/server/world events, load predicates, tooltips, widened `NEW` anchors |
+| m54 | a NeoForge mod's play-phase packet reaches the server: Carry On, with fabric-api installed, carries a chest and a pig through real key and mouse input; the same run with the repair off must pick nothing up (third-party jars: `M54_CARRYON`, `M54_FABRIC_API`) |
 
 - **Compatibility sweeps.** `run/compat/PROTOCOL.md` is the procedure for running random/popular Modrinth sets on
   a Windows machine through the installed profile (`push-and-run.sh`, `win/*.py`, `pick_mods.py`, `evidence.py`),
@@ -1029,7 +1038,7 @@ developer reaches for:
 | `forbric.traceClassDefine` | csv of binary names; log a stack the first time each is defined |
 | `forbric.tickSampler` | `off`: no server tick-time sampling |
 
-**Selected repair switches** — `forbric.commonNetworkInterop`, `forbric.chunkExecutorGuard`,
+**Selected repair switches** — `forbric.commonNetworkInterop`, `forbric.playPayloadFallThrough`, `forbric.chunkExecutorGuard`,
 `forbric.forgeCapabilities`, `forbric.forgeWorldgen`, `forbric.transferBridge`, `forbric.hopperFabricStorage`,
 `forbric.clientResourcePreload`, `forbric.earlyConfigs`, `forbric.fabricHooks`, `forbric.fabricImpl`,
 `forbric.kernelBundledFirst`, `forbric.modDataPacks`. `forbric.kernel.registryRedirect=true` enables an
