@@ -395,7 +395,7 @@ NeoForge 的 `mod_resources` 来源在合并基底上是孤立的。`ClientPackH
 
 ### 12.3 依赖对话框
 
-`ui.DependencyDialog` 向玩家显示未满足的硬依赖和跨 mod 的 mixin 失效。这个窗口是一个**独立的 JVM**（`DependencyDialogMain`，启动时 classpath 里只有内核 jar 这一项），因为在 macOS 上游戏带着 `-XstartOnFirstThread` 运行，AWT 无法和 GLFW 共用第一个线程。父子进程之间只共享 `DependencyReport` 里的制表符分隔文件格式；文案在 `DialogLang` 里（跟随系统语言，`-Dforbric.dialogLanguage=<code>` 可强制指定一种）。`-Dforbric.dependencyDialog=on`（默认）| `off` | `dryRun`（派生真正的子进程，但禁用 AWT——闸门断言的就是它）。子进程 10 分钟后超时。同一个子进程还有第三种窗口 `--isolation`，即 §12.2 的崩溃嫌疑提示：退出码 `2` 表示不加载它们启动；除了那两个明确的按钮，其他任何情况都按加载全部 mod 启动处理。
+`ui.DependencyDialog` 向玩家显示未满足的硬依赖和跨 mod 的 mixin 失效。这个窗口是一个**独立的 JVM**（`DependencyDialogMain`，启动时 classpath 里只有内核 jar 这一项），因为在 macOS 上游戏带着 `-XstartOnFirstThread` 运行，AWT 无法和 GLFW 共用第一个线程。父子进程之间只共享 `DependencyReport` 里的制表符分隔文件格式；文案在 `DialogLang` 里（跟随系统语言，`-Dforbric.dialogLanguage=<code>` 可强制指定一种）。`-Dforbric.dependencyDialog=on`（默认）| `off` | `dryRun`（派生真正的子进程，但禁用 AWT——闸门断言的就是它）。子进程 10 分钟后超时。确认窗口的退出码：`0` 继续，`4` 退出或关掉窗口，其他任何值（`3` 画不出窗口、启动器自己的 `1`）表示窗口没能让人回答。同一个子进程还有第三种窗口 `--isolation`，即 §12.2 的崩溃嫌疑提示：退出码 `2` 表示不加载它们启动；除了那两个明确的按钮，其他任何情况都按加载全部 mod 启动处理。
 
 ### 12.4 策略 —— `-Dforbric.compatibilityPolicy`
 
@@ -403,7 +403,7 @@ NeoForge 的 `mod_resources` 来源在合并基底上是孤立的。`ClientPackH
 
 | 值 | 已确认的必要功能缺失…… |
 | --- | --- |
-| `ask`（默认） | 在对话框里询问玩家一次（依赖提示也并入其中）；只有明确选择“继续启动”才算批准。没有显示环境或没有回答 → 不批准 |
+| `ask`（默认） | 在对话框里询问玩家一次（依赖提示也并入其中）；只有明确选择“继续启动”才算批准，选“退出”或关掉窗口算拒绝。客户端上对话框弹不出来时——`java.home/bin/java` 不能执行（FCL 这类安卓启动器）、子进程起不来或画不出窗口、10 分钟没人回答——问题改到游戏里问：不批准任何东西，由 `KernelCompatibilityPrompts` 在标题界面用对话框同样的按钮询问，选“退出”就停止游戏。启动参数要求直接进世界（`--quickPlaySingleplayer`/`Multiplayer`/`Realms`：世界会在游戏能问之前就加载）或设了 `-Dforbric.dependencyDialog=off` 时，照旧不批准。专用服务器没人可问 → 不批准 |
 | `continue` | 接受并记录在案；提示仍可能显示 |
 | `strict` | 阻止启动；不显示任何窗口 |
 | 其他任何值 | 按 `strict` 处理（失败时按拒绝处理） |
