@@ -753,6 +753,17 @@ public final class KernelBoot {
 						net.forbric.kernel.transform.CreativePagerBridgeInjector.PROPERTY);
 			}
 		}
+		// The merged SessionSearchTrees kept MinecraftForge's bodies for vanilla's two search-tree producers, which file
+		// their trees in a private map the (NeoForge) creative screen never reads; a mod that refreshes the search that
+		// way (TCDCommons, on every join) left every creative search empty. They file into NeoForge's registry instead.
+		// Client only: a dedicated server never loads the class, so it carries no anchor for it.
+		if (side == Side.CLIENT && net.forbric.kernel.transform.CreativeSearchTreesInjector.enabled()) {
+			chain.register(TransformPhase.COREMOD, new net.forbric.kernel.transform.CreativeSearchTreesInjector());
+		} else if (side == Side.CLIENT) {
+			ForbricLog.warn("[Forbric/CreativeSearch] -D%s=off — a mod that refreshes the creative search through "
+					+ "vanilla's SessionSearchTrees methods leaves every creative search empty for the session",
+					net.forbric.kernel.transform.CreativeSearchTreesInjector.PROPERTY);
+		}
 		// A MinecraftForge brewing recipe goes into the merged builder's NeoForge-typed list wrapped as NeoForge's.
 		chain.register(TransformPhase.COREMOD, new net.forbric.kernel.transform.ForgeBrewingRecipesInjector());
 		// The merged game builds its fuels from NeoForge's data map; Fabric's fuel events run on that builder too.
