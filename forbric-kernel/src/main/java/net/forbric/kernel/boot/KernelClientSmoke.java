@@ -1917,7 +1917,8 @@ public final class KernelClientSmoke {
 			Class<?> trees = Class.forName("net.minecraft.client.multiplayer.SessionSearchTrees", true, cl);
 			Object names = trees.getField("CREATIVE_NAMES").get(null);
 			Object tags = trees.getField("CREATIVE_TAGS").get(null);
-			Class<?> neo = Class.forName("net.neoforged.neoforge.client.CreativeModeTabSearchRegistry", true, cl);
+			Class<?> neo = Class.forName(net.forbric.api.ForeignType.CREATIVE_SEARCH_REGISTRY.binary(
+					net.forbric.api.Ecosystem.NEOFORGE), true, cl);
 			java.util.Map<?, ?> neoNames = (java.util.Map<?, ?>) staticField(neo, "NAME_SEARCH_TREES");
 			java.util.Map<?, ?> neoTags = (java.util.Map<?, ?>) staticField(neo, "TAG_SEARCH_TREES");
 			out.append("neoforge name trees=").append(neoNames.size()).append(" (search tab: ")

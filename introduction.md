@@ -484,7 +484,15 @@ Notable repairs by family (read each class's javadoc for the case that motivated
   `PackOverlayMutabilityInjector`, `NullPackGuardInjector`, `PackScreenHiddenFilterInjector`,
   `RegistryDirectoryOwnerInjector`, `RegistryAliasParityInjector` (§9).
 - **UI** — `ModsButtonRedirector` (both families' pause-menu lambdas open `KernelModListScreen`),
-  `HudElementBridgeInjector`, `CreativePagerBridgeInjector`, `EarlyKeyMappingRegistrationInjector`.
+  `HudElementBridgeInjector`, `CreativePagerBridgeInjector`, `EarlyKeyMappingRegistrationInjector`,
+  `CreativeSearchTreesInjector`. The last is a producer/consumer split: the merged `SessionSearchTrees` kept
+  MinecraftForge's bodies for vanilla's `updateCreativeTooltips(Provider, List)` / `updateCreativeTags(List)` (and
+  for `getSearchTree`), which keep the trees in a private map, while the creative screen is NeoForge's and reads
+  `CreativeModeTabSearchRegistry`. The screen only rebuilds its own trees when `CreativeModeTabs.tryRebuildTabContents`
+  reports a change, so a mod that rebuilds the tabs itself and refreshes the search the vanilla way (TCDCommons, on
+  every join) left every creative search empty. The three bodies now call `KernelCreativeSearch`, which goes
+  through NeoForge's keyed methods for every tab with a search bar; `-Dforbric.creativeSearchTrees=off`.
+  `-Dforbric.clientSmokeCreativeSearch=<tick>[,query…]` types into the real creative screen and logs the grid.
 - **Instrumentation** — `ClientSmokeTickInjector` (inert unless `-Dforbric.clientSmoke=true`),
   `EventChainAuditInjector` (inert unless `-Dforbric.eventChainAudit=<report>`), `ServerTickSamplerInjector`,
   `CompatibilityPromptTickInjector`, `ServerCompatibilityTickInjector`.
