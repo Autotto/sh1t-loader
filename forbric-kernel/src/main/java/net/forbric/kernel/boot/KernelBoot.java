@@ -650,6 +650,21 @@ public final class KernelBoot {
 		chain.register(TransformPhase.COREMOD, new PackOverlayMutabilityInjector());
 		chain.register(TransformPhase.COREMOD, new NullPackGuardInjector());
 
+		// The merged SessionSearchTrees kept MinecraftForge's bodies for vanilla's two search-tree producers, which file
+		// their trees in a private map the (NeoForge) creative screen never reads; a mod that refreshes the search that
+		// way (TCDCommons, on every join) left every creative search empty. They file into NeoForge's registry instead.
+		// Client only: a dedicated server never loads the class, so it carries no anchor for it. Registered before
+		// DuplicateLambdaPruneInjector (same phase, ties go by registration order): the rewrite leaves MinecraftForge's
+		// two lambdas unreachable beside NeoForge's live ones of the same name, and only a prune that runs after it
+		// sees them as the orphans they now are.
+		if (side == Side.CLIENT && net.forbric.kernel.transform.CreativeSearchTreesInjector.enabled()) {
+			chain.register(TransformPhase.COREMOD, new net.forbric.kernel.transform.CreativeSearchTreesInjector());
+		} else if (side == Side.CLIENT) {
+			ForbricLog.warn("[Forbric/CreativeSearch] -D%s=off — a mod that refreshes the creative search through "
+					+ "vanilla's SessionSearchTrees methods leaves every creative search empty for the session",
+					net.forbric.kernel.transform.CreativeSearchTreesInjector.PROPERTY);
+		}
+
 		// A merged method keeps ONE body but BOTH ecosystems' lambdas, and a mixin's `method = "lambda$x$0"`
 		// carries no descriptor because javac never lets one class have two. Drop the orphaned half before Mixin
 		// looks, or it binds to dead code and the injection silently does nothing.
@@ -748,17 +763,6 @@ public final class KernelBoot {
 						+ "-Dforbric.pinnedContracts=off keeps it, and any call through it throws AssertionError",
 						net.forbric.kernel.transform.CreativePagerBridgeInjector.PROPERTY);
 			}
-		}
-		// The merged SessionSearchTrees kept MinecraftForge's bodies for vanilla's two search-tree producers, which file
-		// their trees in a private map the (NeoForge) creative screen never reads; a mod that refreshes the search that
-		// way (TCDCommons, on every join) left every creative search empty. They file into NeoForge's registry instead.
-		// Client only: a dedicated server never loads the class, so it carries no anchor for it.
-		if (side == Side.CLIENT && net.forbric.kernel.transform.CreativeSearchTreesInjector.enabled()) {
-			chain.register(TransformPhase.COREMOD, new net.forbric.kernel.transform.CreativeSearchTreesInjector());
-		} else if (side == Side.CLIENT) {
-			ForbricLog.warn("[Forbric/CreativeSearch] -D%s=off — a mod that refreshes the creative search through "
-					+ "vanilla's SessionSearchTrees methods leaves every creative search empty for the session",
-					net.forbric.kernel.transform.CreativeSearchTreesInjector.PROPERTY);
 		}
 		// A MinecraftForge brewing recipe goes into the merged builder's NeoForge-typed list wrapped as NeoForge's.
 		chain.register(TransformPhase.COREMOD, new net.forbric.kernel.transform.ForgeBrewingRecipesInjector());
