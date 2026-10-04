@@ -19,6 +19,8 @@ package com.terraformersmc.modmenu.api;
 import java.util.Map;
 import java.util.function.Consumer;
 
+import com.terraformersmc.modmenu.util.NullScreenFactory;
+
 import net.forbric.kernel.runtime.KernelModListScreen;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
@@ -58,11 +60,12 @@ public interface ModMenuApi {
 	}
 
 	/**
-	 * This mod's config screen factory. The default is a factory that produces no screen, which is what Mod Menu's
-	 * default does too — and why the kernel counts a mod as having a config only when its class overrides this.
+	 * This mod's config screen factory. The default is a {@link NullScreenFactory}, as Mod Menu's is: the marker a
+	 * reader skips, so a mod that does not override this — or overrides it and falls back to this default — has no
+	 * Config button.
 	 */
 	default ConfigScreenFactory<?> getModConfigScreenFactory() {
-		return parent -> null;
+		return new NullScreenFactory<>();
 	}
 
 	/** Mod Menu checks for updates with this. The kernel does not check for updates, so nothing calls it. */

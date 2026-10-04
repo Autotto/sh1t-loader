@@ -57,6 +57,9 @@ public final class KernelModConfigScreens {
 	private KernelModConfigScreens() {
 	}
 
+	/** Mods whose config screen already threw on a press, so the warning is said once and not on every click. */
+	private static final java.util.Set<String> PRESS_FAILURES = java.util.concurrent.ConcurrentHashMap.newKeySet();
+
 	/** Whether {@link #open} would produce a screen. Cheap enough to ask per selection change. */
 	public static boolean has(ModCatalog.Entry entry) {
 		return entry != null && open(entry, null, true) != null;
@@ -82,9 +85,15 @@ public final class KernelModConfigScreens {
 			};
 		} catch (Throwable t) {
 			// A family that is not present, or a mod whose factory throws. Neither may cost the screen the
-			// player is standing in.
-			ForbricLog.debug("[Forbric/ModConfig] no config screen for %s (%s): %s", entry.modId(),
-					entry.ecosystem(), String.valueOf(t));
+			// player is standing in. A probe failing is routine and stays at debug; a press that fails is the player
+			// clicking Config and seeing nothing, so it says which mod's factory threw, once per mod.
+			if (probe || !PRESS_FAILURES.add(entry.modId())) {
+				ForbricLog.debug("[Forbric/ModConfig] no config screen for %s (%s): %s", entry.modId(),
+						entry.ecosystem(), String.valueOf(t));
+			} else {
+				ForbricLog.warn("[Forbric/ModConfig] %s (%s) has a Config button, but its config screen threw when it "
+						+ "was opened: %s", entry.modId(), entry.ecosystem(), String.valueOf(t));
+			}
 			return null;
 		}
 	}
@@ -145,7 +154,8 @@ public final class KernelModConfigScreens {
 	 * could see: the mods still DECLARE their screens, in a {@code "modmenu"} entrypoint implementing Mod Menu's API.
 	 * The kernel stands in for that API ({@code ModMenuApiStandIn}), so those entrypoints link, and
 	 * {@link ModMenuConfigFactories} reads them the way Mod Menu's own initializer does. In a player's 40-mod pack with no
-	 * Mod Menu, Fabric mods with a Config button went from 0 to 16 of 24 — each opening that mod's own screen.
+	 * Mod Menu, Fabric mods with a Config button went from 0 to 16 of 24, and 15 of the 16 opened their own screen when
+ * pressed; Voxy's own factory declined on that machine, which its log said it does where it cannot run.
 	 * {@code -Dforbric.modMenuStandIn=off} restores the old answer.
 	 */
 	private static final class ModMenu {

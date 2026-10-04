@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
@@ -71,6 +72,21 @@ class ModMenuApiStandInShapeTest {
 			"UpdateInfo", "interface null",
 			"UpdateChannel", "enum Ljava/lang/Enum<Lcom/terraformersmc/modmenu/api/UpdateChannel;>;");
 
+	/**
+	 * Mod Menu's {@code NullScreenFactory}: not API, but what the API's default returns, and the class a reader's
+	 * {@code instanceof} recognises as "no config screen". Same shape as Mod Menu 20.0.3's.
+	 */
+	@Test void theNullScreenFactoryMatchesModMenu() throws Exception {
+		ClassNode node = readInternal(ModMenuApiStandIn.NULL_FACTORY);
+		assertEquals("class <S:Lnet/minecraft/client/gui/screens/Screen;>Ljava/lang/Object;Lcom/terraformersmc/modmenu/api/ConfigScreenFactory<TS;>;",
+				((node.access & Opcodes.ACC_INTERFACE) != 0 ? "interface" : "class") + " " + node.signature);
+		assertEquals(List.of("com/terraformersmc/modmenu/api/ConfigScreenFactory"), node.interfaces);
+		assertEquals(new TreeSet<>(Set.of("default create (Lnet/minecraft/client/gui/screens/Screen;)Lnet/minecraft/client/gui/screens/Screen; "
+				+ "(Lnet/minecraft/client/gui/screens/Screen;)TS;")), publicMembers(node));
+		assertTrue(node.methods.stream().anyMatch(m -> m.name.equals("<init>") && m.desc.equals("()V")
+				&& (m.access & Opcodes.ACC_PUBLIC) != 0), "a public no-argument constructor, as Mod Menu's");
+	}
+
 	@Test void everyPublicMemberMatchesModMenu() throws Exception {
 		for (var expected : MOD_MENU_20_0_3.entrySet()) {
 			ClassNode node = read(expected.getKey());
@@ -100,11 +116,17 @@ class ModMenuApiStandInShapeTest {
 		Set<String> expected = new TreeSet<>();
 		for (String name : ModMenuApiStandIn.CLASSES) expected.add(name + ".class");
 		assertEquals(expected, compiled, "a nested or synthetic class here would be shipped but never offered");
-		for (String name : ModMenuApiStandIn.CLASSES) assertTrue(name.startsWith(API), name);
+		for (String name : ModMenuApiStandIn.CLASSES) {
+			assertTrue(name.startsWith(API) || name.equals(ModMenuApiStandIn.NULL_FACTORY), name);
+		}
 	}
 
 	private static ClassNode read(String simpleName) throws Exception {
-		Path file = CLASSES.resolve(API + simpleName + ".class");
+		return readInternal(API + simpleName);
+	}
+
+	private static ClassNode readInternal(String internalName) throws Exception {
+		Path file = CLASSES.resolve(internalName + ".class");
 		TestFixtures.requireFiles(TestFixtures.Fixture.GAME_SIDE, "the Mod Menu API stand-in is compiled before the tests", file);
 		ClassNode node = new ClassNode();
 		new ClassReader(Files.readAllBytes(file)).accept(node, ClassReader.SKIP_CODE);

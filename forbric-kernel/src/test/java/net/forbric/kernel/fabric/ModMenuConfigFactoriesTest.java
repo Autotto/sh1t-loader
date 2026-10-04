@@ -115,6 +115,20 @@ class ModMenuConfigFactoriesTest {
 	public static final class NotAnApi {
 	}
 
+	/**
+	 * Overrides, and falls back to the interface's default — what ForgeConfigAPIPort's entrypoint does outside a
+	 * development environment, and several mods do when cloth-config is absent. That is Mod Menu's "no screen".
+	 */
+	public static final class FallsBackToTheDefault implements Api {
+		@Override public Factory getModConfigScreenFactory() { return Api.super.getModConfigScreenFactory(); }
+	}
+
+	/** A config library that offers a screen for a mod only once that mod has registered with it, later on. */
+	public static final class LateLibrary implements Api {
+		static final Map<String, Factory> OFFERED = new java.util.concurrent.ConcurrentHashMap<>();
+		@Override public Map<String, Factory> getProvidedConfigScreenFactories() { return Map.copyOf(OFFERED); }
+	}
+
 	@Test void aModsOwnFactoryGivesItAConfigAndBuildsItsScreen() throws Exception {
 		KernelFabricLoader loader = loader();
 		register(loader, "own", OwnConfig.class);
@@ -136,6 +150,41 @@ class ModMenuConfigFactoriesTest {
 		assertFalse(read.has("xaerolib"));
 		assertEquals(1, read.entrypoints());
 		assertEquals(0, read.broken());
+	}
+
+	/** Under Mod Menu an instance of the default factory is skipped, override or not: no button that opens nothing. */
+	@Test void anOverrideThatReturnsTheDefaultIsNotAConfigAndALibraryMayFillIt() throws Exception {
+		KernelFabricLoader loader = loader();
+		register(loader, "fallsback", FallsBackToTheDefault.class);
+		ModMenuConfigFactories read = ModMenuConfigFactories.read(loader, Api.class);
+		assertFalse(read.has("fallsback"), "the interface's default, returned by an override, is still the default");
+
+		KernelFabricLoader withLibrary = loader();
+		register(withLibrary, "fallsback", FallsBackToTheDefault.class);
+		LateLibrary.OFFERED.put("fallsback", building("library"));
+		try {
+			register(withLibrary, "configlib", LateLibrary.class);
+			ModMenuConfigFactories filled = ModMenuConfigFactories.read(withLibrary, Api.class);
+			assertEquals(new Screen("library", null), filled.create("fallsback", null),
+					"a default stored for the mod does not keep a library's screen out, as under Mod Menu");
+		} finally {
+			LateLibrary.OFFERED.clear();
+		}
+	}
+
+	/** Mod Menu merges the provided factories on every lookup, so one registered after the first question counts. */
+	@Test void aFactoryALibraryProvidesLaterIsFound() throws Exception {
+		KernelFabricLoader loader = loader();
+		register(loader, "configlib", LateLibrary.class);
+		try {
+			ModMenuConfigFactories read = ModMenuConfigFactories.read(loader, Api.class);
+			assertFalse(read.has("dependent"));
+			LateLibrary.OFFERED.put("dependent", building("late"));
+			assertTrue(read.has("dependent"), "asked again after the library registered it");
+			assertEquals(new Screen("late", "p"), read.create("dependent", "p"));
+		} finally {
+			LateLibrary.OFFERED.clear();
+		}
 	}
 
 	/**
