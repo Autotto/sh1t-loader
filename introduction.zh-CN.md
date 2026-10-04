@@ -521,7 +521,7 @@ java -cp <boot-cp> net.forbric.kernel.boot.Main --scan --mods <dir> --report out
 
 - **暂存产物。** 游戏侧编译时依赖 `forbric-loader/run/merged-base/patched-mc-merged-26.2.jar`、`…/forge-runtime/forge-runtime.jar`、`…/neoforge-runtime/neoforge-runtime.jar`，外加取自本地 Minecraft 安装的 brigadier、datafixerupper 和 gson，传输模块要用的一个 fabric-api jar（`-Pforbric.fabricApi`），以及按 SHA-256 锁定的 Team Reborn Energy 5.0.0（`run/energy-api/energy-5.0.0.jar` 或 `-Pforbric.rebornEnergy`）。没有暂存的 jar 时，`compileRuntimeJava` 会被跳过，`jar` 产出一个没有游戏侧的引导 jar——CI 构建的就是这种 jar。启动时负责发现这种 jar 的是 `KernelRuntimeClasses.verify`。
 - **单元测试。** 这些数字是数源码得到的，不是跑出来的：`src/test` 的 438 个 `*Test.java` 文件里有 2 624 个 `@Test` 方法和 2 个 `@ParameterizedTest` 方法（各有两个用例）；`src/transferTest` 的 4 个文件里有 61 个 `@Test` 方法（只数位于行首的注解，用 `grep` 扫已跟踪的文件）。很多测试会读取暂存的 jar；gate-m0 只要遇到*任何*一个被跳过的测试就失败，因为在那里跳过意味着测试没有看过真正的基底。
-- **闸门。** 共 54 个脚本（`forbric-kernel/run/gate-m*.sh`），每个都对真实实例的真实日志和文件做断言，大多带有指名的负控制（一个 `-D…=off`，或移除某项输入，必须恰好让指名的那几项检查变红）。`run/compat/gates-all.sh` 按 glob 发现它们；`gates-parallel.py` 依据每个闸门里的 `# GATE-PARALLEL: rundirs=… mem=…` 行让它们重叠运行（54 个里有 51 个带这一行；没有的闸门单独运行），并给每个槽位分配独立的端口段。
+- **闸门。** 共 58 个脚本（`forbric-kernel/run/gate-m*.sh`），每个都对真实实例的真实日志和文件做断言，大多带有指名的负控制（一个 `-D…=off`，或移除某项输入，必须恰好让指名的那几项检查变红）。`run/compat/gates-all.sh` 按 glob 发现它们；`gates-parallel.py` 依据每个闸门里的 `# GATE-PARALLEL: rundirs=… mem=…` 行让它们重叠运行（58 个里有 55 个带这一行；没有的闸门单独运行），并给每个槽位分配独立的端口段。
 
 | 闸门 | 断言内容 |
 | --- | --- |

@@ -953,10 +953,10 @@ java -cp <boot-cp> net.forbric.kernel.boot.Main --scan --mods <dir> --report out
   methods (two cases each) in 438 `*Test.java` files; `src/transferTest` has 61 `@Test` methods in 4 files
   (annotations at line start, `grep` over tracked files). Many tests read the staged jars; gate-m0 fails on
   *any* skipped test, because a skip there means the tests did not look at the real base.
-- **Gates.** 54 scripts, `forbric-kernel/run/gate-m*.sh`, each asserting on the real logs and files of a real
+- **Gates.** 58 scripts, `forbric-kernel/run/gate-m*.sh`, each asserting on the real logs and files of a real
   instance, most with named negative controls (a `-D…=off` or input removal that must turn exactly the named
   checks red). `run/compat/gates-all.sh` discovers them by glob; `gates-parallel.py` overlaps them using each
-  gate's `# GATE-PARALLEL: rundirs=… mem=…` line (51 of 54 carry one; a gate without it runs alone), giving each
+  gate's `# GATE-PARALLEL: rundirs=… mem=…` line (55 of 58 carry one; a gate without it runs alone), giving each
   slot its own port block.
 
 | Gate | Asserts |

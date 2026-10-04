@@ -714,8 +714,8 @@ public final class PayloadInterop {
 					return true;
 				}
 			}
-			probe(() -> "  neo does not own " + id + " — not falling through (a Fabric payload here would end the "
-					+ "connection with \"Unknown addon\")");
+			probe(() -> "  neo does not own " + id + " — not handing it over (NeoForge's dispatcher would end the "
+					+ "connection with \"No Channel for " + id + "\")");
 			return false;
 		} catch (Throwable t) {
 			probe(() -> "  could not ask NeoForge whether it owns this payload (" + t + ") — not falling through");
