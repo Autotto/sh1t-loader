@@ -556,8 +556,10 @@ Rather than drop, the kernel moves a guest injector when the merge relocated wha
 narrow and table- or proof-driven:
 
 `MixinRetarget` and `MixinStubRebind` (delegating stubs → the overload carrying the body), `MixinOverloadPin`
-(name-only selector with two same-named merged methods), `MixinMergedTwin` (`$forbricneo` renamed anonymous
-twins), `MixinAnonymousRetarget` + `MergedBaseAnonymousDrift` (renumbered `Outer$N`), `MixinAtWidenedCall` and
+(a name-only `@Inject` that Mixin would bind to the other ecosystem's overload, declared first, is pinned to the one
+overload its handler fits — only when the first cannot take the handler; otherwise it is explained),
+`MixinMergedTwin` (`$forbricneo` renamed anonymous twins), `MixinAnonymousRetarget` + `MergedBaseAnonymousDrift`
+(renumbered `Outer$N`), `MixinAtWidenedCall` and
 `MixinWrapOperationShim` (calls the carrier widened or reordered), `MixinRelocatedCall`, `MixinSubtypeOwnerRetarget`,
 `MixinShearsRelay`, `MixinHandlerShim`, `MixinAtShape` (`at=[…]` vs `at=…` across Mixin forks), `MixinLocalsCapture`
 (`CAPTURE_FAILHARD → CAPTURE_FAILSOFT`), `InsertedLambdaArgumentShim`, `MergedBaseCalleeSwaps`,
