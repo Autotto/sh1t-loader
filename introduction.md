@@ -699,6 +699,19 @@ authors and logo. Each `ModCatalog.Entry` carries a `status` and a `statusDetail
 it when it came in nested.
 `KernelModConfigScreens` reaches a mod's own config screen.
 
+A Fabric mod's config screen is declared in exactly one place: a `"modmenu"` entrypoint implementing Mod Menu's
+`com.terraformersmc.modmenu.api.ModMenuApi`. That interface belongs to the Mod Menu mod, so with Mod Menu absent the
+entrypoint class cannot even link. When an installed Mod Menu is found, it is asked, as before. Otherwise
+`boot.ModMenuApiStandIn` hands `ForbricClassLoader.putGeneratedClass` a stand-in for the five API types (Mod Menu 20.0.3's
+exact public shape, compiled from `src/modmenuApi/java` and shipped as `.class.bin` resources in the game-side jar). The
+loader defines offered bytes only after every owned jar has missed the class, so a real Mod Menu still wins. On the client
+only, and only the API package: `isModLoaded("modmenu")` stays false and Mod Menu's internals stay absent.
+`fabric.ModMenuConfigFactories` then reads the entrypoints the way Mod Menu's initializer does: each mod's own factory
+(counted only when its class overrides `getModConfigScreenFactory`, so building a screen is never needed just to ask),
+then every entrypoint's `getProvidedConfigScreenFactories()` merged with `putIfAbsent`. A broken entrypoint is skipped.
+`-Dforbric.modMenuStandIn=off` restores the old behaviour, where a Fabric mod gets a Config button only from an installed
+Mod Menu.
+
 ## 12. Compatibility reporting and policy
 
 ### 12.1 Evidence
@@ -1032,7 +1045,7 @@ developer reaches for:
 **Selected repair switches** — `forbric.commonNetworkInterop`, `forbric.chunkExecutorGuard`,
 `forbric.forgeCapabilities`, `forbric.forgeWorldgen`, `forbric.transferBridge`, `forbric.hopperFabricStorage`,
 `forbric.clientResourcePreload`, `forbric.earlyConfigs`, `forbric.fabricHooks`, `forbric.fabricImpl`,
-`forbric.kernelBundledFirst`, `forbric.modDataPacks`. `forbric.kernel.registryRedirect=true` enables an
+`forbric.kernelBundledFirst`, `forbric.modDataPacks`, `forbric.modMenuStandIn`. `forbric.kernel.registryRedirect=true` enables an
 experimental registry-wrapper redirect.
 
 ## 18. Invariants
