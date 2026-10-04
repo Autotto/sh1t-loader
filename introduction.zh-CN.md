@@ -235,7 +235,7 @@ Fabric 和 NeoForge 在构造函数里需要的状态正好相反，所以内核
 
 ### 5.4 事件之外的跨生态服务
 
-- **网络** —— 在 Fabric API 和 NeoForge 共用同一个原版频道 id 的地方，`interop.PayloadInterop` 按运行时的负载类选择自定义负载编解码器；`CommonNetworkInteropInjector` 仲裁两边都要占用的 `c:version` / `c:register` 频道（`-Dforbric.commonNetworkInterop=off`）；`RegistrySyncParityInjector` + `KernelForgeWrapperSync` 借助 Forge 自己的 `GameData.injectSnapshot`，把 NeoForge 的注册表同步应用到 MinecraftForge 包装的注册表上；`KernelRegistryRevert` 在断开连接时恢复连接之前的 id；`NetworkChannelCensus` 比对已注册的频道和已声明的频道。
+- **网络** —— 在 Fabric API 和 NeoForge 共用同一个原版频道 id 的地方，`interop.PayloadInterop` 按运行时的负载类选择自定义负载编解码器；`CommonNetworkInteropInjector` 仲裁两边都要占用的 `c:version` / `c:register` 频道（`-Dforbric.commonNetworkInterop=off`）；`RegistrySyncParityInjector` + `KernelForgeWrapperSync` 借助 Forge 自己的 `GameData.injectSnapshot`，把 NeoForge 的注册表同步应用到 MinecraftForge 包装的注册表上；`KernelRegistryRevert` 在断开连接时恢复连接之前的 id；`NetworkChannelCensus` 比对已注册的频道和已声明的频道。合并后的 `ServerGamePacketListenerImpl.handleCustomPayload` 是 MinecraftForge 的重写：它问一下 `ForgeHooks.onCustomPayload`，把答案丢掉，永远走不到 NeoForge，所以每个 NeoForge mod 在游玩阶段发给服务端的包都没人收（Carry On 的"搬运键按下"包就是其中之一，所以它什么都搬不起来）。`CommonNetworkInteropInjector` 把丢掉的答案改成分支：MinecraftForge 没收、而 NeoForge 注册过的负载交给 `NetworkRegistry.handleModdedPayload`。直接调它而不是调 `super`，因为 fabric-api 注入在 super 里的处理器只服务配置阶段的监听器，对游玩阶段的会抛 `Unknown addon`（`-Dforbric.playPayloadFallThrough=off` 关闭）。`KernelClientSmoke` 的 `-Dforbric.clientSmokeCarry=<tick>` 演练用游戏自己的键盘和鼠标输入把整条链跑一遍。
 - **物品/流体/能量传输** —— `KernelTransferInterop` + `runtime/transfer/` 桥接 Fabric 的传输 API、NeoForge 的 `ResourceHandler` 和 MinecraftForge capability，装了 Team Reborn Energy 时也桥接它（`-Dforbric.transferBridge=off`、`-Dforbric.hopperFabricStorage=off`）。只在相关 API 存在时启用，是否存在通过查找资源来判断。
 
 ## 6. 转换流水线
@@ -541,6 +541,7 @@ java -cp <boot-cp> net.forbric.kernel.boot.Main --scan --mods <dir> --report out
 | m33, m39, m40, m52 | 跨生态的物品/流体/能量传输；漏斗向 Fabric 存储输送 |
 | m34 | ≥ 7200 s 有玩家在线的模拟 soak 测试，带留存检查 |
 | m35–m38, m41–m51, m53 | 逐个功能面的行为：mixin 结果、实体回调、附魔、事件链、coremod 一致性、方块破坏与战利品、交互、日常操作、存根重新绑定、伤害/服务端/世界事件、加载谓词、提示框、加宽的 `NEW` 锚点 |
+| m54 | NeoForge mod 在游玩阶段发给服务端的包能送到：装着 fabric-api 的 Carry On 用真实的键盘和鼠标输入搬起并放下箱子和猪；同样的运行关掉修复后必须什么都搬不起来（第三方 jar：`M54_CARRYON`、`M54_FABRIC_API`） |
 
 - **兼容性批量测试。** `run/compat/PROTOCOL.md` 是一套流程：在一台 Windows 机器上通过安装好的版本配置运行随机/热门的 Modrinth mod 组合（`push-and-run.sh`、`win/*.py`、`pick_mods.py`、`evidence.py`），另有静态工具（`abi-audit.py`、`field-drift.py`、`fapi-usage.py`、`hook-worklist.sh`、`repair-drift.sh`、`control-diff.sh`——同一批 Fabric mod 分别跑在原生 Fabric 和 Forbric 上做对比）。
 - **CI**（`.github/workflows/build.yml`）：`build` 作业先自举，再构建 `forbric-loader/`。`kernel` 作业（JDK 21，没有游戏文件）在 `forbric-kernel/` 中运行 `./gradlew build -Pforbric.skipBaseline=ci-unstaged`：编译启动侧，运行不需要游戏文件的单元测试。没有游戏文件时约三分之一的测试会跳过，跳过的集合必须与 `src/test/skip-baseline/ci-unstaged.tsv` 逐行一致（`skipRatchet`、`tools/junit_report.py`）：新开始跳过的测试会让作业失败，不再跳过的行必须删掉。运行页面会显示测试数 / 实际执行 / 跳过数和最常见的跳过原因，JUnit 报告作为 `kernel-test-results` 上传；基线可以用该产物里的 `skips-actual-ci-unstaged.tsv` 或 `-Pforbric.writeSkipBaseline` 重新生成。`kernel-prepared` 作业（JDK 25）先在 runner 上用 `tools/dev.py prepare --no-assets` 构建游戏文件（Minecraft 从 Mojang 下载，Forge 和 NeoForge 从它们自己的 maven 下载，合并基底和载体在 runner 上构建，单元测试要读的两个 canary mod 和合并报告也一并准备好；只缓存上游下载的文件，派生出的东西一律不上传），再用 `-Pforbric.requireFixtures=staged,game-side,mc-libraries,java-25` 运行同一套测试外加 `transferTest`：除第三方 mod 整合包以外的各类测试夹具在这里都齐全，所以任何其他类别的跳过、或者没有标注类别的跳过，都会在跳过的那个测试上让作业失败。仍然跳过的 136 个测试全都需要不在本仓库里的第三方 mod 整合包，同样由 `ci-prepared.tsv` 卡住。`development-tools` 作业在 Windows、Linux 和 macOS 上运行 `tools/dev.py tool-test` 和打包后的链接闸门。之后 kernel-prepared 还在同一批文件上运行四个真实专用服门禁：m1、m36、m46、m53，它们用的 mod 都是从本仓库源码构建的 canary。其余门禁（客户端、第三方整合包、长时间 soak）需要开发者的 Mac：`tools/nightly/` 每晚由 launchd 在那台 Mac 上运行它们（02:30 启动，soak 只在周日跑），把当晚的摘要提交到 `ci-results` 分支，并在被测提交上设置提交状态 `nightly/dev-mac`。
@@ -599,7 +600,7 @@ java -cp <boot-cp> net.forbric.kernel.boot.Main --scan --mods <dir> --report out
 | `forbric.traceClassDefine` | 二进制类名的 csv；每个类第一次被定义时记下调用栈 |
 | `forbric.tickSampler` | `off`：不对服务端 tick 耗时采样 |
 
-**部分修复开关**——`forbric.commonNetworkInterop`、`forbric.chunkExecutorGuard`、`forbric.forgeCapabilities`、`forbric.forgeWorldgen`、`forbric.transferBridge`、`forbric.hopperFabricStorage`、`forbric.clientResourcePreload`、`forbric.earlyConfigs`、`forbric.fabricHooks`、`forbric.fabricImpl`、`forbric.kernelBundledFirst`、`forbric.modDataPacks`。`forbric.kernel.registryRedirect=true` 会启用一个实验性的注册表包装器重定向。
+**部分修复开关**——`forbric.commonNetworkInterop`、`forbric.playPayloadFallThrough`、`forbric.chunkExecutorGuard`、`forbric.forgeCapabilities`、`forbric.forgeWorldgen`、`forbric.transferBridge`、`forbric.hopperFabricStorage`、`forbric.clientResourcePreload`、`forbric.earlyConfigs`、`forbric.fabricHooks`、`forbric.fabricImpl`、`forbric.kernelBundledFirst`、`forbric.modDataPacks`。`forbric.kernel.registryRedirect=true` 会启用一个实验性的注册表包装器重定向。
 
 ## 18. 不变量
 
