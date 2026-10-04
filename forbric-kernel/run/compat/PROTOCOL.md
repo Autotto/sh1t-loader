@@ -271,12 +271,20 @@ are starved enough that time-based assertions fail — `gate-m19` went red on `a
 thread and is not to be relaxed to suit a scheduler. `-j 4` and `-j 5` are green.
 
 Ports are per concurrent SLOT, not per gate: slot *i* gets `25700 + 10i`, and `GATE_PORT`,
-`M12_PORT`…`M16_PORT` and `M28_PORT` are exported to the gate from that block. A `GATE_PORT`
-already in the environment becomes the base instead. This is not tidiness: eighteen gates
-write `GATE_PORT` into `server.properties`, and the loser of a port race prints `FAILED TO
+`M12_PORT`…`M16_PORT`, `M28_PORT` and `M32_PORT` are exported to the gate from that block. A
+`GATE_PORT` already in the environment becomes the base instead. This is not tidiness: eighteen
+gates write `GATE_PORT` into `server.properties`, and the loser of a port race prints `FAILED TO
 BIND TO PORT` and then still prints `Stopping server` — so the clean-shutdown assertion
 passes and the gate reads green over a server that never started. The old default, 25599,
 is also `gate-m12`'s own `M12_PORT` default, which is exactly that collision.
+
+That list is hand-kept, and a gate reading a name it does not contain gets nothing: it keeps its
+own literal, and the slot where that literal meets an exported one is the race above. `M32_PORT`
+was missing, and `gate-m32-savedrop.sh`'s fallback was slot 10's `M16_PORT`, so the two gates
+could bind one port and both report GREEN. Its fallback now sits outside the block.
+`python3 run/compat/test_gate_ports.py` walks every `# GATE-PARALLEL` gate and fails when one
+reads a `*_PORT` the scheduler never exports, so the next gate that adds a knob is caught there
+instead of in a sweep whose two occupants nobody can reproduce.
 
 The script's output is exactly the RESULT lines, byte for byte the same as `summary.txt`.
 The running commentary — what started when, on which slot and port, what each gate cost, and
