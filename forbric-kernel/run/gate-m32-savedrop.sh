@@ -16,7 +16,11 @@
 set -uo pipefail
 . "$(cd "$(dirname "$0")" && pwd)/lib.sh"
 
-PORT="${M32_PORT:-25805}"
+# The scheduler hands this gate M32_PORT from its own block, as it does for every # GATE-PARALLEL gate. The
+# fallback is for a run started by hand, and it deliberately sits OUTSIDE the scheduler's block (PORT_BASE 25700
+# up), because 25805 was also slot 10's M16_PORT: the two gates then bound one port, the loser still printed
+# "Stopping server", and both read GREEN while one had no server at all.
+PORT="${M32_PORT:-25592}"
 DIR="$KERNEL/run/savedrop"
 LOG_FULL="$BUILD/gate-m32-full.log"
 LOG_DROPPED="$BUILD/gate-m32-dropped.log"
