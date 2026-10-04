@@ -78,6 +78,20 @@ public final class KernelClientSmoke {
 	 * machine. This opens it on a real client and reads back how many frames it drew.
 	 */
 	public static final String MODS_SCREEN = "forbric.clientSmokeModsScreen";
+	/**
+	 * {@code modid[,modid…]}: open each of these mods' config screens the way a player does — select the mod's row in
+	 * the unified Mods screen and press its Config button — then log the class of the screen in front and save a
+	 * screenshot named {@code forbric-config-<modid>.png}.
+	 *
+	 * <p>The class name says whose screen it is; the picture says it is that mod's settings and not an empty frame
+	 * or a crash screen. Neither is a claim the resolver can make about itself: it can only say it returned an
+	 * object. Starts at {@link #CONFIG_SCREENS_AT}; give the run about {@link #CONFIG_SCREEN_HOLD} + 4 ticks per mod.
+	 */
+	public static final String CONFIG_SCREENS = "forbric.clientSmokeConfigScreens";
+	/** World tick at which {@link #CONFIG_SCREENS} starts (default 100). */
+	public static final String CONFIG_SCREENS_AT = "forbric.clientSmokeConfigScreensAt";
+	/** Ticks a config screen is left up before its screenshot: long enough for its own init and a few frames. */
+	private static final int CONFIG_SCREEN_HOLD = 12;
 	/** World tick at which vanilla's key binds screen is opened, to see which screen the game ends up showing. */
 	public static final String KEY_BINDS_SCREEN = "forbric.clientSmokeKeyBinds";
 	/** Take a screenshot of the pause menu with the mods button on it, instead of pressing it. */
@@ -209,6 +223,7 @@ public final class KernelClientSmoke {
 		if (ready) screenshotIfDue(minecraft);
 		if (ready) keyBindsScreenIfDue(minecraft);
 		if (ready) modsScreenIfDue(minecraft);
+		if (ready) configScreensIfDue(minecraft);
 		if (ready && !tooltipProbed) probeTooltip(level, player);
 		if (ready && !probed && worldTicks >= Integer.getInteger(PROBE_TICKS, 160)) {
 			probed = true;
@@ -1726,7 +1741,8 @@ public final class KernelClientSmoke {
 	 *
 	 * <p>Fabric's answer is Mod Menu's, and Mod Menu already opened Fabric mods' configs before any of this
 	 * existed — so a Fabric-only success would prove nothing that was ever in doubt. What was in doubt is the
-	 * other two registries, which no screen on this instance had ever asked.
+	 * other two registries, which no screen on this instance had ever asked. (Without Mod Menu, the Fabric answer
+	 * is the kernel's own reading of the mods' Mod Menu entrypoints; {@link #CONFIG_SCREENS} walks those by name.)
 	 *
 	 * <p>What is reported is the class of the screen that ended up in front of the player. "The resolver returned
 	 * something" is not the same claim: a screen that throws in its own constructor never reaches the player, and
@@ -1766,6 +1782,167 @@ public final class KernelClientSmoke {
 					from, now == null ? "<none>" : now.getClass().getName());
 		} catch (Throwable t) {
 			ForbricLog.warn("[Forbric/ClientSmoke] could not open a config screen from the unified list", t);
+		}
+	}
+
+	private static java.util.List<String> configIds;
+	private static int configIndex;
+	private static int configNextTick;
+	private static Object configModsScreen;
+	private static String configShotFor;
+	private static boolean configScreensDone;
+	private static final java.util.List<String> configOpened = new java.util.ArrayList<>();
+
+	/**
+	 * Walks {@link #CONFIG_SCREENS}, one mod per step, through the Mods screen's own Config button.
+	 *
+	 * <p>A step selects the row with the row's own click handler (which is what asks the resolver whether to show the
+	 * button), reads whether the button is visible — a hidden button is the answer "no config" as the player sees it
+	 * — and presses it. The screen is then left up for {@link #CONFIG_SCREEN_HOLD} ticks and photographed, and the
+	 * next step starts from the same list again, as a player coming back from a mod's settings would.
+	 */
+	private static void configScreensIfDue(Object minecraft) {
+		String wanted = System.getProperty(CONFIG_SCREENS, "");
+		if (wanted.isBlank() || configScreensDone) return;
+		if (worldTicks < Integer.getInteger(CONFIG_SCREENS_AT, 100) || worldTicks < configNextTick) return;
+		try {
+			ClassLoader cl = minecraft.getClass().getClassLoader();
+			if (configIds == null) {
+				configIds = new java.util.ArrayList<>();
+				for (String id : wanted.split(",")) if (!id.isBlank()) configIds.add(id.trim());
+				Class<?> screenType = Class.forName("net.minecraft.client.gui.screens.Screen", false, cl);
+				configModsScreen = Class.forName("net.forbric.kernel.runtime.KernelModListScreen", true, cl)
+						.getConstructor(screenType).newInstance((Object) null);
+				setScreen(minecraft, configModsScreen);
+				ForbricLog.info("[Forbric/ClientSmoke] config screens: mods with a config screen, by ecosystem: %s",
+						Class.forName("net.forbric.kernel.runtime.KernelModConfigScreens", true, cl)
+								.getMethod("summary").invoke(null));
+				configNextTick = worldTicks + 2;
+				return;
+			}
+			if (configShotFor != null) {
+				shootNamed(minecraft, "forbric-config-" + configShotFor + ".png");
+				configShotFor = null;
+				configNextTick = worldTicks + 2;
+				return;
+			}
+			if (configIndex >= configIds.size()) {
+				configScreensDone = true;
+				setScreen(minecraft, null);
+				ForbricLog.info("[Forbric/ClientSmoke] config screens: %d of %d opened through the Config button: %s",
+						configOpened.size(), configIds.size(), configOpened);
+				return;
+			}
+			String modId = configIds.get(configIndex++);
+			setScreen(minecraft, configModsScreen);
+			if (pressConfigFor(minecraft, cl, modId)) {
+				configOpened.add(modId);
+				configShotFor = modId;
+				configNextTick = worldTicks + CONFIG_SCREEN_HOLD;
+			} else {
+				configNextTick = worldTicks + 1;
+			}
+		} catch (Throwable t) {
+			configScreensDone = true;
+			ForbricLog.warn("[Forbric/ClientSmoke] config screens: the walk stopped", t);
+		}
+	}
+
+	/** One step of {@link #configScreensIfDue}: select {@code modId}'s row, press Config. True when a screen opened. */
+	private static boolean pressConfigFor(Object minecraft, ClassLoader cl, String modId) throws Exception {
+		net.forbric.api.ModCatalog.Entry entry = null;
+		for (net.forbric.api.ModCatalog.Entry e : net.forbric.api.ModCatalog.all()) {
+			if (e.modId().equals(modId)) entry = e;
+		}
+		if (entry == null) {
+			ForbricLog.warn("[Forbric/ClientSmoke] config screen of %s: no such mod in the catalog", modId);
+			return false;
+		}
+		Object screen = currentScreen(minecraft);
+		Object row = rowNamed(screen, entry.name());
+		if (row == null) {
+			ForbricLog.warn("[Forbric/ClientSmoke] config screen of %s: no row named \"%s\" in the Mods screen", modId,
+					entry.name());
+			return false;
+		}
+		Class<?> eventCls = Class.forName("net.minecraft.client.input.MouseButtonEvent", true, cl);
+		java.lang.reflect.Method click = row.getClass().getMethod("mouseClicked", eventCls, boolean.class);
+		click.setAccessible(true);
+		click.invoke(row, null, false);
+		Object button = buttonLabelled(screen, cl, "Config");
+		if (button == null) {
+			ForbricLog.warn("[Forbric/ClientSmoke] config screen of %s: the Mods screen has no Config button", modId);
+			return false;
+		}
+		if (!button.getClass().getField("visible").getBoolean(button)) {
+			ForbricLog.info("[Forbric/ClientSmoke] config screen of %s (%s): the Config button is hidden — no config "
+					+ "screen to open", modId, entry.ecosystem());
+			return false;
+		}
+		Class<?> input = Class.forName("net.minecraft.client.input.InputWithModifiers", true, cl);
+		Class.forName("net.minecraft.client.gui.components.AbstractButton", true, cl).getMethod("onPress", input)
+				.invoke(button, (Object) null);
+		Object now = currentScreen(minecraft);
+		if (now == null || now == screen) {
+			ForbricLog.warn("[Forbric/ClientSmoke] config screen of %s (%s): pressing Config left %s in front", modId,
+					entry.ecosystem(), now == null ? "no screen" : "the Mods screen");
+			return false;
+		}
+		ForbricLog.info("[Forbric/ClientSmoke] config screen of %s (%s) through the Config button: %s", modId,
+				entry.ecosystem(), now.getClass().getName());
+		return true;
+	}
+
+	/**
+	 * The list row for the mod named exactly {@code name}. A row narrates itself as {@code "<name>, <ecosystem>"}, and
+	 * the separator is part of the match: "Sodium" must not find "Sodium Extra".
+	 */
+	private static Object rowNamed(Object screen, String name) throws Exception {
+		for (Object child : (java.util.List<?>) screen.getClass().getMethod("children").invoke(screen)) {
+			if (child == null) continue;
+			java.lang.reflect.Method children;
+			try {
+				children = child.getClass().getMethod("children");
+			} catch (NoSuchMethodException leaf) {
+				continue;
+			}
+			for (Object row : (java.util.List<?>) children.invoke(child)) {
+				if (row == null || !row.getClass().getName().contains("KernelModListScreen")) continue;
+				java.lang.reflect.Method narrate = row.getClass().getMethod("getNarration");
+				narrate.setAccessible(true);
+				Object narration = narrate.invoke(row);
+				String text = (String) narration.getClass().getMethod("getString").invoke(narration);
+				if (text.startsWith(name + ", ")) return row;
+			}
+		}
+		return null;
+	}
+
+	/** The screen's button whose label reads {@code label}, found as a player finds it: by what it says. */
+	private static Object buttonLabelled(Object screen, ClassLoader cl, String label) throws Exception {
+		Class<?> buttonCls = Class.forName("net.minecraft.client.gui.components.AbstractButton", true, cl);
+		for (Object child : (java.util.List<?>) screen.getClass().getMethod("children").invoke(screen)) {
+			if (child == null || !buttonCls.isInstance(child)) continue;
+			Object message = buttonCls.getMethod("getMessage").invoke(child);
+			if (label.equals(message.getClass().getMethod("getString").invoke(message))) return child;
+		}
+		return null;
+	}
+
+	/** Saves the last drawn frame as {@code <gameDir>/screenshots/<file>}, so a picture can be paired with its mod. */
+	private static void shootNamed(Object minecraft, String file) {
+		try {
+			ClassLoader cl = minecraft.getClass().getClassLoader();
+			Object target = invoke(fieldValue(minecraft, "gameRenderer"), "mainRenderTarget");
+			Class<?> targetType = Class.forName("com.mojang.blaze3d.pipeline.RenderTarget", false, cl);
+			java.util.function.Consumer<Object> done = message -> { };
+			Class.forName("net.minecraft.client.Screenshot", true, cl)
+					.getMethod("grab", java.io.File.class, String.class, targetType, int.class,
+							java.util.function.Consumer.class)
+					.invoke(null, fieldValue(minecraft, "gameDirectory"), file, target, 1, done);
+			ForbricLog.info("[Forbric/ClientSmoke] screenshot %s requested at world tick %d", file, worldTicks);
+		} catch (Throwable t) {
+			ForbricLog.warn("[Forbric/ClientSmoke] could not take screenshot %s: %s", file, String.valueOf(t));
 		}
 	}
 
