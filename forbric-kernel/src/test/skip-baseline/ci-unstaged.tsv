@@ -75,6 +75,9 @@ test	net.forbric.kernel.boot.KernelTransferInteropTest	aBuiltGameSideAlwaysCarri
 test	net.forbric.kernel.boot.KernelTransferInteropTest	onlyTheRebornHalfOfTheGameSideNamesTeamRebornEnergy()	[fixture:game-side] no staged game jars, so no game side was built
 test	net.forbric.kernel.boot.LaunchInputCheckTest	theStagedMergedBaseAndBothStagedCarrierSpellingsPass()	[fixture:staged] staged game artifacts absent: $ROOT/forbric-loader/run
 test	net.forbric.kernel.boot.MergedLambdaCaptureTest	noCapturedLambdaComesFromTheOtherSideOfTheMerge()	[fixture:staged] the merged base and both patched sides must be staged
+test	net.forbric.kernel.boot.ModMenuApiStandInShapeTest	everyPublicMemberMatchesModMenu()	[fixture:game-side] the Mod Menu API stand-in is compiled before the tests: build/classes/java/modMenuApi/com/terraformersmc/modmenu/api/ModMenuApi.class
+test	net.forbric.kernel.boot.ModMenuApiStandInShapeTest	everyTypeIsTheSameKindOfType()	[fixture:game-side] the Mod Menu API stand-in is compiled before the tests: build/classes/java/modMenuApi/com/terraformersmc/modmenu/api/ModMenuApi.class
+test	net.forbric.kernel.boot.ModMenuApiStandInShapeTest	theStandInIsTheWholeApiPackageAndOnlyIt()	[fixture:game-side] the Mod Menu API stand-in is compiled before the tests: build/classes/java/modMenuApi/com/terraformersmc/modmenu/api/ModMenuApi.class
 test	net.forbric.kernel.boot.MultiLoaderEntrypointsTest	actualBisonAquariusAndBannerstoneUseTheirExecutableFamilies()	[fixture:third-party] requires the prepared random baseline jars
 test	net.forbric.kernel.boot.NeoDeferredWorkTest	bothCarriersDeferredWorkQueuesStillHaveTheFieldsTheFailureReadNeeds()	[fixture:staged] staged carrier absent: $ROOT/forbric-loader/run/neoforge-runtime/neoforge-runtime.jar
 test	net.forbric.kernel.boot.NeoDeferredWorkTest	bothSetupPhasesAttributeAThrowingDeferredTask()	[fixture:game-side] KernelNeoSetup not compiled yet (no staged game jars)

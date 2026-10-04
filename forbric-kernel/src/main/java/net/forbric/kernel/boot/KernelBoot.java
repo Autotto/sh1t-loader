@@ -339,6 +339,10 @@ public final class KernelBoot {
 		// platform-only class would otherwise get a bare NoClassDefFoundError. See ForbricClassLoader.setRescueJars
 		// for why this cannot shadow the winner, and for what it deliberately does not fix.
 		loader.setRescueJars(rescueUrls(dupes));
+		// Fabric mods declare their config screens through Mod Menu's API, which is a mod's, not Fabric's. Without Mod
+		// Menu installed, that declaration cannot even be linked and no Fabric mod has a Config button. Offered now,
+		// while the URLs are final and before any mod class can link against it. See ModMenuApiStandIn.
+		if (side == Side.CLIENT) ModMenuApiStandIn.install(loader);
 
 		// Every mod jar probes as the loader the arbiter gave it, so a mod cannot wander into a branch it never ran
 		// on its own platform — and a universal jar answers as the ONE ecosystem it was arbitrated to. Plain

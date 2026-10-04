@@ -375,6 +375,8 @@ NeoForge 的 `mod_resources` 来源在合并基底上是孤立的。`ClientPackH
 `runtime.KernelModListScreen` 取代两个系各自的 mod 列表界面（`ModsButtonRedirector`），读取 `ModCatalog`；`ModCatalog` 由 `KernelModCatalog` 根据发现结果填充，并再读一遍每个 jar，取出描述、作者和 logo。每个 `ModCatalog.Entry` 都带有 `status` 和 `statusDetail`；如果它是以内嵌 jar 的形式带进来的，还会写明是哪个 mod 自带了它。
 `KernelModConfigScreens` 负责打开 mod 自己的配置界面。
 
+Fabric mod 的配置界面只在一个地方声明：一个实现 Mod Menu 的 `com.terraformersmc.modmenu.api.ModMenuApi` 的 `"modmenu"` 入口点。这个接口属于 Mod Menu 这个 mod，所以没装 Mod Menu 时，入口点类连链接都过不了。找到已安装的 Mod Menu 时照旧问它。否则由 `boot.ModMenuApiStandIn` 把这五个 API 类型的替身交给 `ForbricClassLoader.putGeneratedClass`（与 Mod Menu 20.0.3 的公开形状完全一致，从 `src/modmenuApi/java` 编译，以 `.class.bin` 资源的形式放在游戏侧 jar 里）。加载器只在所有自有 jar 都找不到这个类之后才定义这些字节，所以真正的 Mod Menu 仍然优先。只在客户端、只有 API 这一个包：`isModLoaded("modmenu")` 仍然是 false，Mod Menu 的内部类也仍然不存在。随后 `fabric.ModMenuConfigFactories` 按 Mod Menu 初始化时的方式读取这些入口点：先读每个 mod 自己的工厂（只有它的类重写了 `getModConfigScreenFactory` 才算数，所以问"有没有"时不需要构建界面），再用 `putIfAbsent` 合并每个入口点的 `getProvidedConfigScreenFactories()`。坏掉的入口点会被跳过。`-Dforbric.modMenuStandIn=off` 恢复旧行为：Fabric mod 只有装了 Mod Menu 才有 Config 按钮。
+
 ## 12. 兼容性报告与策略
 
 ### 12.1 证据
@@ -600,7 +602,7 @@ java -cp <boot-cp> net.forbric.kernel.boot.Main --scan --mods <dir> --report out
 | `forbric.traceClassDefine` | 二进制类名的 csv；每个类第一次被定义时记下调用栈 |
 | `forbric.tickSampler` | `off`：不对服务端 tick 耗时采样 |
 
-**部分修复开关**——`forbric.commonNetworkInterop`、`forbric.playPayloadFallThrough`、`forbric.chunkExecutorGuard`、`forbric.forgeCapabilities`、`forbric.forgeWorldgen`、`forbric.transferBridge`、`forbric.hopperFabricStorage`、`forbric.clientResourcePreload`、`forbric.earlyConfigs`、`forbric.fabricHooks`、`forbric.fabricImpl`、`forbric.kernelBundledFirst`、`forbric.modDataPacks`。`forbric.kernel.registryRedirect=true` 会启用一个实验性的注册表包装器重定向。
+**部分修复开关**——`forbric.commonNetworkInterop`、`forbric.playPayloadFallThrough`、`forbric.chunkExecutorGuard`、`forbric.forgeCapabilities`、`forbric.forgeWorldgen`、`forbric.transferBridge`、`forbric.hopperFabricStorage`、`forbric.clientResourcePreload`、`forbric.earlyConfigs`、`forbric.fabricHooks`、`forbric.fabricImpl`、`forbric.kernelBundledFirst`、`forbric.modDataPacks`、`forbric.modMenuStandIn`。`forbric.kernel.registryRedirect=true` 会启用一个实验性的注册表包装器重定向。
 
 ## 18. 不变量
 
