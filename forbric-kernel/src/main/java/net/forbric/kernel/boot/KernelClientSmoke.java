@@ -95,6 +95,19 @@ public final class KernelClientSmoke {
 	 */
 	public static final String SCREEN_MOUSE = "forbric.clientSmokeScreenMouse";
 
+	/**
+	 * World tick at which to run the carry drill: hold sneak with empty hands and right-click a chest, then the
+	 * floor, then a pig, then the floor again — the gesture Carry On and every mod like it is built on. 0 (the
+	 * default) leaves it alone.
+	 *
+	 * <p>Every input goes through the game's OWN {@code KeyboardHandler.keyPress} and {@code MouseHandler.onButton}
+	 * — the private methods GLFW's callbacks call — so the drill covers the whole chain a player's hands start:
+	 * the key mapping going down, a mod's client tick noticing it, the mod's packet to the server, the server's
+	 * interaction event, and the world changing. Each report reads the WORLD (is the chest still there, is the pig)
+	 * and, when Carry On is installed, Carry On's own data on both sides; nothing Forbric says is part of the answer.
+	 */
+	public static final String CARRY = "forbric.clientSmokeCarry";
+
 	/** World tick at which to equip an elytra and try to glide. */
 	public static final String ELYTRA = "forbric.clientSmokeElytra";
 	/** Altitude to drop from. Absolute, because the world keeps whatever the last run left behind. */
@@ -191,6 +204,7 @@ public final class KernelClientSmoke {
 		}
 		if (ready && !drillDone && Boolean.getBoolean(DRILL)) drill(minecraft, player);
 		if (ready) elytraCheck(minecraft, player);
+		if (ready) carryIfDue(minecraft, player);
 		if (ready) screenMouseIfDue(minecraft, player);
 		if (ready) screenshotIfDue(minecraft);
 		if (ready) keyBindsScreenIfDue(minecraft);
@@ -724,6 +738,423 @@ public final class KernelClientSmoke {
 		}
 	}
 
+	private static int carryStage;
+	private static int carryAt;
+	/** Ticks the step that just ran asks for before the next one. */
+	private static int carryWait;
+	/** The chest's block and the pig's spawn block, two blocks either side of where the player stands. */
+	private static int[] carryChestAt;
+	private static int[] carryPigAt;
+	private static final java.util.Map<String, Boolean> carryVerdict = new java.util.LinkedHashMap<>();
+
+	/**
+	 * Ticks between the carry drill's steps. Each one waits on a round trip — a key the client must notice on its
+	 * own tick, a packet the server must handle on its tick, a block change that must come back — and a step that
+	 * runs before the previous one has landed measures the harness, not the game.
+	 */
+	private static final int CARRY_STEP_TICKS = 10;
+	/**
+	 * How long the right button stays down: a click, not a hold. Held for a whole step, the game repeats the use
+	 * every four ticks, and the repeat lands on whatever the first use just made — the chest that was put down gets
+	 * opened, the open screen releases every key, and the rest of the drill runs with nothing held.
+	 */
+	private static final int CARRY_CLICK_TICKS = 2;
+	private static final int CARRY_LAST_STEP = 20;
+	/**
+	 * Where the stage is built. High and fixed, because the world is whatever the fixture holds — the first stage
+	 * built where the player stood was under water, and a chest picked up there leaves water behind, not air.
+	 */
+	private static final int CARRY_STAGE_Y = 180;
+	private static final int GLFW_KEY_LEFT_SHIFT = 340;
+	private static final int GLFW_MOUSE_BUTTON_RIGHT = 1;
+	private static final int GLFW_MOD_SHIFT = 1;
+	/** What the drill leaves in the chest, so "put back" can also mean "put back with what was inside it". */
+	private static final int CARRY_DIAMONDS = 7;
+
+	/**
+	 * Sneak, empty hands, right-click a chest; right-click the floor; the same for a pig. See {@link #CARRY}.
+	 *
+	 * <p>The verdict is read from the world on the SERVER's own thread: a chest that is gone from its block after the
+	 * first click and back — with the diamonds still in it — after the second, and a pig that is gone and then back.
+	 * Carry On's own data is logged beside it so a failure says which link broke, but it is evidence, not the
+	 * verdict: a mod that SAYS it is carrying while the chest still stands has not done what a player wanted.
+	 */
+	private static void carryIfDue(Object minecraft, Object player) {
+		int due = Integer.getInteger(CARRY, 0);
+		if (due <= 0 || carryStage > CARRY_LAST_STEP || worldTicks < due) return;
+		if (carryStage > 0 && worldTicks < carryAt + carryWait) return;
+		carryAt = worldTicks;
+		carryWait = CARRY_STEP_TICKS;
+		int step = carryStage++;
+		try {
+			ClassLoader cl = minecraft.getClass().getClassLoader();
+			Object server = accessible(minecraft.getClass(), "getSingleplayerServer").invoke(minecraft);
+			if (server == null) {
+				carryStage = CARRY_LAST_STEP + 1;
+				ForbricLog.info("[Forbric/ClientSmoke] carry: no integrated server — the drill reads the world there");
+				return;
+			}
+			Object list = accessible(server.getClass(), "getPlayerList").invoke(server);
+			java.util.List<?> players = (java.util.List<?>) accessible(list.getClass(), "getPlayers").invoke(list);
+			if (players.isEmpty()) return;
+			Object p = players.get(0);
+			switch (step) {
+				case 0 -> onServer(server, () -> buildCarryStage(p, cl));
+				case 1 -> pressKey(minecraft, cl, GLFW_KEY_LEFT_SHIFT, true);
+				case 2 -> aimAt(player, carryChestAt[0] + 0.5, carryChestAt[1] + 0.5, carryChestAt[2] + 0.5);
+				case 3 -> {
+					carryReport(minecraft, server, p, player, cl, "holding sneak, before the click",
+							carryWorld(server, p, cl));
+					clickRight(minecraft, cl, true);
+				}
+				case 4 -> clickRight(minecraft, cl, false);
+				case 5 -> {
+					String world = carryWorld(server, p, cl);
+					// Read, and not a chest: an unreadable world must not count as a chest that left.
+					carryVerdict.put("chest picked up", world.startsWith("chestBlock=")
+							&& !world.contains("chestBlock=minecraft:chest"));
+					carryReport(minecraft, server, p, player, cl, "after sneak-right-clicking the chest", world);
+					screenshotNow(minecraft, "carrying the chest, first person");
+				}
+				case 6 -> cameraType(minecraft, cl, "THIRD_PERSON_FRONT");
+				case 7 -> {
+					screenshotNow(minecraft, "carrying the chest, third person");
+					cameraType(minecraft, cl, "FIRST_PERSON");
+					pressKey(minecraft, cl, GLFW_KEY_LEFT_SHIFT, false);
+				}
+				// The floor's top face, under where the chest stood: Carry On puts a block on the face it is given.
+				case 8 -> aimAt(player, carryChestAt[0] + 0.5, carryChestAt[1], carryChestAt[2] + 0.5);
+				case 9 -> {
+					// Looking at where the chest stood, a step after turning there so the frame shows the turn: a chest
+					// the client still draws here is one the server took and never told it about.
+					screenshotNow(minecraft, "the floor where the chest stood, before putting it down");
+					clickRight(minecraft, cl, true);
+				}
+				case 10 -> clickRight(minecraft, cl, false);
+				case 11 -> {
+					String world = carryWorld(server, p, cl);
+					// Only after a pickup: a chest that never left its block is not a chest that was put back.
+					boolean pickedUp = Boolean.TRUE.equals(carryVerdict.get("chest picked up"));
+					carryVerdict.put("chest put back", pickedUp && world.contains("chestBlock=minecraft:chest"));
+					carryVerdict.put("with its contents", pickedUp
+							&& world.contains("chestSlot0=" + CARRY_DIAMONDS + " minecraft:diamond"));
+					carryReport(minecraft, server, p, player, cl, "after right-clicking the floor", world);
+					onServer(server, () -> spawnCarryPig(p, cl));
+					pressKey(minecraft, cl, GLFW_KEY_LEFT_SHIFT, true);
+				}
+				// A pig is 0.9 tall: its middle, not its feet, or the ray misses it over a slab of floor.
+				case 12 -> aimAt(player, carryPigAt[0] + 0.5, carryPigAt[1] + 0.45, carryPigAt[2] + 0.5);
+				case 13 -> clickRight(minecraft, cl, true);
+				case 14 -> clickRight(minecraft, cl, false);
+				case 15 -> {
+					String world = carryWorld(server, p, cl);
+					carryVerdict.put("pig picked up", world.contains("pigsNearby=0"));
+					carryReport(minecraft, server, p, player, cl, "after sneak-right-clicking the pig", world);
+					screenshotNow(minecraft, "carrying the pig, first person");
+				}
+				case 16 -> pressKey(minecraft, cl, GLFW_KEY_LEFT_SHIFT, false);
+				case 17 -> aimAt(player, carryPigAt[0] + 0.5, carryPigAt[1], carryPigAt[2] + 0.5);
+				case 18 -> clickRight(minecraft, cl, true);
+				case 19 -> clickRight(minecraft, cl, false);
+				default -> {
+					String world = carryWorld(server, p, cl);
+					carryVerdict.put("pig put back", Boolean.TRUE.equals(carryVerdict.get("pig picked up"))
+							&& world.contains("pigsNearby=1"));
+					carryReport(minecraft, server, p, player, cl, "after right-clicking the floor", world);
+					StringBuilder verdict = new StringBuilder();
+					carryVerdict.forEach((what, held) -> verdict.append(verdict.length() == 0 ? "" : ", ")
+							.append(what).append('=').append(held));
+					ForbricLog.info("[Forbric/ClientSmoke] carry drill result: %s", verdict);
+				}
+			}
+		} catch (Throwable t) {
+			carryStage = CARRY_LAST_STEP + 1;
+			ForbricLog.warn("[Forbric/ClientSmoke] the carry drill could not run step " + step,
+					t instanceof java.lang.reflect.InvocationTargetException i && i.getCause() != null ? i.getCause() : t);
+		}
+	}
+
+	/**
+	 * A stone floor in the open air with the player on it, a chest with diamonds in it two blocks ahead, and the
+	 * pig's block two blocks behind. The world is whatever the last run left, so the stage is built rather than
+	 * assumed: a hill, a tree or a lake between the player and the chest makes the click land on something else, and
+	 * that reads as the mod declining.
+	 */
+	private static void buildCarryStage(Object p, ClassLoader cl) throws Exception {
+		Class<?> posCls = Class.forName("net.minecraft.core.BlockPos", true, cl);
+		Class<?> stateCls = Class.forName("net.minecraft.world.level.block.state.BlockState", true, cl);
+		Class<?> blocks = Class.forName("net.minecraft.world.level.block.Blocks", true, cl);
+		Class<?> stackCls = Class.forName("net.minecraft.world.item.ItemStack", true, cl);
+		java.lang.reflect.Constructor<?> at = posCls.getConstructor(int.class, int.class, int.class);
+		Object level = accessible(p.getClass(), "level").invoke(p);
+		Method setBlock = accessible(level.getClass(), "setBlockAndUpdate", posCls, stateCls);
+		Object feet = accessible(p.getClass(), "blockPosition").invoke(p);
+		int x = (int) accessible(feet.getClass(), "getX").invoke(feet);
+		int y = CARRY_STAGE_Y;
+		int z = (int) accessible(feet.getClass(), "getZ").invoke(feet);
+		Object stone = defaultState(blocks, "STONE");
+		Object air = defaultState(blocks, "AIR");
+		for (int dx = -1; dx <= 1; dx++) {
+			for (int dz = -3; dz <= 3; dz++) {
+				setBlock.invoke(level, at.newInstance(x + dx, y - 1, z + dz), stone);
+				for (int dy = 0; dy <= 2; dy++) setBlock.invoke(level, at.newInstance(x + dx, y + dy, z + dz), air);
+			}
+		}
+		// teleportTo, not setPos: the client must be told, or it keeps sending where it thinks it is.
+		accessible(p.getClass(), "teleportTo", double.class, double.class, double.class).invoke(p, x + 0.5, (double) y,
+				z + 0.5);
+		carryChestAt = new int[] {x, y, z + 2};
+		carryPigAt = new int[] {x, y, z - 2};
+		Object chestPos = at.newInstance(carryChestAt[0], carryChestAt[1], carryChestAt[2]);
+		setBlock.invoke(level, chestPos, defaultState(blocks, "CHEST"));
+		Object chest = accessible(level.getClass(), "getBlockEntity", posCls).invoke(level, chestPos);
+		Object diamonds = stackCls.getConstructor(Class.forName("net.minecraft.world.level.ItemLike", true, cl), int.class)
+				.newInstance(Class.forName("net.minecraft.world.item.Items", true, cl).getField("DIAMOND").get(null),
+						CARRY_DIAMONDS);
+		accessible(chest.getClass(), "setItem", int.class, stackCls).invoke(chest, 0, diamonds);
+		// Carry On picks up only with BOTH hands empty, which is the rule the gesture exists for; the run's world
+		// may have left something in them.
+		Class<?> handCls = Class.forName("net.minecraft.world.InteractionHand", true, cl);
+		Object empty = stackCls.getField("EMPTY").get(null);
+		for (Object hand : handCls.getEnumConstants()) {
+			accessible(p.getClass(), "setItemInHand", handCls, stackCls).invoke(p, hand, empty);
+		}
+		ForbricLog.info("[Forbric/ClientSmoke] carry stage: a chest holding %d diamonds at %d %d %d, the pig's "
+				+ "block at %d %d %d, the player moved to %d %d %d with empty hands", CARRY_DIAMONDS, carryChestAt[0],
+				carryChestAt[1], carryChestAt[2], carryPigAt[0], carryPigAt[1], carryPigAt[2], x, y, z);
+	}
+
+	private static Object defaultState(Class<?> blocks, String name) throws Exception {
+		Object block = blocks.getField(name).get(null);
+		return accessible(block.getClass(), "defaultBlockState").invoke(block);
+	}
+
+	/** 26.2 moved the entity type constants out of {@code EntityType} into {@code EntityTypes}; either will do. */
+	private static Object pigType(ClassLoader cl) throws Exception {
+		try {
+			return Class.forName("net.minecraft.world.entity.EntityTypes", true, cl).getField("PIG").get(null);
+		} catch (ClassNotFoundException | NoSuchFieldException older) {
+			return Class.forName("net.minecraft.world.entity.EntityType", true, cl).getField("PIG").get(null);
+		}
+	}
+
+	/** A pig that stays where it was put: without AI it does not wander off between the click and the count. */
+	private static void spawnCarryPig(Object p, ClassLoader cl) throws Exception {
+		Class<?> posCls = Class.forName("net.minecraft.core.BlockPos", true, cl);
+		Class<?> typeCls = Class.forName("net.minecraft.world.entity.EntityType", true, cl);
+		Class<?> reasonCls = Class.forName("net.minecraft.world.entity.EntitySpawnReason", true, cl);
+		Class<?> serverLevel = Class.forName("net.minecraft.server.level.ServerLevel", true, cl);
+		Object level = accessible(p.getClass(), "level").invoke(p);
+		Object pos = posCls.getConstructor(int.class, int.class, int.class)
+				.newInstance(carryPigAt[0], carryPigAt[1], carryPigAt[2]);
+		@SuppressWarnings({"unchecked", "rawtypes"})
+		Object reason = Enum.valueOf((Class) reasonCls, "COMMAND");
+		Object pig = accessible(typeCls, "spawn", serverLevel, posCls, reasonCls)
+				.invoke(pigType(cl), level, pos, reason);
+		if (pig != null) {
+			Class.forName("net.minecraft.world.entity.Mob", true, cl).getMethod("setNoAi", boolean.class).invoke(pig, true);
+		}
+		ForbricLog.info("[Forbric/ClientSmoke] carry stage: spawned %s", pig);
+	}
+
+	/** One key through {@code KeyboardHandler.keyPress}, the method GLFW's key callback calls. */
+	private static void pressKey(Object minecraft, ClassLoader cl, int key, boolean down) throws Exception {
+		Object keyboard = fieldValue(minecraft, "keyboardHandler");
+		Object window = minecraft.getClass().getMethod("getWindow").invoke(minecraft);
+		long handle = (long) window.getClass().getMethod("handle").invoke(window);
+		Class<?> eventCls = Class.forName("net.minecraft.client.input.KeyEvent", true, cl);
+		// What GLFW itself reports: pressing shift carries the shift modifier, letting it go does not.
+		Object event = eventCls.getConstructor(int.class, int.class, int.class)
+				.newInstance(key, 0, down && key == GLFW_KEY_LEFT_SHIFT ? GLFW_MOD_SHIFT : 0);
+		Method keyPress = keyboard.getClass().getDeclaredMethod("keyPress", long.class, int.class, eventCls);
+		keyPress.setAccessible(true);
+		keyPress.invoke(keyboard, handle, down ? 1 : 0, event);
+		heldShift = key == GLFW_KEY_LEFT_SHIFT ? down : heldShift;
+		ForbricLog.info("[Forbric/ClientSmoke] carry: key %d %s through KeyboardHandler.keyPress", key,
+				down ? "pressed" : "released");
+	}
+
+	private static boolean heldShift;
+
+	/** The right mouse button through {@code MouseHandler.onButton}, with the modifiers a held shift would add. */
+	private static void clickRight(Object minecraft, ClassLoader cl, boolean down) throws Exception {
+		Object mouse = fieldValue(minecraft, "mouseHandler");
+		Object window = minecraft.getClass().getMethod("getWindow").invoke(minecraft);
+		long handle = (long) window.getClass().getMethod("handle").invoke(window);
+		Class<?> infoCls = Class.forName("net.minecraft.client.input.MouseButtonInfo", true, cl);
+		Object right = infoCls.getConstructor(int.class, int.class)
+				.newInstance(GLFW_MOUSE_BUTTON_RIGHT, heldShift ? GLFW_MOD_SHIFT : 0);
+		Method onButton = mouse.getClass().getDeclaredMethod("onButton", long.class, infoCls, int.class);
+		onButton.setAccessible(true);
+		if (down) {
+			ForbricLog.info("[Forbric/ClientSmoke] carry: right button down through MouseHandler.onButton, the "
+					+ "crosshair on %s", fieldValue(minecraft, "hitResult") == null ? "<nothing>"
+					: describeHit(fieldValue(minecraft, "hitResult")));
+		}
+		onButton.invoke(mouse, handle, right, down ? 1 : 0);
+		if (down) carryWait = CARRY_CLICK_TICKS;
+	}
+
+	private static String describeHit(Object hit) {
+		Object type = invokeQuietly(hit, "getType");
+		Object where = invokeQuietly(hit, "getBlockPos");
+		Object entity = invokeQuietly(hit, "getEntity");
+		return type + (where != null ? " " + where : "") + (entity != null ? " " + entity : "");
+	}
+
+	private static Object invokeQuietly(Object owner, String name) {
+		try {
+			return accessible(owner.getClass(), name).invoke(owner);
+		} catch (Throwable t) {
+			return null;
+		}
+	}
+
+	/**
+	 * Turns the client's player to look at a point. The client is the side that decides what was clicked, from
+	 * its own view, so that is the rotation that has to be right; the server only checks the result is in reach.
+	 */
+	private static void aimAt(Object player, double x, double y, double z) throws Exception {
+		Object eye = accessible(player.getClass(), "getEyePosition").invoke(player);
+		double dx = x - (double) fieldValue(eye, "x");
+		double dy = y - (double) fieldValue(eye, "y");
+		double dz = z - (double) fieldValue(eye, "z");
+		float yaw = (float) Math.toDegrees(Math.atan2(dz, dx)) - 90f;
+		float pitch = (float) -Math.toDegrees(Math.atan2(dy, Math.sqrt(dx * dx + dz * dz)));
+		setRotation(player, yaw, pitch);
+		// The previous tick's rotation too: anything that interpolates between the two would otherwise look halfway.
+		setField(player, "yRotO", yaw);
+		setField(player, "xRotO", pitch);
+	}
+
+	private static void cameraType(Object minecraft, ClassLoader cl, String type) throws Exception {
+		Object options = fieldValue(minecraft, "options");
+		Class<?> cameraCls = Class.forName("net.minecraft.client.CameraType", true, cl);
+		@SuppressWarnings({"unchecked", "rawtypes"})
+		Object value = Enum.valueOf((Class) cameraCls, type);
+		accessible(options.getClass(), "setCameraType", cameraCls).invoke(options, value);
+	}
+
+	private static void screenshotNow(Object minecraft, String what) {
+		try {
+			Class<?> screenshot = Class.forName("net.minecraft.client.Screenshot", true,
+					minecraft.getClass().getClassLoader());
+			screenshot.getMethod("grab", minecraft.getClass(), boolean.class).invoke(null, minecraft, false);
+			ForbricLog.info("[Forbric/ClientSmoke] screenshot requested at world tick %d: %s", worldTicks, what);
+		} catch (Throwable t) {
+			ForbricLog.warn("[Forbric/ClientSmoke] could not take a screenshot (%s): %s", what, String.valueOf(t));
+		}
+	}
+
+	/** The world facts the verdict is made of, read on the server thread. */
+	private static String carryWorld(Object server, Object p, ClassLoader cl) throws Exception {
+		String[] out = {"<unread>"};
+		onServer(server, () -> {
+			Class<?> posCls = Class.forName("net.minecraft.core.BlockPos", true, cl);
+			Object level = accessible(p.getClass(), "level").invoke(p);
+			Object chestPos = posCls.getConstructor(int.class, int.class, int.class)
+					.newInstance(carryChestAt[0], carryChestAt[1], carryChestAt[2]);
+			Object state = accessible(level.getClass(), "getBlockState", posCls).invoke(level, chestPos);
+			Object block = accessible(state.getClass(), "getBlock").invoke(state);
+			Object blockRegistry = Class.forName("net.minecraft.core.registries.BuiltInRegistries", true, cl)
+					.getField("BLOCK").get(null);
+			// Through the Registry interface, not the implementation: the merged registry class names Fabric
+			// registry-sync types in its signatures, and listing its declared methods links them.
+			Object name = Class.forName("net.minecraft.core.Registry", true, cl).getMethod("getKey", Object.class)
+					.invoke(blockRegistry, block);
+			String slot0 = "-";
+			Object chest = accessible(level.getClass(), "getBlockEntity", posCls).invoke(level, chestPos);
+			if (chest != null) {
+				try {
+					Object stack = accessible(chest.getClass(), "getItem", int.class).invoke(chest, 0);
+					slot0 = String.valueOf(stack);
+				} catch (NoSuchMethodException notAContainer) {
+					slot0 = "<not a container>";
+				}
+			}
+			Class<?> entityCls = Class.forName("net.minecraft.world.entity.Entity", true, cl);
+			Class<?> aabbCls = Class.forName("net.minecraft.world.phys.AABB", true, cl);
+			Object box = aabbCls.getConstructor(double.class, double.class, double.class, double.class, double.class,
+					double.class).newInstance(carryPigAt[0] - 1.5, carryPigAt[1] - 1.0, carryPigAt[2] - 1.5,
+					carryPigAt[0] + 2.5, carryPigAt[1] + 3.0, carryPigAt[2] + 2.5);
+			Object pigType = pigType(cl);
+			int pigs = 0;
+			for (Object e : (java.util.List<?>) accessible(level.getClass(), "getEntitiesOfClass", Class.class, aabbCls)
+					.invoke(level, entityCls, box)) {
+				if (entityCls.getMethod("getType").invoke(e) == pigType) pigs++;
+			}
+			out[0] = "chestBlock=" + name + " chestSlot0=" + slot0 + " pigsNearby=" + pigs;
+		});
+		return out[0];
+	}
+
+	/**
+	 * One line per drill moment: the world, then Carry On's own state on each side — the server's (does it believe
+	 * the carry key is held, is it carrying), and the client's (is its key mapping down, what did it last send).
+	 * Which of those flips and which does not is how a silent failure is placed on one link of the chain.
+	 */
+	private static void carryReport(Object minecraft, Object server, Object p, Object player, ClassLoader cl,
+			String moment, String world) throws Exception {
+		String[] serverSide = {"<unread>"};
+		onServer(server, () -> serverSide[0] = carryOnState(p, cl) + " sneaking="
+				+ accessible(p.getClass(), "isShiftKeyDown").invoke(p));
+		Object options = fieldValue(minecraft, "options");
+		Object keyShift = options == null ? null : fieldValue(options, "keyShift");
+		String carryKey;
+		try {
+			Object mapping = Class.forName("tschipp.carryon.client.keybinds.CarryOnKeybinds", true, cl)
+					.getField("carryKey").get(null);
+			carryKey = mapping == null ? "<never registered>" : String.valueOf(mapping.getClass().getMethod("isDown")
+					.invoke(mapping));
+		} catch (ClassNotFoundException absent) {
+			carryKey = "<no Carry On>";
+		}
+		Object screen = currentScreen(minecraft);
+		ForbricLog.info("[Forbric/ClientSmoke] carry %s: %s | server: %s | client: chestBlock=%s carryKey.isDown=%s "
+						+ "keyShift.isDown=%s %s screen=%s", moment, world, serverSide[0], clientChestBlock(minecraft, cl),
+				carryKey, keyShift == null ? "?" : keyShift.getClass().getMethod("isDown").invoke(keyShift),
+				carryOnState(player, cl), screen == null ? "none" : screen.getClass().getSimpleName());
+	}
+
+	/**
+	 * The block the CLIENT's level holds where the chest was. Beside the server's answer it separates "the mod did
+	 * not pick it up" from "the mod did and the client was never told" — a ghost chest is the second.
+	 */
+	private static String clientChestBlock(Object minecraft, ClassLoader cl) {
+		try {
+			Object level = fieldValue(minecraft, "level");
+			Class<?> posCls = Class.forName("net.minecraft.core.BlockPos", true, cl);
+			Object pos = posCls.getConstructor(int.class, int.class, int.class)
+					.newInstance(carryChestAt[0], carryChestAt[1], carryChestAt[2]);
+			Object state = Class.forName("net.minecraft.world.level.BlockGetter", true, cl)
+					.getMethod("getBlockState", posCls).invoke(level, pos);
+			Object block = accessible(state.getClass(), "getBlock").invoke(state);
+			Object blocks = Class.forName("net.minecraft.core.registries.BuiltInRegistries", true, cl)
+					.getField("BLOCK").get(null);
+			return String.valueOf(Class.forName("net.minecraft.core.Registry", true, cl)
+					.getMethod("getKey", Object.class).invoke(blocks, block));
+		} catch (Throwable t) {
+			return "<unreadable: " + t + ">";
+		}
+	}
+
+	/** Carry On's own record for one player, read through its own manager — or that it is not installed. */
+	private static String carryOnState(Object player, ClassLoader cl) {
+		try {
+			Class<?> manager = Class.forName("tschipp.carryon.common.carry.CarryOnDataManager", true, cl);
+			Object data = accessible(manager, "getCarryData", Class.forName("net.minecraft.world.entity.player.Player",
+					true, cl)).invoke(null, player);
+			return "carrying=" + accessible(data.getClass(), "isCarrying").invoke(data)
+					+ " type=" + accessible(data.getClass(), "getType").invoke(data)
+					+ " keyPressed=" + accessible(data.getClass(), "isKeyPressed").invoke(data);
+		} catch (ClassNotFoundException absent) {
+			return "<no Carry On>";
+		} catch (Throwable t) {
+			return "<unreadable: " + (t instanceof java.lang.reflect.InvocationTargetException i && i.getCause() != null
+					? i.getCause() : t) + ">";
+		}
+	}
+
 	private static int elytraStage;
 	private static int elytraEquippedAt;
 
@@ -878,7 +1309,7 @@ public final class KernelClientSmoke {
 			try {
 				body.run();
 			} catch (Throwable t) {
-				ForbricLog.warn("[Forbric/ClientSmoke] elytra step failed on the server thread", t);
+				ForbricLog.warn("[Forbric/ClientSmoke] a drill step failed on the server thread", t);
 			} finally {
 				done.countDown();
 			}
@@ -1664,6 +2095,13 @@ public final class KernelClientSmoke {
 		idsLoggedBeforeConnect = false;
 		screenMouseStage = 0;
 		screenMouseAt = 0;
+		carryStage = 0;
+		carryAt = 0;
+		carryWait = 0;
+		carryChestAt = null;
+		carryPigAt = null;
+		carryVerdict.clear();
+		heldShift = false;
 	}
 
 	private static Object fieldValue(Object owner, String name) {
