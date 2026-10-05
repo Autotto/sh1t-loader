@@ -812,6 +812,12 @@ public final class KernelBoot {
 		// another, and so is anything that closes the loader early. None of them should be able to turn a quit into
 		// a crash report, and a class the shutdown path cannot do without has no business being resolved for the
 		// first time during shutdown.
+		//
+		// The exit hook is not the only one. Every hook the chain splices into the game is read from the kernel jar at
+		// its first use, and gate M22 measured two more after the jar was truncated: ForgeRuntimeInterop at the first
+		// lava flow (a server crash report) and KernelRegistryRevert on leaving a world. So the whole jar is defined
+		// now, while it is readable; the exit hook is still initialized by name below, as before.
+		KernelJarPreload.run(KernelBoot.class);
 		try {
 			Class.forName(ExitHookInjector.HOOK_OWNER.replace('/', '.'), true, KernelBoot.class.getClassLoader());
 		} catch (Throwable t) {
