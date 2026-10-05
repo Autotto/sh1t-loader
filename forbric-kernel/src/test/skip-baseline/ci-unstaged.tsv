@@ -312,6 +312,13 @@ test	net.forbric.kernel.mixin.MixinWrapOperationShimTest	pickBlockWrapBindsToNeo
 test	net.forbric.kernel.mixin.MixinWrapOperationShimTest	theSwitchWrapsNothing()	[fixture:staged] actual Fabric API fixture required
 test	net.forbric.kernel.mixin.MixinWrapOperationShimTest	theVerdictFollowsTheReviewedWrap()	[fixture:staged] actual Fabric API fixture required
 test	net.forbric.kernel.mixin.MixinWrapOperationShimTest	vanillasBodyBindsAsWritten()	[fixture:staged] actual Fabric API fixture required
+test	net.forbric.kernel.mixin.NativeOnlyMethodsCensusTest	aClassOnlyTheMergedBaseHasIsNeverAnsweredFor()	skipped without a message (a class-level abort, e.g. in @BeforeAll)
+test	net.forbric.kernel.mixin.NativeOnlyMethodsCensusTest	aMethodTheModsOwnPlatformHasAndTheMergeLostStaysAConfirmedLoss()	skipped without a message (a class-level abort, e.g. in @BeforeAll)
+test	net.forbric.kernel.mixin.NativeOnlyMethodsCensusTest	aMinecraftLibraryIsAnsweredFromItsOwnBytesAndOnlyAtVanillasVersion()	skipped without a message (a class-level abort, e.g. in @BeforeAll)
+test	net.forbric.kernel.mixin.NativeOnlyMethodsCensusTest	noMethodAPlatformDeclaresIsEverCalledAbsentForItsOwnMods()	skipped without a message (a class-level abort, e.g. in @BeforeAll)
+test	net.forbric.kernel.mixin.NativeOnlyMethodsCensusTest	theNotEnoughCrashesShapeIsFitOnTheRealBaseAndAVanillaOnlyMethodStaysUnfit()	skipped without a message (a class-level abort, e.g. in @BeforeAll)
+test	net.forbric.kernel.mixin.NativeOnlyMethodsCensusTest	theRunningBaseIsTheOneTheTableSpeaksFor()	skipped without a message (a class-level abort, e.g. in @BeforeAll)
+test	net.forbric.kernel.mixin.NativeOnlyMethodsCensusTest	theShippedTableIsExactlyWhatTheArtifactsSay()	skipped without a message (a class-level abort, e.g. in @BeforeAll)
 test	net.forbric.kernel.mixin.NestHostFieldWritesTest	actualC2meVolatileAndSynchronizedGuardsAreNotSuppressed()	[fixture:staged] $ROOT/forbric-loader/run/merged-base/patched-mc-merged-26.2.jar absent
 test	net.forbric.kernel.mixin.PostMixinFixupsAliasTargetTest	everyShippedFabricRegistrySyncHasExactlyTheWarningsCheckRepaired()	[fixture:third-party] no fabric-registry-sync in the compatibility packs on this machine
 test	net.forbric.kernel.mixin.SupersededMixinsTest	theHopperProofMatchesWhatTheRealRepairWritesIntoTheRealClass()	[fixture:staged] actual game required

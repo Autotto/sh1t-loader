@@ -563,6 +563,40 @@ injector bound only to a merged-base method nothing in the merged game calls is 
 `MergedBaseUncalledMethods`, `-Dforbric.mixinFit.liveness=off`) unless an installed mod calls it. `MixinFitReport`
 runs the same judgement offline: `MixinFitReport <merged-base.jar> <mods-dir> [--verbose]`.
 
+A miss is the merge's only if the mod's own platform had the member: vanilla 26.2 for a Fabric mod, MinecraftForge's
+or NeoForge's patched 26.2 for theirs (the config owner's ecosystem, `MixinConfigOwners.ecosystemOf`; a config no
+single mod claims is not asked). Those patched games declare methods vanilla does not — `KeyMapping.getKeyModifier()`,
+`AxeItem.canPerformAction`, NeoForge's `EnderDragon.getParts()` — and the merge dropped or retyped some of them, so
+"vanilla lacks it too" proves nothing for a MinecraftForge or NeoForge mod. An injector whose `method` selectors are
+all plain names of methods that platform lacks too, and which nothing requires to inject — no `require` ≥ 1, the
+config's original `injectors.defaultRequire` 0, no `@Group`, no `mixin.debug.countInjections` — is one native Mixin
+skips without a word while the rest of the mixin applies (sponge-mixin 0.17.x and upstream Mixin 0.8.7 alike:
+`TargetSelectors.validate` throws only for a required count; the config's `required` flag only decides whether such an
+error is fatal). "Plain" means a name, optionally a descriptor, optionally the target itself as owner: a `@`-dynamic
+selector (MixinSquared's `@MixinSquared:Handler` resolves to another mixin's handler), a `+` or `{n,}` quantifier (its
+minimum throws whatever `require` says), a dotted owner, a regex and a malformed descriptor are never answered.
+`NativeAbsentTargets` counts such an injector neither resolved nor missing and logs it on one info line, so the mixin
+is judged on the rest and, with nothing else missing, goes to Mixin whole — no finding, no policy stop. Not Enough
+Crashes' `@Inject` into `BlockEntity.populateCrashReport` (26.2 calls it `fillCrashReportCategory`) is the case.
+"The platform lacks it" is answered from the merged base's raw bytes plus the shipped difference
+`native-only-methods.txt`: per platform, the methods its game declares in vanilla's packages that the merged base does
+not (565 for vanilla, 424 for MinecraftForge, 14 for NeoForge) and the classes there only the merged base has (18, 10
+and 6). A method the raw class still declares, a class outside `net/minecraft/`/`com/mojang/`, and another mod's class
+are never called absent. The rows hold only for the base they were derived from, so the table also records that base's
+members digest (every class in vanilla's packages with its methods' names and descriptors, bodies left out); a class
+served by a jar whose digest differs is not answered for, and one warning says so. Minecraft's own libraries under
+`com/mojang/` (brigadier, DataFixerUpper, authlib and five more) are answered from their own bytes: the kernel loads
+them beside the merged base, every platform loads the same jars (vanilla 26.2's version JSON lists them, and
+MinecraftForge 65.0.1's and NeoForge 26.2.0.88's launcher profiles inherit that list and add no `com.mojang` library),
+so the table records each of those jars' members digest too (`library` lines), and a class served by exactly one of
+them is answered like the merged base's; a library jar of another version is not. The rows describe one game per
+platform — vanilla 26.2, MinecraftForge 65.0.1's patched 26.2, NeoForge 26.2.0.88's — and the table's `platform` lines
+record those versions. A mod whose mandatory `minecraft` range, or `forge`/`neoforge` range for its platform, excludes
+that version is not native to that game (its own loader would refuse it there, and the newer game it was built for may
+declare the method), so it is not answered for and one info line names the requirement; nor is a mod whose range cannot
+be read, or whose manifest the kernel has not published (`ModPresence`). For any of those the miss is the merge's, as
+before. `-Dforbric.mixinFit.nativeAbsent=off` counts such an injector as a miss again.
+
 Provenance was the previous rule and was wrong: the merged base *is* NeoForge's patched Minecraft with Forge
 spliced in, so "a Forge-family class" describes most of the jar.
 
@@ -585,8 +619,10 @@ overload its handler fits — only when the first cannot take the handler; other
 `FabricServerLanguageMixinAdapter`). `GuestInjectorPruner` (COREMOD) trims individual injectors from a guest mixin
 class where the kernel replaces their function. Several adapters read shipped tables under
 `src/main/resources/net/forbric/kernel/mixin/` (`carrier-helpers.txt`, `carrier-stubs.txt`,
-`lambda-permutations.txt`, `uncalled-methods.txt`); `CarrierHelperCensusTest` and `UncalledMethodCensusTest`
-re-derive the first and last from the staged jars and pin them.
+`lambda-permutations.txt`, `uncalled-methods.txt`, `native-only-methods.txt`); `CarrierHelperCensusTest`,
+`UncalledMethodCensusTest` and `NativeOnlyMethodsCensusTest` re-derive `carrier-helpers.txt`, `uncalled-methods.txt`
+and `native-only-methods.txt` from the staged jars (the last from the merged base, both patched games and vanilla's own
+jar) and pin them.
 
 ### 7.5 Attribution
 
@@ -1048,6 +1084,8 @@ developer reaches for:
 | `forbric.mixinDiagnostics` | keep injection requirements strict to surface every misfit |
 | `forbric.mixinFit` | `strict`: also drop `PARTIAL` mixins |
 | `forbric.mixinFit.liveness` | `off`: injectors on uncalled methods count as resolved |
+| `forbric.mixinFit.nativeAbsent` | `off`: an injector target the mod's own platform lacks too counts as a missing anchor again |
+| `forbric.mixinFit.nativeAbsent.base` | `<digest>`: the merged-base members digest `native-only-methods.txt` is trusted for instead of its own (fixture games in tests) |
 | `forbric.mixinOverlapLint` | `off`: no cross-mod overlap findings at boot (§7.6) |
 | `forbric.guestMixinAdapter` | `off`: no derived drops, only the hand list |
 | `forbric.mergedBaseCompat` | `off`: drop the built-in incompatibility lists |

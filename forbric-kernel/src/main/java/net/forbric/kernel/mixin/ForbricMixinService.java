@@ -460,8 +460,12 @@ public final class ForbricMixinService
 				// Derive, from THIS config, the mixins that target a Forge/NeoForge-owned merged class — the general
 				// form of MergedBaseMixinCompat's hand-listed renderer/pipeline entries. Each mixin class is a game
 				// resource resolvable through the same loader, so no separate mod-jar inventory is needed.
+				// The raw resource is the merged base before the transform chain: what tells a target the owning mod's
+				// platform lacks too from one the chain removed; the serving jar's members digest is what tells whether
+				// the shipped table speaks for that base at all (NativeAbsentTargets).
 				for (String owned : KernelGuestMixinAdapter.unfitMixins(name, bytes,
-						r -> readAdapterClass(r), envType)) {
+						r -> readAdapterClass(r), envType, ForbricMixinService::readGameResource,
+						ForbricMixinService::servingBase)) {
 					if (!drop.contains(owned)) drop.add(owned);
 				}
 			}
@@ -548,6 +552,28 @@ public final class ForbricMixinService
 			return null;
 		}
 	}
+
+	/**
+	 * The members digest of the jar that serves {@code owner} ({@link NativeAbsentTargets#membersDigest}), the same jar
+	 * {@link #readGameResource} reads it from — the merged base, or for a class of Minecraft's own libraries
+	 * ({@code com/mojang/brigadier}, DataFixerUpper) that library's jar — or null when none of the game loader's jars
+	 * does. Each jar is read once: the first ask reads every class in vanilla's packages there (about a quarter of a
+	 * second for the merged base), and only an injector whose every target is already missing asks at all.
+	 */
+	private static String servingBase(String owner) {
+		java.nio.file.Path jar = NativeAbsentTargets.servingJar(loader().findResource(owner + ".class"));
+		if (jar == null) return null;
+		String digest = BASE_DIGESTS.computeIfAbsent(jar, read -> {
+			try {
+				return NativeAbsentTargets.membersDigest(read);
+			} catch (IOException | RuntimeException unreadable) {
+				return "";
+			}
+		});
+		return digest.isEmpty() ? null : digest;
+	}
+
+	private static final java.util.Map<java.nio.file.Path, String> BASE_DIGESTS = new java.util.concurrent.ConcurrentHashMap<>();
 
 	/** Cache for {@link #readAdapterClass}: ~70 configs re-request the same merged targets. */
 	private static final java.util.Map<String, byte[]> ADAPTER_CLASS_CACHE = new java.util.concurrent.ConcurrentHashMap<>();
