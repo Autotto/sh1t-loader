@@ -104,21 +104,21 @@ class MixinFitLivenessTest {
 	/** A listed caller in another class is read through the resolver: vanilla's creative screen search. */
 	@Test
 	void aListedCallerInAnotherClassIsReadThroughTheResolver() {
-		String trees = "net/minecraft/client/multiplayer/SessionSearchTrees";
-		String screen = "net/minecraft/client/gui/screens/inventory/CreativeModeInventoryScreen";
-		String search = "creativeNameSearch", searchDesc = "()Lnet/minecraft/client/searchtree/SearchTree;";
+		String fluids = "net/minecraft/world/entity/EntityFluidInteraction";
+		String entity = "net/minecraft/world/entity/Entity";
+		String apply = "applyCurrentTo", applyDesc = "(Lnet/minecraft/tags/TagKey;Lnet/minecraft/world/entity/Entity;D)V";
 		MixinStubRebind.noteEcosystem(MIXIN, Ecosystem.FABRIC);
-		byte[] mixin = redirect(trees, search, "Ljava/lang/Object;hashCode()I");
-		byte[] target = type(trees, search, searchDesc, "java/lang/Object", "hashCode", "()I", false);
+		byte[] mixin = redirect(fluids, apply, "Ljava/lang/Object;hashCode()I");
+		byte[] target = type(fluids, apply, applyDesc, "java/lang/Object", "hashCode", "()I", false);
 
-		MixinFit.Result dead = MixinFit.evaluate(mixin, resolver(Map.of(trees, target,
-				screen, type(screen, "refreshSearchResults", "()V", null, null, null, false))));
+		MixinFit.Result dead = MixinFit.evaluate(mixin, resolver(Map.of(fluids, target,
+				entity, type(entity, "updateFluidInteraction", "()Z", null, null, null, false))));
 		assertEquals(MixinFit.Verdict.PARTIAL, dead.verdict(), dead.unresolved().toString());
-		assertTrue(dead.unresolved().get(0).endsWith("vanilla calls it from CreativeModeInventoryScreen.refreshSearchResults"),
+		assertTrue(dead.unresolved().get(0).endsWith("vanilla calls it from Entity.updateFluidInteraction"),
 				dead.unresolved().toString());
 
-		MixinFit.Result live = MixinFit.evaluate(mixin, resolver(Map.of(trees, target,
-				screen, type(screen, "refreshSearchResults", "()V", trees, search, searchDesc, false))));
+		MixinFit.Result live = MixinFit.evaluate(mixin, resolver(Map.of(fluids, target,
+				entity, type(entity, "updateFluidInteraction", "()Z", fluids, apply, applyDesc, false))));
 		assertEquals(MixinFit.Verdict.FIT, live.verdict(), live.unresolved().toString());
 	}
 
