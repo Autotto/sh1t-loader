@@ -241,6 +241,7 @@ test	net.forbric.kernel.mixin.MixinAtShapeTest	architecturysNaturalSpawnerRedire
 test	net.forbric.kernel.mixin.MixinAtWidenedCallTest	aConstructorWrapIsNeverWidened()	[fixture:staged] actual Fabric API fixture required
 test	net.forbric.kernel.mixin.MixinAtWidenedCallTest	aNamedConstructorThatIsBuiltIsNotMoved()	[fixture:staged] actual Fabric API fixture required
 test	net.forbric.kernel.mixin.MixinAtWidenedCallTest	actualFabricRegistryListReplacementTargetsTheCurrentFiveArgumentLoader()	[fixture:staged] actual Fabric API and game inputs required
+test	net.forbric.kernel.mixin.MixinAtWidenedCallTest	everyRedirectableRowIsAStaticCallBesideTheVanillaFormItWidened()	[fixture:staged] staged merged base required
 test	net.forbric.kernel.mixin.MixinAtWidenedCallTest	fabricParticlesDustFollowsNeoForgesPositionedConstructor()	[fixture:staged] actual Fabric API fixture required
 test	net.forbric.kernel.mixin.MixinAtWidenedCallTest	theVerdictAgreesWithTheRewrite()	[fixture:staged] actual Fabric API fixture required
 test	net.forbric.kernel.mixin.MixinEquivalentImplementationsTest	aMissingFilterOrChangedNativeConsumerCannotBeCalledEquivalent()	[fixture:staged] actual game required
@@ -250,6 +251,9 @@ test	net.forbric.kernel.mixin.MixinEquivalentImplementationsTest	finalLedgerRepo
 test	net.forbric.kernel.mixin.MixinEquivalentImplementationsTest	fingerprintsIgnoreOnlyMetadataNotExecutableInstructions()	[fixture:staged] actual Fabric API fixture required
 test	net.forbric.kernel.mixin.MixinEquivalentImplementationsTest	unknownHandlerBehaviorCannotBorrowTheKnownReplacement()	[fixture:staged] actual Fabric API fixture required
 test	net.forbric.kernel.mixin.MixinFitLivenessCensusStagedTest	exactlyThePinnedMixinsChangeVerdict()	[fixture:staged] $ROOT/forbric-loader/run/merged-base/patched-mc-merged-26.2.jar required
+test	net.forbric.kernel.mixin.MixinFitLivenessCensusStagedTest	theAnchorCensusSeesALostAnchorAndItsRepair()	[fixture:staged] $ROOT/forbric-loader/run/merged-base/patched-mc-merged-26.2.jar required
+test	net.forbric.kernel.mixin.MixinFitLivenessCensusStagedTest	theAnchorCensusSeesANameTheCarrierTookOver()	[fixture:staged] $ROOT/forbric-loader/run/merged-base/patched-mc-merged-26.2.jar required
+test	net.forbric.kernel.mixin.MixinFitLivenessCensusStagedTest	vanillaAnchorsTheMergedBaseLostArePinned()	[fixture:staged] $ROOT/forbric-loader/run/merged-base/patched-mc-merged-26.2.jar required
 test	net.forbric.kernel.mixin.MixinFitStagedTest	anExplicitDescriptorSelectorIsStillPartialWithoutRetargeting()	[fixture:staged] staged merged base absent
 test	net.forbric.kernel.mixin.MixinFitStagedTest	theAttributeBuilderAccessorBindsAgainstTheTwinnedBase()	[fixture:staged] staged merged base absent
 test	net.forbric.kernel.mixin.MixinFitStagedTest	theAttributeBuilderAccessorCannotBindOnTheRawBase()	[fixture:staged] staged merged base absent
@@ -266,6 +270,15 @@ test	net.forbric.kernel.mixin.MixinRetargetCarrierHelperStagedTest	betterMountHu
 test	net.forbric.kernel.mixin.MixinRetargetCarrierHelperStagedTest	fabricRenderingsHudMixinPlanIsTheSameWithTheSplitRuleOnOrOff()	[fixture:staged] staged merged base absent
 test	net.forbric.kernel.mixin.MixinRetargetCarrierHelperStagedTest	highlightersSlotMarkFollowsTheDecorationsIntoRenderSlotContents()	[fixture:staged] staged merged base absent
 test	net.forbric.kernel.mixin.MixinRetargetCarrierHelperStagedTest	puzzleslibsFogColourFollowsTheSetIntoClientHooks()	[fixture:staged] staged merged base absent
+test	net.forbric.kernel.mixin.MixinRetargetReplacedCallTest	aHandlerNotWrittenForVanillasArgumentsIsLeftAlone()	[fixture:staged] staged merged base required
+test	net.forbric.kernel.mixin.MixinRetargetReplacedCallTest	aMixinWithOnlyTheHeadInjectorIsMovedNotDropped()	[fixture:staged] staged merged base required
+test	net.forbric.kernel.mixin.MixinRetargetReplacedCallTest	aModOfAnotherEcosystemIsLeftAlone()	[fixture:staged] staged merged base required
+test	net.forbric.kernel.mixin.MixinRetargetReplacedCallTest	aPartialMixinsRewriteMayKeepOnlyTheRejectionsItHad()	[fixture:staged] staged merged base required
+test	net.forbric.kernel.mixin.MixinRetargetReplacedCallTest	anUnfitMixinsRewriteMayKeepNoRejection()	[fixture:staged] staged merged base required
+test	net.forbric.kernel.mixin.MixinRetargetReplacedCallTest	moogsPlacementFollowsNeoForgesAddEntitiesToWorld()	[fixture:staged] staged merged base required
+test	net.forbric.kernel.mixin.MixinRetargetReplacedCallTest	twoMixinsWithOneHandlerNameMoveTheirBodiesApart()	[fixture:staged] staged merged base required
+test	net.forbric.kernel.mixin.MixinRetargetReplacedCallTest	withTheRuleOffNothingMoves()	[fixture:staged] staged merged base required
+test	net.forbric.kernel.mixin.MixinRetargetReplacedCallTest	withoutTheRuleTheHeadOnlyMixinStaysUnfit()	[fixture:staged] staged merged base required
 test	net.forbric.kernel.mixin.MixinRetargetStagedTest	fabricBlockApisTwoAirCheckRedirectsGoPartialToFit()	[fixture:staged] staged merged base absent
 test	net.forbric.kernel.mixin.MixinRetargetStagedTest	fabricTransfersTwoContainerMixinsGoPartialToFit()	[fixture:staged] staged merged base absent
 test	net.forbric.kernel.mixin.MixinRetargetStagedTest	fuelValuesMixinIsLeftAloneBecauseItsLocalsLiveOnlyInTheStub()	[fixture:staged] staged merged base absent
@@ -305,8 +318,11 @@ test	net.forbric.kernel.mixin.MixinStubRebindTest	owosVerdictFollowsTheGroup()	[
 test	net.forbric.kernel.mixin.MixinStubRebindTest	theSwitchMovesNothing()	[fixture:third-party] run/client-popular/mods/architectury-fabric-21.1.10.jar absent
 test	net.forbric.kernel.mixin.MixinStubRebindTest	theVerdictFollowsTheRebind()	[fixture:third-party] malilib absent from the merged pack
 test	net.forbric.kernel.mixin.MixinSubtypeOwnerRetargetTest	codecDoesNotRedeclareParse()	[fixture:mc-libraries] Minecraft's DataFixerUpper required
+test	net.forbric.kernel.mixin.MixinSubtypeOwnerRetargetTest	debugifysFixFollowsTheArchersOwnLookThroughTheWidenedField()	[fixture:staged] actual game required
 test	net.forbric.kernel.mixin.MixinSubtypeOwnerRetargetTest	thePredicateCheckMovesToTheSameCallThroughCodec()	[fixture:third-party] lithostitched's Fabric jar required
+test	net.forbric.kernel.mixin.MixinSubtypeOwnerRetargetTest	vanillasGoalStillMakesTheCallItself()	[fixture:mc-libraries] actual game required
 test	net.forbric.kernel.mixin.MixinSubtypeOwnerRetargetTest	vanillasOwnCallTheSwitchAndAMissingLocalAreLeftAlone()	[fixture:mc-libraries] actual game required
+test	net.forbric.kernel.mixin.MixinSubtypeOwnerRetargetTest	withTheRuleOffTheArchersLookIsTheMissItWas()	[fixture:staged] actual game required
 test	net.forbric.kernel.mixin.MixinWrapOperationShimTest	fabricNetworkingsCodecWrapsStayUnboundBecauseTheKernelServesThoseCodecs()	[fixture:staged] actual Fabric API fixture required
 test	net.forbric.kernel.mixin.MixinWrapOperationShimTest	fabricNetworkingsDecoratorWrapIsReportedAsTheMissItIs()	[fixture:staged] actual Fabric API fixture required
 test	net.forbric.kernel.mixin.MixinWrapOperationShimTest	pickBlockWrapBindsToNeoForgesCallAndHandsTheHandlerItsOwnOrder()	[fixture:staged] actual Fabric API fixture required
@@ -738,6 +754,7 @@ test	net.forbric.kernel.transform.MergedBaseBlockBreakingOverlayTest	aSecondPass
 test	net.forbric.kernel.transform.MergedBaseBlockBreakingOverlayTest	theOverlayNoLongerAsksForAManagerThatIsAlwaysNull()	[fixture:staged] staged merged base absent — skipping real-bytecode check
 test	net.forbric.kernel.transform.MergedBaseCalleeSwapTest	everyAdmittedSwapIsEitherRewrittenOrExplained()	[fixture:staged] staged merged base or carriers absent
 test	net.forbric.kernel.transform.MergedBaseCalleeSwapTest	everyKnownRowIsAmongTheSwapsTheCensusFinds()	[fixture:staged] staged merged base absent
+test	net.forbric.kernel.transform.MergedBaseCalleeSwapTest	everyReplacementIsOneCallWhoseVanillaArgumentsAreReadOffTheReplacements()	[fixture:staged] $ROOT/forbric-loader/run/merged-base/patched-mc-merged-26.2.jar absent
 test	net.forbric.kernel.transform.MergedBaseCalleeSwapTest	everySubstitutionIsOneCallInAnOtherwiseUnchangedBody()	[fixture:staged] $ROOT/forbric-loader/run/merged-base/patched-mc-merged-26.2.jar absent
 test	net.forbric.kernel.transform.MergedBaseCalleeSwapTest	theCensusOfCalleeSwapsIsExactlyThePinnedSet()	[fixture:staged] staged merged base absent
 test	net.forbric.kernel.transform.MergedBaseCapabilityLinkTest	afterTheShimAndTheCompatTransformerNothingDangles()	[fixture:staged] staged artifacts absent

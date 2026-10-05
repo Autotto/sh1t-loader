@@ -560,8 +560,34 @@ each injector's target method, each `@At(target=…)` — against the **post-cha
 Refinements: pure accessor/invoker mixins are always kept; anchors satisfied by another mod's mixin
 (`ForeignMixinTargets`, `MixinAddedMembers`) count as resolved; `@Group` injectors are judged as a group; an
 injector bound only to a merged-base method nothing in the merged game calls is **not** resolved (liveness,
-`MergedBaseUncalledMethods`, `-Dforbric.mixinFit.liveness=off`) unless an installed mod calls it. `MixinFitReport`
-runs the same judgement offline: `MixinFitReport <merged-base.jar> <mods-dir> [--verbose]`.
+`MergedBaseUncalledMethods`, `-Dforbric.mixinFit.liveness=off`) unless an installed mod calls it; and a name-only
+`@Inject` selector is **not** resolved when the method it binds — Mixin takes the first of that name the target
+declares — is not one the handler was written for (that method's arguments then the callback its return calls for, or
+the callback alone), which Mixin would reject as "Invalid descriptor" (`-Dforbric.mixinFit.handlerFit=off`): the merged
+base can put a carrier's overload where vanilla's method was, for a mod of any ecosystem. A selector `MixinOverloadPin`
+will spell (§7.4) is judged on the overload it lands on, so the pin and this rule never both act on one injector; a
+`@Surrogate` counts only as Mixin looks one up — the handler's name, exactly the bound method's callback descriptor, a
+visible annotation. Where the name binds exactly one method, the handler captures no locals and one of its `@At`s is
+sure to find a point in that method (`HEAD`; `RETURN`/`TAIL` where it returns; an `INVOKE`, `INVOKE_ASSIGN`, `FIELD` or
+`NEW` whose member is there, past its `ordinal`; never with a slice), the miss is a *rejection* (`MixinFit.Rejection`):
+Mixin checks the handler at each point it finds and throws at the first, whatever `require` says, and the exception
+fails the mixin's application to that class — every injector after it, and the game in a config that stays required.
+Where no point is sure, Mixin may find none, inject nothing and throw nothing, so the binding stays an ordinary miss
+and its line says so (`-Dforbric.mixinFit.rejectionPoint=off` reads every such binding as a rejection, as before). A
+mixin kept with a rejection — `PARTIAL`, kept for its misses on another mod's class, or `UNFIT` and kept because another
+mod's mixin targets the class — is therefore never left as it is: the injector is taken out before Mixin reads the
+mixin (`GuestInjectorPruner`, §7.4, asking the same rule of the node Mixin receives, with the target's code) when
+nothing else in the mixin calls it, it is in no `@Group` and no target binds it as written — the rest of the mixin
+applies, and the removal is a `CONFIRMED` finding, required when the author's own count (`require`, else
+`defaultRequire`) is at least one — and otherwise the whole mixin is left out like an `UNFIT` one. A mixin a kernel
+repair supersedes (`SupersededMixins`) is always left out whole, with a row that asks nothing and resolves once the
+repair is seen. A mixin kept by name (`MergedBaseMixinCompat.KEPT_MIXINS`, `-Dforbric.keepMixins`) is handed to Mixin
+unjudged. `-Dforbric.guestInjectorPruner.refused=off` keeps such a mixin in front of Mixin as before, and the `PARTIAL`
+summary then counts it apart. A `PARTIAL` or `UNFIT` mixin is first offered to `MixinRetarget`, and its plan is taken when the
+rewritten mixin misses fewer anchors, is one the adapter keeps, and adds no rejection — an `UNFIT` one's rewrite may
+keep none (`MixinRetarget.adopt`). A mixin the kernel leaves out by name is not judged at all, so it gets no verdict line
+and no place in the `PARTIAL` count. `MixinFitReport` runs the same judgement offline:
+`MixinFitReport <merged-base.jar> <mods-dir> [--verbose]`.
 
 Provenance was the previous rule and was wrong: the merged base *is* NeoForge's patched Minecraft with Forge
 spliced in, so "a Forge-family class" describes most of the jar.
@@ -576,17 +602,34 @@ narrow and table- or proof-driven:
 overload its handler fits — only when the first cannot take the handler; otherwise it is explained),
 `MixinMergedTwin` (`$forbricneo` renamed anonymous twins), `MixinAnonymousRetarget` + `MergedBaseAnonymousDrift`
 (renumbered `Outer$N`), `MixinAtWidenedCall` and
-`MixinWrapOperationShim` (calls the carrier widened or reordered), `MixinRelocatedCall`, `MixinSubtypeOwnerRetarget`,
-`MixinShearsRelay`, `MixinHandlerShim`, `MixinAtShape` (`at=[…]` vs `at=…` across Mixin forks), `MixinLocalsCapture`
-(`CAPTURE_FAILHARD → CAPTURE_FAILSOFT`), `InsertedLambdaArgumentShim`, `MergedBaseCalleeSwaps`,
+`MixinWrapOperationShim` (calls the carrier widened or reordered; a `@Redirect` follows only a widened static call on a
+reviewed `REDIRECTABLE` row, through a wrapper that drops the appended arguments — creativecore's
+`RegistryFriendlyByteBuf.decorator`, whose buffers then say `ConnectionType.OTHER`, so NeoForge's connection-aware codecs
+use vanilla's wire format on them), `MixinRelocatedCall`, `MixinSubtypeOwnerRetarget` (the same call made through
+another owner: a subtype, or the merged type of a field the merge widened — `RangedBowAttackGoal.mob` made
+`Monster.lookAt` into `Mob.lookAt` — where the point gets the ordinal of the call through the field and the handler a
+guard so it runs only while the field holds vanilla's type), `MixinShearsRelay`, `MixinHandlerShim`, `MixinAtShape`
+(`at=[…]` vs `at=…` across Mixin forks), `MixinLocalsCapture` (`CAPTURE_FAILHARD → CAPTURE_FAILSOFT`),
+`InsertedLambdaArgumentShim`, `MergedBaseCalleeSwaps` (its `REPLACED` rows: a private vanilla method a carrier replaced
+at its one call site, which `MixinRetarget`'s R7 follows — `StructureTemplate.placeEntities` → NeoForge's
+`addEntitiesToWorld`, the moved HEAD handler reading vanilla's arguments off the settings; the handler-fit rule above
+finds such a selector, the row only moves it),
 `MergedBaseAbsorbedCalls`, `CarrierHelpers` (table `carrier-helpers.txt`), and per-surface Fabric adapters
 (`FabricBlockBreakMixinAdapter`, `FabricEntityMixinAnchors`, `FabricClientMixinAnchors`,
 `FabricEnchantmentMixinAdapter`, `FabricMiningMixinAdapter`, `FabricSoundMixinAdapter`,
 `FabricServerLanguageMixinAdapter`). `GuestInjectorPruner` (COREMOD) trims individual injectors from a guest mixin
-class where the kernel replaces their function. Several adapters read shipped tables under
+class where the kernel replaces their function, and, at the end of the bytecode provider's adapters, the injectors the
+verdict found Mixin would reject outright (§7.3) — each only while the same rule still says so of the node Mixin is about
+to receive, so an injector an adapter already moved where it fits stays. Several adapters read shipped tables under
 `src/main/resources/net/forbric/kernel/mixin/` (`carrier-helpers.txt`, `carrier-stubs.txt`,
 `lambda-permutations.txt`, `uncalled-methods.txt`); `CarrierHelperCensusTest` and `UncalledMethodCensusTest`
-re-derive the first and last from the staged jars and pin them.
+re-derive the first and last from the staged jars and pin them. A wrapper that renames a handler's body aside
+(`MixinRetarget`'s guard and R7, `MixinAtWidenedCall`'s redirect, `MixinSubtypeOwnerRetarget`'s guard) adds a mark of
+the mixin class to the name, so two mixins on one target with the same handler name do not merge into one body.
+`MixinFitLivenessCensusStagedTest` also keeps a census of the anchors a Fabric mixin names that resolve on stock 26.2
+and not on the merged base as the kernel judges it. Only fabric-api's lines are asserted (a new one fails the build);
+any other corpus named in `FORBRIC_ANCHOR_PACKS` is report-only (`build/reports/vanilla-anchor-census.txt`) — nothing
+fails on a third-party mod's line, so someone has to read the report.
 
 ### 7.5 Attribution
 

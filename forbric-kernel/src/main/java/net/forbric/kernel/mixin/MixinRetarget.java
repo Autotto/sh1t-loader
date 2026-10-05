@@ -94,8 +94,21 @@ public final class MixinRetarget {
 	 * {@code LinkageError} from it propagates into the method it was moved into, as it would natively.
 	 */
 	static final String SUBSTITUTED_CALL_GUARD_PROPERTY = "forbric.mixinRetarget.substitutedCall.guard";
-	/** The suffix an R6-guarded handler's own body moves to, under the guard that keeps its name and annotation. */
+	/**
+	 * The suffix an R6-guarded handler's own body moves to, under the guard that keeps its name and annotation, before
+	 * the mixin's mark ({@link MixinHandlerShim#asideName}).
+	 */
 	static final String GUARDED_SUFFIX = "$forbricguard";
+	/**
+	 * {@code -Dforbric.mixinRetarget.replacedCall=off}: no {@code @Inject} follows a vanilla method the carrier replaced,
+	 * along a {@link MergedBaseCalleeSwaps#REPLACED} row (R7).
+	 */
+	static final String REPLACED_CALL_PROPERTY = "forbric.mixinRetarget.replacedCall";
+	/**
+	 * The suffix an R7-moved handler's own body moves to, under the method that reads its arguments off the replacement's,
+	 * before the mixin's mark ({@link MixinHandlerShim#asideName}).
+	 */
+	static final String PROJECTED_SUFFIX = "$forbricreplaced";
 	private static final String SELF = "net/forbric/kernel/mixin/MixinRetarget";
 	private static final String LINKAGE_ERROR = "java/lang/LinkageError";
 	/** Handlers whose {@code LinkageError} R6's guard has reported: once each, however many models they skip. */
@@ -120,10 +133,11 @@ public final class MixinRetarget {
 			"Lcom/llamalad7/mixinextras/injector/v2/WrapWithCondition;");
 
 	/**
-	 * What a rewrite edits: the injector's {@code method} selector, one of its {@code @At.target}s, or (R6) the handler
-	 * itself, which is put behind a guard: {@code from} is the handler, {@code to} where its body moves.
+	 * What a rewrite edits: the injector's {@code method} selector, one of its {@code @At.target}s, or the handler itself:
+	 * (R6) put behind a guard, {@code from} the handler and {@code to} where its body moves; or (R7) given a method of its
+	 * name that takes the replacement's arguments, {@code from} the handler and {@code to} the replacement it selects.
 	 */
-	public enum Element { SELECTOR, AT_TARGET, GUARD }
+	public enum Element { SELECTOR, AT_TARGET, GUARD, PROJECT }
 
 	/** One rewrite inside one handler's injector annotation. */
 	public record Rewrite(String handler, Element element, String from, String to, String why) {
@@ -180,6 +194,8 @@ public final class MixinRetarget {
 				}
 				// Neither moved nor split: the method kept its body and the call its place, and only the callee changed.
 				if (oneTarget && own.isEmpty()) own.addAll(substitutedCalls(mixin.name, handler, injector, selectors, target, resolver));
+				// …or the method the mod names, or the one it anchors in, is a vanilla private the carrier replaced outright.
+				if (oneTarget && own.isEmpty()) own.addAll(replacedCalls(mixin.name, handler, injector, selectors, target));
 				if (oneTarget && own.isEmpty()) {
 					Rewrite blockUpdate = C2meBlockUpdateRetarget.plan(mixin.name, handler, injector, selectors, target);
 					if (blockUpdate != null) own.add(blockUpdate);
@@ -540,10 +556,115 @@ public final class MixinRetarget {
 					+ "at the same instruction of an otherwise unchanged body, a census-pinned row of MergedBaseCalleeSwaps"));
 		}
 		if (!out.isEmpty() && !"off".equalsIgnoreCase(System.getProperty(SUBSTITUTED_CALL_GUARD_PROPERTY, "on"))) {
-			out.add(new Rewrite(handler.name, Element.GUARD, handler.name + handler.desc, handler.name + GUARDED_SUFFIX,
+			out.add(new Rewrite(handler.name, Element.GUARD, handler.name + handler.desc,
+					MixinHandlerShim.asideName(mixinName, handler.name, GUARDED_SUFFIX),
 					"a LinkageError from the moved handler skips it instead of failing the method it now runs in"));
 		}
 		return out;
+	}
+
+	/**
+	 * Rule R7: an {@code @Inject} along a {@link MergedBaseCalleeSwaps#REPLACED} row — a private vanilla method the
+	 * surviving carrier replaced at its one call site with one of its own, renamed and taking what vanilla's arguments are
+	 * read from.
+	 *
+	 * <p>NeoForge's {@code StructureTemplate.placeInWorld} calls {@code addEntitiesToWorld(level, pos, settings, reporter)}
+	 * where vanilla's called {@code placeEntities(level, pos, mirror, rotation, pivot, boundingBox, finalize, reporter)},
+	 * each read off the settings; vanilla's method is gone from the merged base, MinecraftForge's reshaped one beside it
+	 * runs nowhere. MoogsStructureLib's Fabric {@code EntityProcessorMixin} records the placement's context BEFORE the
+	 * vanilla call, clears it AFTER, and at the HEAD of {@code placeEntities} runs its own entity processors and cancels.
+	 * Both points missed, and its name-only HEAD selector bound MinecraftForge's overload, whose descriptor its handler
+	 * does not have: an {@code InvalidInjectionException} the kernel reports as a failed feature, and the server stopped
+	 * once its world was loaded.
+	 *
+	 * <p>Two moves, both only for a mod of an ecosystem the row lists, only for an {@code @Inject} with no sugar, slice,
+	 * {@code @Group} or locals capture, in a mixin with one target:
+	 * <ul>
+	 *   <li>an {@code @At(INVOKE)} on the vanilla method, in the row's caller, BEFORE or AFTER and no ordinal past the
+	 *       first, points at the replacement's call (the caller makes it exactly once, and never the vanilla one);</li>
+	 *   <li>a selector naming the vanilla method — by name, or by vanilla's descriptor — whose every point is
+	 *       {@code HEAD}, {@code RETURN} or {@code TAIL}, and whose handler takes vanilla's arguments and its callback
+	 *       (or the callback alone), moves to the replacement: the handler is renamed aside and a method of its name and
+	 *       annotation takes the replacement's arguments and hands the original vanilla's, read off them as the row says
+	 *       ({@link Element#PROJECT}).</li>
+	 * </ul>
+	 * The target must declare the replacement and must not declare the vanilla method itself (then Mixin binds it
+	 * natively). {@code -Dforbric.mixinRetarget.replacedCall=off} leaves both as compiled.
+	 */
+	private static List<Rewrite> replacedCalls(String mixinName, MethodNode handler, AnnotationNode injector,
+			List<String> selectors, ClassNode target) {
+		if (!INJECT.equals(injector.desc) || selectors.size() != 1
+				|| "off".equalsIgnoreCase(System.getProperty(REPLACED_CALL_PROPERTY, "on"))) return List.of();
+		net.forbric.api.Ecosystem ecosystem = MixinStubRebind.ecosystemOf(mixinName);
+		if (ecosystem == null || !plainInject(handler, injector)) return List.of();
+		String selector = selectors.get(0).trim();
+		if (selector.startsWith("L") && selector.indexOf(';') > 0) selector = selector.substring(selector.indexOf(';') + 1);
+		int paren = selector.indexOf('(');
+		String name = paren < 0 ? selector : selector.substring(0, paren), desc = paren < 0 ? null : selector.substring(paren);
+		List<Rewrite> out = new ArrayList<>();
+
+		MergedBaseCalleeSwaps.Replaced named = MergedBaseCalleeSwaps.replaced(target.name, name, desc, ecosystem);
+		if (named != null && replacementOf(target, named) != null && CarrierHelpers.declared(target, name, vanillaDesc(named)) == null) {
+			if (projectable(handler, injector, named)) {
+				out.add(new Rewrite(handler.name, Element.PROJECT, handler.name + handler.desc, named.replacement(),
+						"the carrier replaced " + name + " with " + named.replacement().substring(0, named.replacement().indexOf('('))
+								+ "; the handler reads vanilla's arguments off its arguments"));
+			}
+			return out;
+		}
+
+		MethodNode caller = CarrierHelpers.declared(target, name, desc == null ? "" : desc);
+		if (caller == null) {
+			for (MethodNode m : target.methods) if (m.name.equals(name) && caller == null) caller = m;
+		}
+		if (caller == null) return out;
+		for (AnnotationNode at : MixinFit.atNodes(injector)) {
+			String member = MixinFit.asString(MixinFit.value(at, "target"));
+			if (!"INVOKE".equals(MixinFit.asString(MixinFit.value(at, "value"))) || member == null
+					|| MixinFit.containsMember(caller, member) || MixinFit.value(at, "args") != null) continue;
+			String shift = MixinFit.asString(MixinFit.value(at, "shift"));
+			if (shift != null && !"BEFORE".equals(shift) && !"AFTER".equals(shift)) continue;
+			if (MixinFit.value(at, "ordinal") instanceof Integer ordinal && ordinal > 0) continue;
+			MixinFit.Member want = MixinFit.parseMember(member);
+			if (want == null || (want.owner() != null && !want.owner().equals(target.name))) continue;
+			MergedBaseCalleeSwaps.Replaced row = MergedBaseCalleeSwaps.replaced(target.name, want.name(), want.desc(), ecosystem);
+			if (row == null || !row.caller().equals(caller.name + caller.desc) || replacementOf(target, row) == null) continue;
+			if (CarrierHelpers.occurrences(caller, row.replacementMember()) != 1) continue;
+			out.add(new Rewrite(handler.name, Element.AT_TARGET, member, row.replacementMember(), "the carrier replaced "
+					+ want.name() + " with " + row.replacement().substring(0, row.replacement().indexOf('(')) + " at this, its one "
+					+ "call, a reviewed row of MergedBaseCalleeSwaps"));
+		}
+		return out;
+	}
+
+	private static String vanillaDesc(MergedBaseCalleeSwaps.Replaced row) {
+		return row.vanilla().substring(row.vanilla().indexOf('('));
+	}
+
+	private static MethodNode replacementOf(ClassNode target, MergedBaseCalleeSwaps.Replaced row) {
+		int paren = row.replacement().indexOf('(');
+		return CarrierHelpers.declared(target, row.replacement().substring(0, paren), row.replacement().substring(paren));
+	}
+
+	/**
+	 * R7's selector move applies: every point is the method's HEAD, RETURN or TAIL, and the handler is void and takes
+	 * vanilla's arguments then its callback, or the callback alone.
+	 */
+	private static boolean projectable(MethodNode handler, AnnotationNode injector, MergedBaseCalleeSwaps.Replaced row) {
+		List<AnnotationNode> points = MixinFit.atNodes(injector);
+		if (points.isEmpty()) return false;
+		for (AnnotationNode at : points) {
+			String value = MixinFit.asString(MixinFit.value(at, "value"));
+			if (!"HEAD".equals(value) && !"RETURN".equals(value) && !"TAIL".equals(value)) return false;
+		}
+		if (!Type.VOID_TYPE.equals(Type.getReturnType(handler.desc))) return false;
+		Type[] params = Type.getArgumentTypes(handler.desc);
+		Type[] vanilla = Type.getArgumentTypes(vanillaDesc(row));
+		if (params.length != 1 && params.length != vanilla.length + 1) return false;
+		for (int i = 0; i + 1 < params.length; i++) if (!params[i].equals(vanilla[i])) return false;
+		String callback = params[params.length - 1].getDescriptor();
+		return (CALLBACK_INFO.equals(callback) || CALLBACK_INFO_RETURNABLE.equals(callback))
+				&& row.arguments().size() == vanilla.length;
 	}
 
 	/**
@@ -784,6 +905,10 @@ public final class MixinRetarget {
 				if (guard(node, rewrite)) applied++;
 				continue;
 			}
+			if (rewrite.element() == Element.PROJECT) {
+				if (project(node, rewrite)) applied++;
+				continue;
+			}
 			for (MethodNode m : node.methods) {
 				if (!m.name.equals(rewrite.handler())) continue;
 				AnnotationNode injector = MixinFit.injectorOf(m);
@@ -872,6 +997,106 @@ public final class MixinRetarget {
 		handler.name = rewrite.to();
 		mixin.methods.add(outer);
 		return true;
+	}
+
+	/**
+	 * R7's selector move: the handler {@code rewrite.from()} names is renamed aside, and a method of its name, access and
+	 * injector annotation, selecting {@code rewrite.to()}, takes the replacement's arguments and its callback and hands
+	 * the original vanilla's arguments read off them — each a parameter, or a no-argument {@code invokevirtual} on one —
+	 * then the callback. Returns false, changing nothing, when the handler is not there or no row names the replacement.
+	 */
+	private static boolean project(ClassNode mixin, Rewrite rewrite) {
+		MethodNode handler = null;
+		for (MethodNode m : mixin.methods) {
+			if ((m.name + m.desc).equals(rewrite.from()) && MixinFit.injectorOf(m) != null) handler = m;
+		}
+		MergedBaseCalleeSwaps.Replaced row = null;
+		for (MergedBaseCalleeSwaps.Replaced r : MergedBaseCalleeSwaps.REPLACED) if (r.replacement().equals(rewrite.to())) row = r;
+		if (handler == null || row == null) return false;
+		AnnotationNode injector = MixinFit.injectorOf(handler);
+		boolean isStatic = (handler.access & Opcodes.ACC_STATIC) != 0;
+		Type[] params = Type.getArgumentTypes(handler.desc);
+		Type callback = params[params.length - 1];
+		Type[] replacement = Type.getArgumentTypes(rewrite.to().substring(rewrite.to().indexOf('(')));
+		Type[] outerParams = java.util.Arrays.copyOf(replacement, replacement.length + 1);
+		outerParams[replacement.length] = callback;
+
+		MethodNode outer = new MethodNode(Opcodes.ASM9, handler.access, handler.name,
+				Type.getMethodDescriptor(Type.VOID_TYPE, outerParams), null,
+				handler.exceptions == null ? null : handler.exceptions.toArray(new String[0]));
+		boolean visible = handler.visibleAnnotations != null && handler.visibleAnnotations.remove(injector);
+		if (!visible && handler.invisibleAnnotations != null) handler.invisibleAnnotations.remove(injector);
+		if (visible) outer.visibleAnnotations = new ArrayList<>(List.of(injector));
+		else outer.invisibleAnnotations = new ArrayList<>(List.of(injector));
+		for (int i = 0; i + 1 < injector.values.size(); i += 2) {
+			if ("method".equals(injector.values.get(i))) injector.values.set(i + 1, new ArrayList<>(List.of(rewrite.to())));
+		}
+
+		int[] slots = new int[outerParams.length];
+		int slot = isStatic ? 0 : 1;
+		for (int i = 0; i < outerParams.length; i++) {
+			slots[i] = slot;
+			slot += outerParams[i].getSize();
+		}
+		InsnList code = outer.instructions;
+		int stack = 0;
+		if (!isStatic) {
+			code.add(new VarInsnNode(Opcodes.ALOAD, 0));
+			stack++;
+		}
+		if (params.length > 1) {
+			for (String argument : row.arguments()) {
+				int dot = argument.indexOf('.');
+				int index = Integer.parseInt(argument.substring(1, dot < 0 ? argument.length() : dot));
+				code.add(new VarInsnNode(replacement[index].getOpcode(Opcodes.ILOAD), slots[index]));
+				if (dot >= 0) {
+					String getter = argument.substring(dot + 1);
+					int paren = getter.indexOf('(');
+					code.add(new MethodInsnNode(Opcodes.INVOKEVIRTUAL, replacement[index].getInternalName(),
+							getter.substring(0, paren), getter.substring(paren), false));
+				}
+				stack += 2;
+			}
+		}
+		code.add(new VarInsnNode(Opcodes.ALOAD, slots[replacement.length]));
+		stack++;
+		String aside = MixinHandlerShim.asideName(mixin.name, handler.name, PROJECTED_SUFFIX);
+		code.add(MixinHandlerShim.callOwn(mixin, isStatic, aside, handler.desc));
+		code.add(new InsnNode(Opcodes.RETURN));
+		outer.maxLocals = slot;
+		outer.maxStack = stack;
+
+		handler.name = aside;
+		mixin.methods.add(outer);
+		return true;
+	}
+
+	/** A plan the adapter takes: the mixin rewritten by it, and the verdict on what Mixin will receive. */
+	record Adoption(Plan plan, byte[] rewritten, MixinFit.Result after) {
+	}
+
+	/**
+	 * The plan KernelGuestMixinAdapter takes for a mixin judged {@code fit}, or null: one is asked for whenever the
+	 * verdict is PARTIAL or UNFIT, and taken when the rewritten mixin, judged by {@code evaluate}, misses fewer anchors
+	 * and is no longer one the adapter drops. UNFIT too: a mixin whose only injector is a selector the merge took over
+	 * (MoogsStructureLib's HEAD of placeEntities alone) would otherwise be removed before the plan that moves it was
+	 * asked. MixinFitLivenessCensusStagedTest judges with this same decision.
+	 *
+	 * <p>Never a rewrite that keeps an injector Mixin rejects outright ({@link MixinFit.Rejection}) where the mixin was
+	 * UNFIT: that mixin is left out cleanly, and the rewrite would hand Mixin a binding that fails the class. A PARTIAL
+	 * one's rewrite may keep only the rejections it already had, which the adapter then prunes or answers for as it
+	 * would without the plan; a rewrite that adds one is not taken.
+	 */
+	static Adoption adopt(byte[] judged, MixinFit.Result fit, Function<String, byte[]> resolver,
+			Function<byte[], MixinFit.Result> evaluate) {
+		if (fit.verdict() != MixinFit.Verdict.PARTIAL && fit.verdict() != MixinFit.Verdict.UNFIT) return null;
+		Plan plan = plan(MixinFit.parse(judged), resolver);
+		if (plan.isEmpty()) return null;
+		byte[] rewritten = rewritten(judged, plan);
+		MixinFit.Result after = evaluate.apply(rewritten);
+		if (after.unresolved().size() >= fit.unresolved().size() || after.shouldSuppress()) return null;
+		if (fit.verdict() == MixinFit.Verdict.UNFIT ? !after.rejected().isEmpty() : !fit.coversRejectionsOf(after)) return null;
+		return new Adoption(plan, rewritten, after);
 	}
 
 	/** {@code mixinBytes} with {@code plan} applied, for re-evaluation. */

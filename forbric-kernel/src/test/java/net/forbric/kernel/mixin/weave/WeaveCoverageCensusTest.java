@@ -53,9 +53,13 @@ class WeaveCoverageCensusTest {
 	static final Map<String, Switch> WOVEN = Map.ofEntries(
 			Map.entry("KernelGuestMixinAdapter", Switch.own("forbric.guestMixinAdapter")), // KernelGuestMixinAdapterWeaveTest
 			Map.entry("FinalMixinApplications", Switch.own()), // WeaveHarnessSelfTest, MixinOutcomeWeaveTest
-			Map.entry("MixinAtWidenedCall", Switch.own("forbric.mixinAtWiden")), // MixinOutcomeWeaveTest
+			// MixinOutcomeWeaveTest; the redirect of a widened static call in MixinAtWidenedRedirectWeaveTest.
+			Map.entry("MixinAtWidenedCall", Switch.own("forbric.mixinAtWiden", "forbric.mixinAtWidenRedirect")),
 			Map.entry("MixinStubRebind", Switch.own("forbric.mixinStubRebind")),
-			Map.entry("MixinSubtypeOwnerRetarget", Switch.own("forbric.mixinSubtypeOwner")),
+			// The subtype pair in MixinSubtypeOwnerRetargetWeaveTest, the widened field in MixinRetypedFieldOwnerWeaveTest.
+			Map.entry("MixinSubtypeOwnerRetarget", Switch.own("forbric.mixinSubtypeOwner", "forbric.mixinSubtypeOwner.retypedField")),
+			// R7 (a vanilla method the carrier replaced) in MixinRetargetReplacedCallWeaveTest.
+			Map.entry("MixinRetarget", Switch.own("forbric.mixinRetarget.replacedCall")),
 			Map.entry("MixinWrapOperationShim", Switch.own("forbric.wrapOperationShim")),
 			Map.entry("MixinRelocatedCall", Switch.own("forbric.mixinRelocatedCall")),
 			// soften() in MixinLocalsCaptureWeaveTest, softenRequirements() in MixinRequireFailSoftWeaveTest.
@@ -103,12 +107,14 @@ class WeaveCoverageCensusTest {
 			Map.entry("CreateContextualBlockAdapters", Switch.own("forbric.createContextualBlocks")),
 			Map.entry("CreateEntitySoundMixinAdapter", Switch.own("forbric.createEntitySounds")),
 			Map.entry("CreateBreathingMixinAdapter", Switch.own("forbric.createBreathingMixin")),
-			Map.entry("CreateHudMixinAdapter", Switch.own("forbric.createHudMixin")));
+			Map.entry("CreateHudMixinAdapter", Switch.own("forbric.createHudMixin")),
+			// The injectors Mixin rejects outright, taken out at the end of getClassNode: MixinRefusedBindingWeaveTest.
+			Map.entry("GuestInjectorPruner", Switch.own("forbric.guestInjectorPruner.refused")));
 
 	private static final String NO_SCENARIO = "no weave scenario yet; ClassNode-level tests only";
 	/** Only shrinks. Every row is a stage whose output no CI test has yet run through the real weave. */
 	static final Map<String, String> NOT_WOVEN_YET = notWovenYet(
-			"FabricMiningMixinAdapter", "MixinRetarget");
+			"FabricMiningMixinAdapter");
 
 	@Test void everyPipelineStageIsWovenOrListedWithAReason() throws Exception {
 		Set<String> configTime = configTimeStages();
@@ -211,7 +217,7 @@ class WeaveCoverageCensusTest {
 		return stages;
 	}
 
-	/** Every class getClassNode hands a guest mixin's ClassNode to. */
+	/** Every class getClassNode hands a guest mixin's ClassNode to, the transform package's pruner included. */
 	static Set<String> preMixinAdapters() throws IOException {
 		ClassNode service = read(SERVICE);
 		MethodNode getClassNode = service.methods.stream().filter(m -> m.name.equals("getClassNode")
@@ -219,7 +225,8 @@ class WeaveCoverageCensusTest {
 		Set<String> adapters = new TreeSet<>();
 		for (AbstractInsnNode insn : getClassNode.instructions) {
 			if (insn.getOpcode() == Opcodes.INVOKESTATIC && insn instanceof MethodInsnNode call
-					&& call.owner.startsWith("net/forbric/kernel/mixin/") && call.desc.contains("Lorg/objectweb/asm/tree/ClassNode;")) {
+					&& (call.owner.startsWith("net/forbric/kernel/mixin/") || call.owner.startsWith("net/forbric/kernel/transform/"))
+					&& call.desc.contains("Lorg/objectweb/asm/tree/ClassNode;")) {
 				adapters.add(call.owner.substring(call.owner.lastIndexOf('/') + 1));
 			}
 		}
