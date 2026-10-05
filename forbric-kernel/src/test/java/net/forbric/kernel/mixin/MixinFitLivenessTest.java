@@ -101,24 +101,28 @@ class MixinFitLivenessTest {
 		assertEquals(MixinFit.Verdict.PARTIAL, MixinFit.evaluate(redirect(HUD, HOTBAR, HAS_EXPERIENCE), resolver(Map.of(HUD, hud(false)))).verdict());
 	}
 
-	/** A listed caller in another class is read through the resolver: vanilla's creative screen search. */
+	/**
+	 * A listed caller in another class is read through the resolver: vanilla's entity fluid current, applied from
+	 * {@code Entity.updateFluidInteraction}. (It was the creative screen's search until the kernel's creative search
+	 * repair began to name those methods, which takes them off the table.)
+	 */
 	@Test
 	void aListedCallerInAnotherClassIsReadThroughTheResolver() {
-		String trees = "net/minecraft/client/multiplayer/SessionSearchTrees";
-		String screen = "net/minecraft/client/gui/screens/inventory/CreativeModeInventoryScreen";
-		String search = "creativeNameSearch", searchDesc = "()Lnet/minecraft/client/searchtree/SearchTree;";
+		String fluid = "net/minecraft/world/entity/EntityFluidInteraction";
+		String entity = "net/minecraft/world/entity/Entity";
+		String apply = "applyCurrentTo", applyDesc = "(Lnet/minecraft/tags/TagKey;Lnet/minecraft/world/entity/Entity;D)V";
 		MixinStubRebind.noteEcosystem(MIXIN, Ecosystem.FABRIC);
-		byte[] mixin = redirect(trees, search, "Ljava/lang/Object;hashCode()I");
-		byte[] target = type(trees, search, searchDesc, "java/lang/Object", "hashCode", "()I", false);
+		byte[] mixin = redirect(fluid, apply, "Ljava/lang/Object;hashCode()I");
+		byte[] target = type(fluid, apply, applyDesc, "java/lang/Object", "hashCode", "()I", false);
 
-		MixinFit.Result dead = MixinFit.evaluate(mixin, resolver(Map.of(trees, target,
-				screen, type(screen, "refreshSearchResults", "()V", null, null, null, false))));
+		MixinFit.Result dead = MixinFit.evaluate(mixin, resolver(Map.of(fluid, target,
+				entity, type(entity, "updateFluidInteraction", "()V", null, null, null, false))));
 		assertEquals(MixinFit.Verdict.PARTIAL, dead.verdict(), dead.unresolved().toString());
-		assertTrue(dead.unresolved().get(0).endsWith("vanilla calls it from CreativeModeInventoryScreen.refreshSearchResults"),
+		assertTrue(dead.unresolved().get(0).endsWith("vanilla calls it from Entity.updateFluidInteraction"),
 				dead.unresolved().toString());
 
-		MixinFit.Result live = MixinFit.evaluate(mixin, resolver(Map.of(trees, target,
-				screen, type(screen, "refreshSearchResults", "()V", trees, search, searchDesc, false))));
+		MixinFit.Result live = MixinFit.evaluate(mixin, resolver(Map.of(fluid, target,
+				entity, type(entity, "updateFluidInteraction", "()V", fluid, apply, applyDesc, false))));
 		assertEquals(MixinFit.Verdict.FIT, live.verdict(), live.unresolved().toString());
 	}
 
