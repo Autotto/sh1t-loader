@@ -227,7 +227,7 @@ public final class PayloadInterop {
 	 * NullPointerException: holder is null" out of {@code MappedRegistry.registerIdMapping}, which NeoForge's handler
 	 * reports without naming a registry. The first run of it ruled out aliases and missing entries (every remote
 	 * name was a real local key) and the second — the class and the {@code byKey} count — found the cause: the
-	 * seventeen registries that are MinecraftForge {@code NamespacedWrapper}s answer {@code containsKey} from their
+	 * registries that are MinecraftForge {@code NamespacedWrapper}s answer {@code containsKey} from their
 	 * delegate while their inherited {@code byKey} holds zero entries. See the kernel's RegistrySyncParityInjector.
 	 */
 	private static void describeFrozenRegistrySnapshot(Object payload) {
@@ -911,7 +911,7 @@ public final class PayloadInterop {
 	 * {@code startConfiguration}/{@code runConfiguration} (NeoForge's bodies) never gathers. Forge's own gate stays
 	 * the gate — its handler adds nothing unless the connection was typed MODDED by the client's intention marker.
 	 *
-	 * <p>{@code SyncRegistriesTask} is dropped. The kernel already remaps the seventeen Forge-wrapped registries
+	 * <p>{@code SyncRegistriesTask} is dropped. The kernel already remaps the Forge-wrapped registries
 	 * from NeoForge's snapshot (through Forge's own {@code injectSnapshot}), and Forge's task would apply a second
 	 * snapshot over that result — a re-map of already-remapped ids, from a client half that blocks the network
 	 * thread on the render thread while it does so. Everything else Forge gathers is kept, mod-added tasks included.
