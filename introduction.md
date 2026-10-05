@@ -442,9 +442,9 @@ classpath (first-URL-wins would otherwise let it shadow the winner and contribut
 - **Networking** — `interop.PayloadInterop` selects a custom-payload codec by runtime payload class where Fabric
   API and NeoForge share a vanilla channel id; `CommonNetworkInteropInjector` arbitrates the `c:version` /
   `c:register` channel both claim (`-Dforbric.commonNetworkInterop=off`); `RegistrySyncParityInjector` +
-  `KernelForgeWrapperSync` apply NeoForge's registry sync to MinecraftForge-wrapped registries through Forge's own
-  `GameData.injectSnapshot`; `KernelRegistryRevert` restores pre-connection ids on disconnect;
-  `NetworkChannelCensus` compares registered vs declared channels.
+  `KernelForgeWrapperSync` apply NeoForge's registry sync, and fabric-api's when fabric-api is installed, to
+  MinecraftForge-wrapped registries through Forge's own `GameData.injectSnapshot`; `KernelRegistryRevert` restores
+  pre-connection ids on disconnect; `NetworkChannelCensus` compares registered vs declared channels.
   The merged `ServerGamePacketListenerImpl.handleCustomPayload` is MinecraftForge's override: it asks
   `ForgeHooks.onCustomPayload`, drops the answer and never reaches NeoForge, so every NeoForge mod's play-phase
   packet to the server went nowhere (Carry On's "carry key held" packet among them, which is why it could pick
@@ -682,6 +682,16 @@ merge mutating a list fabric-api has frozen (`KernelPackRepair` documents both).
   `KernelNeoConditions`, `KernelForgeConditions` — each keeps one dialect from failing another's files.
 - **Registry directories** — `RegistryDirectoryOwnerInjector` / `KernelRegistryDirectories`: `registryDirPath`
   answers as the owning ecosystem does. **Aliases** — `RegistryAliasParityInjector` / `KernelRegistryAliases`.
+  **Reflection** — `RegistryWrapperAccessInjector` makes MinecraftForge's `NamespacedWrapper` and
+  `NamespacedDefaultedWrapper` (27 builtin registries on the merged game, block and item among them, plus
+  MinecraftForge's own three) public as they load, as the `MappedRegistry` they stand in for is, so a method a mod
+  looks up on `registry.getClass()` can be invoked (`-Dforbric.publicRegistryWrappers=off`). `Class.getMethod` also
+  resolves the types of every public method of each class it searches (from the runtime class up to the first that
+  declares a match; `getMethods` searches them all), so `RegistrySyncParityInjector` adds fabric-api's
+  `remap(Object2IntMap, RemapMode)` to the wrapper only when the game loader has those types
+  (`RegistrySyncParityInjector.forGameLoader`). Without fabric-api that method named a class that is not there, and
+  `getMethods()` and every lookup that reached `NamespacedWrapper` (`getOptional`, `keySet`, …) threw
+  `NoClassDefFoundError`.
 - **Datapack registries** — `KernelLifecycle.registerDataPackRegistries` posts `DataPackRegistryEvent.NewRegistry`,
   declares MinecraftForge's biome/structure modifier registries and mirrors Fabric dynamic registries both ways.
 - **Data maps** — NeoForge data maps are loaded (`KernelNeoDataMapWatch`, `KernelNeoWorldgen`).

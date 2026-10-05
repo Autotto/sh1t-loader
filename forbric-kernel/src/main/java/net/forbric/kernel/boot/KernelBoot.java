@@ -603,12 +603,18 @@ public final class KernelBoot {
 		// …and NeoForge's configuration-phase registry sync remaps a registry through MappedRegistry fields those same
 		// wrappers never fill, so the first real client to connect was dropped with "Failed to sync registries from the
 		// server: NullPointerException". The wrapper gets NeoForge's remap contract and Forge's own injectSnapshot
-		// does the work.
-		chain.register(TransformPhase.COREMOD, new net.forbric.kernel.transform.RegistrySyncParityInjector());
+		// does the work. fabric-api's remap is added only when its types are on this loader: getMethod resolves the
+		// types of the public methods of each class it searches, so one naming an absent class makes a mod's
+		// registry.getClass().getMethod throw whenever the search reaches the wrapper (forGameLoader decides it).
+		chain.register(TransformPhase.COREMOD, net.forbric.kernel.transform.RegistrySyncParityInjector.forGameLoader(loader));
 		// …and their register never reaches MappedRegistry.register, where fabric-registry-sync fires
 		// RegistryEntryAddedCallback, so fabric-menu-api had no codec for a Fabric mod's menu registered after its own
 		// main entrypoint, and Farmer's Delight's cooking pot never opened. The wrapper fires the event itself.
 		chain.register(TransformPhase.COREMOD, new net.forbric.kernel.transform.WrapperEntryAddedInjector());
+		// …and they are not public, where the MappedRegistry they stand in for is: a registry method a mod looks up on
+		// registry.getClass() is declared by a class it cannot access, and invoking it threw. Meow Anti-Xray resolves its
+		// ores that way and took the server down the moment it was Done. The wrappers are public, as vanilla's are.
+		chain.register(TransformPhase.COREMOD, new net.forbric.kernel.transform.RegistryWrapperAccessInjector());
 
 		// A Fabric mod's registry reads its data where native Fabric reads it. The merged Registries body is
 		// NeoForge's, which prefixes the namespace itself; Fabric prefixes in a return-value mixin instead, and
