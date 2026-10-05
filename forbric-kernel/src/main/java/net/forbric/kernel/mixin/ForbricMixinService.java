@@ -354,6 +354,12 @@ public final class ForbricMixinService
 		// …and a NeoForge or MinecraftForge mod's TAIL on a method whose early returns the kernel restored keeps every
 		// return its own loader's folded body sent there. After the rebind: it reads the injector's final target.
 		MixinNativeTail.adapt(node, this::mergedBaseNodeWithCode);
+		// …and an @Inject the adapter found Mixin would reject outright ("Invalid descriptor", which fails the whole mixin)
+		// is taken out, after every adapter above has had its say and only while the same rule still says so of this
+		// node, so the rest of the mixin applies. Before remember: the ledger must not expect a handler that is gone. With
+		// code: the rule asks whether the injector's @At finds a point in the method its name binds.
+		net.forbric.kernel.transform.GuestInjectorPruner.pruneRefused(node,
+				(mixin, handler) -> MixinFit.stillRejected(mixin, handler, this::mergedBaseNodeWithCode));
 		FinalMixinApplications.remember(node);
 		// …and, after remember has the author's own counts, an injector-level require/allow on a relaxed guest mixin
 		// stops being able to abandon the whole target class: the mod is reported, the class is defined.
@@ -373,7 +379,7 @@ public final class ForbricMixinService
 	}
 
 	/**
-	 * The same node WITH instructions, for the one rule that has to look at call sites.
+	 * The same node WITH instructions, for the rules that have to look at call sites.
 	 *
 	 * <p>{@link MixinAtWidenedCall} cannot be answered from declarations: the merge kept vanilla's short
 	 * {@code CustomPacketPayload.codec} beside the carrier's long one, and the question is which of them the

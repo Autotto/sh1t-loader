@@ -90,6 +90,8 @@ public final class WeaveHarnessMain {
 		}
 		System.out.flush();
 
+		// As KernelLoadReport.writeTo does before it reads them: a row held back for a config plugin is settled now.
+		net.forbric.kernel.mixin.PluginDeclinedMixins.resolve();
 		StringBuilder findings = new StringBuilder();
 		for (CompatibilityFinding f : CompatibilityFindings.all()) {
 			findings.append(String.join("\t", f.id(), f.modId(), f.confidence().name(), String.valueOf(f.required()),
