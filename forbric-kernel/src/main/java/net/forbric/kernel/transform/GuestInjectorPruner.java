@@ -135,8 +135,9 @@ public final class GuestInjectorPruner implements ClassTransformer {
 	private static final Map<String, String> COSTS = Map.of(MODEL_MANAGER_MIXIN,
 			"the whole mixin stays pinned, so every Fabric ModelLoadingPlugin -- block-state resolvers, extra "
 					+ "models, model modifiers -- is registered and never called",
-			ITEM_STACK_MIXIN, "fabric-item-api's tooltip injectors stay where the retarget put them, so the kernel's "
-					+ "tooltip bridge stands down and a Fabric mod's component tooltips are missing from normal tooltips");
+			ITEM_STACK_MIXIN, "fabric-item-api's tooltip injectors stay in addDetailsToTooltip, where NeoForge's dispatcher "
+					+ "makes none of the calls they anchor on (R3 moves none of them: they share an index), so they bind nowhere, "
+					+ "the kernel's tooltip bridge stands down, and a Fabric mod's component tooltips are drawn nowhere");
 
 	/** Why an entry's injectors cannot stay, for the log line. */
 	private static final Map<String, String> REASONS = Map.of(MODEL_MANAGER_MIXIN,
@@ -148,8 +149,8 @@ public final class GuestInjectorPruner implements ClassTransformer {
 	/** What happens to an entry's mixin when a reshaped fabric-api leaves it untouched. */
 	private static final Map<String, String> DRIFT = Map.of(MODEL_MANAGER_MIXIN, "it will read PARTIAL and apply half — the state that made every block "
 					+ "model missingno",
-			ITEM_STACK_MIXIN, "it is retargeted as before and the kernel's tooltip bridge stands down; Fabric component "
-					+ "tooltip providers show only above the item id in advanced tooltips");
+			ITEM_STACK_MIXIN, "its tooltip injectors bind nowhere on NeoForge's dispatcher and the kernel's tooltip bridge "
+					+ "stands down; Fabric component tooltip providers are drawn nowhere");
 
 	/** The finding a removed injector records, or none when a kernel repair does its job. */
 	private static final Map<String, String> LOSSES = Map.of(MODEL_MANAGER_MIXIN,

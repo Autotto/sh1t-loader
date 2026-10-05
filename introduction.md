@@ -579,14 +579,53 @@ overload its handler fits — only when the first cannot take the handler; other
 `MixinWrapOperationShim` (calls the carrier widened or reordered), `MixinRelocatedCall`, `MixinSubtypeOwnerRetarget`,
 `MixinShearsRelay`, `MixinHandlerShim`, `MixinAtShape` (`at=[…]` vs `at=…` across Mixin forks), `MixinLocalsCapture`
 (`CAPTURE_FAILHARD → CAPTURE_FAILSOFT`), `InsertedLambdaArgumentShim`, `MergedBaseCalleeSwaps`,
-`MergedBaseAbsorbedCalls`, `CarrierHelpers` (table `carrier-helpers.txt`), and per-surface Fabric adapters
+`MergedBaseAbsorbedCalls`, `CarrierHelpers` (table `carrier-helpers.txt`), `CarrierRenames` (table
+`carrier-renames.txt`: a vanilla body a carrier moved, whole or in pieces, into a same-shaped method it added, one row
+per call or field access that moved with it and how often the method makes it in the mod's own game — its reference
+method: vanilla's for a Fabric mod, the carrier's patched one for a Forge or NeoForge mod (where the counts differ,
+the rows are split by ecosystem). `MixinRetarget`'s R3 moves a selector along it only for a mod whose own game still
+has the body in place, only when every anchor is one of those calls and binds no more often than that reference method
+made it (an `ordinal` only where the counts agree), and only while the merged class still calls the renamed method —
+or, on the one row marked `UNCALLED`, only to bind there. That row is NeoForge's `ItemStack.addDetailsToTooltipComponents`:
+vanilla's tooltip body, kept private and never called (NeoForge draws tooltips from its own appenders); the census
+leaves out every renamed method that is not private or that anything in its class's nest calls. An injector moved
+there never runs, and says so: MixinFit reads it as never running, and the final-class check reports it as an injector
+that never runs — confirmed, not required — which marks the mod's row and stops no launch. malilib's last tooltip hook
+(`onGetTooltipComponentsLast`, required) lands there, and so does trinkets' attribute-line hook when trinkets loads as
+a Fabric mod (as a universal jar it loads as NeoForge by default); kept out of it, malilib's hook bound nowhere, a
+confirmed required loss that stopped every strict client with malilib (Litematica, MiniHUD, Tweakeroo) and made the
+default policy ask. Making such a hook run where NeoForge builds the tooltip lines is not done yet. A
+row is a `RENAME` when the renamed method makes every call and field access of the reference method, as often, a
+`PIECE` otherwise (NeoForge's `addDetailsToTooltipTail`, the `startSleepInBed` lambda, the four HUD layers); into a
+piece moves only a handler that needs nothing but the call: not one that shares a value, captures a local or uses a
+slice, and one that takes the method's arguments only when the method hands the piece its own and never stores into
+them first. A handler that can cancel (a cancellable `@Inject`, a `@Cancellable` callback) moves into a piece only
+when the merged method returns the piece's `Either` lefts — a `LEFT` row, re-checked on the live bytes: NeoForge's
+`startSleepInBed` passes its lambda's answer through `EventHooks.canPlayerStartSleeping` and returns it when it names
+a problem — and every value the handler can cancel with is an `Either.left(..)`, read through the lambdas and private
+helpers of its own mixin. apoli-legacy's avian sleep veto and Fabric API's sleep-direction veto
+(`MODIFY_SLEEPING_DIRECTION`) cancel the lambda that way, so NeoForge's `CanPlayerSleepEvent` sees their problem as it
+sees vanilla's and `startSleepInBed` returns it. apoli cancels with `Either.left(null)`, which that hook cannot read:
+it throws inside `startSleepInBed`. On vanilla's `BedBlock` path both games fail (on apoli's own, `BedBlock` throws on
+the null problem's `message()`), but on Forbric a caller that checks for a null problem — another mod's sleeping bag
+or bed — fails too, as it did before the census. On a whole `RENAME` a handler that shares a value moves only with
+every handler of its mixin that shares it in the same method. On the bytes alone R3 had moved injectors into unrelated
+methods of the same shape (text_styles' colour hook onto the shadow colour, ViaFabricPlus' item-use and hotbar-key
+hooks into other vanilla methods, goldenpotions' tab icon into another tab's lambda) and into the renamed tooltip body,
+where they read as fitting. Those four no longer move: ViaFabricPlus 5.0.2's two are confirmed required losses, beside
+the five it already had, so it still stops under the strict policy. `-Dforbric.mixinRetarget.renameCensus=off` moves on
+the bytes alone again, `-Dforbric.mixinRetarget.renameCensus.leftExit=off` keeps every handler that can cancel out of a
+piece, and `-Dforbric.mixinRetarget.renameCensus.uncalled=off` keeps every injector out of the `UNCALLED` body), and
+per-surface
+Fabric adapters
 (`FabricBlockBreakMixinAdapter`, `FabricEntityMixinAnchors`, `FabricClientMixinAnchors`,
 `FabricEnchantmentMixinAdapter`, `FabricMiningMixinAdapter`, `FabricSoundMixinAdapter`,
 `FabricServerLanguageMixinAdapter`). `GuestInjectorPruner` (COREMOD) trims individual injectors from a guest mixin
 class where the kernel replaces their function. Several adapters read shipped tables under
-`src/main/resources/net/forbric/kernel/mixin/` (`carrier-helpers.txt`, `carrier-stubs.txt`,
-`lambda-permutations.txt`, `uncalled-methods.txt`); `CarrierHelperCensusTest` and `UncalledMethodCensusTest`
-re-derive the first and last from the staged jars and pin them.
+`src/main/resources/net/forbric/kernel/mixin/` (`carrier-helpers.txt`, `carrier-renames.txt`, `carrier-stubs.txt`,
+`lambda-permutations.txt`, `uncalled-methods.txt`); `CarrierHelperCensusTest`, `CarrierRenameCensusTest` and
+`UncalledMethodCensusTest` re-derive `carrier-helpers.txt`, `carrier-renames.txt` and `uncalled-methods.txt` from the
+staged jars and pin them.
 
 ### 7.5 Attribution
 

@@ -267,7 +267,11 @@ public final class KernelGuestMixinAdapter {
 						MixinFit.Result after = plan.isEmpty() ? null : MixinFit.evaluate(
 								MixinRetarget.rewritten(judged, plan), resource,
 								net.forbric.kernel.classloading.DelegationPolicy::alwaysGame, added);
-						if (after != null && after.unresolved().size() < fit.unresolved().size()) {
+						// Kept when it binds what did not bind: fewer anchors missing, or fewer missing outright where one now
+						// binds in a method nothing runs (R3's move of malilib's tooltip hook into the renamed tooltip body
+						// nothing calls) — the final-class check then reports that injector as never running, not as missing.
+						if (after != null && (after.unresolved().size() < fit.unresolved().size()
+								|| after.hardUnresolved() < fit.hardUnresolved())) {
 							MixinRetarget.remember(plan);
 							ForbricLog.info("[Forbric/Mixin] retargeted guest mixin %s:%s — %s; verdict %s→%s",
 									MixinConfigOwners.describe(configName), mixin, plan.describe(), fit.verdict(),

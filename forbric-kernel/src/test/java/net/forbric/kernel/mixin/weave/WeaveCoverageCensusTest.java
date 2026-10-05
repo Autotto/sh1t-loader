@@ -55,6 +55,10 @@ class WeaveCoverageCensusTest {
 			Map.entry("FinalMixinApplications", Switch.own()), // WeaveHarnessSelfTest, MixinOutcomeWeaveTest
 			Map.entry("MixinAtWidenedCall", Switch.own("forbric.mixinAtWiden")), // MixinOutcomeWeaveTest
 			Map.entry("MixinStubRebind", Switch.own("forbric.mixinStubRebind")),
+			// The whole retarget, and R3's census of carrier renames: MixinRetargetWeaveTest; its left exit:
+			// MixinRetargetSleepPieceWeaveTest; its move into a renamed body nothing calls: MixinRetargetUncalledBodyWeaveTest.
+			Map.entry("MixinRetarget", Switch.own("forbric.mixinRetarget", "forbric.mixinRetarget.renameCensus",
+					"forbric.mixinRetarget.renameCensus.leftExit", "forbric.mixinRetarget.renameCensus.uncalled")),
 			Map.entry("MixinSubtypeOwnerRetarget", Switch.own("forbric.mixinSubtypeOwner")),
 			Map.entry("MixinWrapOperationShim", Switch.own("forbric.wrapOperationShim")),
 			Map.entry("MixinRelocatedCall", Switch.own("forbric.mixinRelocatedCall")),
@@ -108,7 +112,7 @@ class WeaveCoverageCensusTest {
 	private static final String NO_SCENARIO = "no weave scenario yet; ClassNode-level tests only";
 	/** Only shrinks. Every row is a stage whose output no CI test has yet run through the real weave. */
 	static final Map<String, String> NOT_WOVEN_YET = notWovenYet(
-			"FabricMiningMixinAdapter", "MixinRetarget");
+			"FabricMiningMixinAdapter");
 
 	@Test void everyPipelineStageIsWovenOrListedWithAReason() throws Exception {
 		Set<String> configTime = configTimeStages();
