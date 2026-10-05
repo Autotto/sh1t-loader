@@ -684,7 +684,17 @@ merge mutating a list fabric-api has frozen (`KernelPackRepair` documents both).
   answers as the owning ecosystem does. **Aliases** — `RegistryAliasParityInjector` / `KernelRegistryAliases`.
 - **Datapack registries** — `KernelLifecycle.registerDataPackRegistries` posts `DataPackRegistryEvent.NewRegistry`,
   declares MinecraftForge's biome/structure modifier registries and mirrors Fabric dynamic registries both ways.
-- **Data maps** — NeoForge data maps are loaded (`KernelNeoDataMapWatch`, `KernelNeoWorldgen`).
+- **Data maps** — NeoForge data maps are loaded (`KernelNeoDataMapWatch`, `KernelNeoWorldgen`). Every holder-based
+  lookup ends in `Holder.Reference.getData`, which asked `key()` and threw `Trying to access unbound value` for a value
+  not registered yet; vanilla's oxidation, waxing and stripping maps answer for any block. `UnboundHolderDataInjector`
+  makes an unbound holder answer "no data" (a value with no key is in no data map), so NeoForge's hooks fall back to
+  vanilla's maps, as a Fabric mod calling them from its initializer expects (`-Dforbric.unboundHolderData=off`). This
+  differs from native NeoForge, which throws there at any time. While the value's registry is open the answer is
+  silent; once any `frozen` flag of that registry is set (its `freeze()` has run, which throws "Some intrusive holders
+  were not registered" for such a value), `util.KernelUnboundHolderData` WARNs once per such value (at most 64, then
+  one line), naming it, its registry and the asking stack — the throw native NeoForge would have given is still reported,
+  but the lookup still answers "no data". The WARN says the value was not registered when its registry closed, not
+  that it never will be: a registry can be unfrozen, and Forbric reopens them for the Fabric client entrypoints.
 - **Worldgen** — MinecraftForge biome/structure modifiers ride inside NeoForge's single modifier pass
   (`runtime.KernelForgeWorldgen`; `-Dforbric.forgeWorldgen=off`, with `ForgeWorldgenShippers` naming the mods
   that then lose it). `NativeCoremodParity`, `BiomeInfoRebaseInjector`, `BiomeLateWriteInjector` make the modified
