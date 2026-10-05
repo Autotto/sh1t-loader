@@ -13,7 +13,6 @@ import java.util.List;
 import java.util.jar.JarEntry;
 import java.util.jar.JarOutputStream;
 
-import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.objectweb.asm.ClassWriter;
@@ -115,12 +114,9 @@ class KernelJarPreloadTest {
 	}
 
 	/** What gate M22 does to the boot jar: empty it in place, under the loader that has it open. */
-	private static void truncate(Path jar) {
+	private static void truncate(Path jar) throws IOException {
 		try (FileChannel channel = FileChannel.open(jar, StandardOpenOption.WRITE)) {
 			channel.truncate(0);
-		} catch (IOException locked) {
-			// Windows will not empty a file another handle has open; there is nothing to measure there.
-			Assumptions.assumeTrue(false, "cannot truncate a jar the loader holds open on this platform: " + locked);
 		}
 	}
 }
