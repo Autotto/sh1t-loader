@@ -124,11 +124,27 @@ public final class MixinFit {
 	 * @param total         how many anchors were checked
 	 * @param nativeAbsent  injector targets the mod's own platform lacks too, which native Mixin drops without a word
 	 *                      ({@link NativeAbsentTargets}); counted in none of the above, so they decide nothing
+	 * @param soft          how many of {@code unresolved} are soft: an injector bound only where nothing runs, a drifted
+	 *                      anonymous target — reasons for PARTIAL, never for UNFIT
 	 */
 	public record Result(Verdict verdict, List<String> unresolved, int resolved, int total,
-			List<String> foreign, List<String> nativeAbsent) {
+			List<String> foreign, List<String> nativeAbsent, int soft) {
 		public Result(Verdict verdict, List<String> unresolved, int resolved, int total, List<String> foreign) {
-			this(verdict, unresolved, resolved, total, foreign, List.of());
+			this(verdict, unresolved, resolved, total, foreign, List.of(), 0);
+		}
+
+		public Result(Verdict verdict, List<String> unresolved, int resolved, int total, List<String> foreign,
+				List<String> nativeAbsent) {
+			this(verdict, unresolved, resolved, total, foreign, nativeAbsent, 0);
+		}
+
+		public Result(Verdict verdict, List<String> unresolved, int resolved, int total, List<String> foreign, int soft) {
+			this(verdict, unresolved, resolved, total, foreign, List.of(), soft);
+		}
+
+		/** The anchors that did not resolve at all: {@code unresolved} without the soft ones. */
+		public int hardUnresolved() {
+			return unresolved.size() - soft;
 		}
 
 		/**
@@ -315,7 +331,7 @@ public final class MixinFit {
 		// nothing runs still bound — it is what resolved before liveness was asked — so it keeps a mixin from UNFIT.
 		boolean anyHardResolved = resolved > 0 || bound > 0 || unresolved.size() == softMisses;
 		return new Result(anyHardResolved ? Verdict.PARTIAL : Verdict.UNFIT, unresolved, resolved, total,
-				List.copyOf(foreign), absent);
+				List.copyOf(foreign), absent, softMisses);
 	}
 
 	// ---------------------------------------------------------------------------------------------------------------
@@ -546,8 +562,8 @@ public final class MixinFit {
 		}
 		// Bound is not run. An injector whose every method is one nothing in the merged game calls attaches and
 		// never fires: Better Mount HUD's XP redirect in Hud.extractHotbarAndDecorations, whose vanilla caller
-		// NeoForge's HUD layers replaced. Soft — it makes the mixin PARTIAL with the reason, never UNFIT, and no
-		// injector moves because of it.
+		// NeoForge's HUD layers replaced, and malilib's tooltip hook in the renamed tooltip body R3 moves it to. Soft —
+		// it makes the mixin PARTIAL with the reason, never UNFIT, and no injector moves because of it.
 		String never = neverRuns(mixin, target, hits, resolver);
 		out.add(never == null ? new Anchor("@Inject target", where, true) : Anchor.neverRuns(never));
 
@@ -804,13 +820,17 @@ public final class MixinFit {
 
 	/**
 	 * "extractHotbarAndDecorations never runs: …" when every method the injector bound is one
-	 * {@link MergedBaseUncalledMethods} lists for the mod's ecosystem and the live bytes agree; null when any may run, the
-	 * rule is off, or the mod's ecosystem is unknown (a config two mods claim).
+	 * {@link MergedBaseUncalledMethods} lists for the mod's ecosystem, or a body a carrier renamed that nothing in the
+	 * merged game calls ({@link CarrierRenames#neverRuns}: NeoForge's {@code ItemStack.addDetailsToTooltipComponents},
+	 * where R3 moves malilib's tooltip hook), and the live bytes agree; null when any may run, the rule is off, or the
+	 * mod's ecosystem is unknown (a config two mods claim).
 	 */
 	private static String neverRuns(ClassNode mixin, ClassNode target, List<MethodNode> hits,
 			Function<String, byte[]> resolver) {
 		if (!asksLiveness()) return null;
-		for (MethodNode hit : hits) if (!MergedBaseUncalledMethods.lists(hit.name, hit.desc)) return null;
+		for (MethodNode hit : hits) {
+			if (!MergedBaseUncalledMethods.lists(hit.name, hit.desc) && !CarrierRenames.listsUncalled(target.name)) return null;
+		}
 		net.forbric.api.Ecosystem ecosystem = MixinStubRebind.ecosystemOf(mixin.name);
 		if (ecosystem == null) return null;
 		List<String> dead = new ArrayList<>();
@@ -823,6 +843,8 @@ public final class MixinFit {
 				}
 			}
 			String why = owner == null ? null : MergedBaseUncalledMethods.neverRuns(owner, hit, ecosystem, resolver);
+			// Or a body a carrier renamed and nothing calls, where R3 moved the injector to bind as it would in the body.
+			if (why == null && owner != null) why = CarrierRenames.neverRuns(owner, hit, ecosystem);
 			if (why == null) return null;
 			String line = hit.name + " never runs: " + why;
 			if (!dead.contains(line)) dead.add(line);

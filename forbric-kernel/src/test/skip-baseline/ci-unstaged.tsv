@@ -143,6 +143,8 @@ test	net.forbric.kernel.mixin.CarpetMixinAdapterTest	reshapedHostsRefuseTheWhole
 test	net.forbric.kernel.mixin.CarpetMixinAdapterTest	reshapedNativeFluidLocalRefusesTheWholeRetarget()	[fixture:third-party] real fixture required: build/compat-inputs/carpet/mods/fabric-carpet-26.2+v260616.jar
 test	net.forbric.kernel.mixin.CarpetMixinAdapterTest	vanillaAndDisabledRepairLeaveAllReleasedHandlersUntouched()	[fixture:third-party] real fixture required: build/compat-inputs/carpet/mods/fabric-carpet-26.2+v260616.jar
 test	net.forbric.kernel.mixin.CarrierHelperCensusTest	theShippedTableIsExactlyWhatTheArtifactsSay()	[fixture:staged] $ROOT/forbric-loader/run/merged-base/patched-mc-merged-26.2.jar required
+test	net.forbric.kernel.mixin.CarrierRenameCensusTest	onlyNeoForgesRenamedTooltipBodyIsUncalled()	[fixture:staged] $ROOT/forbric-loader/run/merged-base/patched-mc-merged-26.2.jar required
+test	net.forbric.kernel.mixin.CarrierRenameCensusTest	theShippedTableIsExactlyWhatTheArtifactsSay()	[fixture:staged] $ROOT/forbric-loader/run/merged-base/patched-mc-merged-26.2.jar required
 test	net.forbric.kernel.mixin.CarrierStubCensusTest	theShippedTableIsExactlyWhatTheArtifactsSay()	[fixture:staged] merged base and vanilla jar required
 test	net.forbric.kernel.mixin.ContinuitySpriteMixinAdapterTest	aChangedLocalMapLayoutIsRefused()	[fixture:third-party] actual Continuity fixture required
 test	net.forbric.kernel.mixin.ContinuitySpriteMixinAdapterTest	actualCallbacksMoveToTheLiveOverloadAndKeepTheOriginalLoaderMapArgument()	[fixture:third-party] actual Continuity fixture required
@@ -266,6 +268,11 @@ test	net.forbric.kernel.mixin.MixinRetargetCarrierHelperStagedTest	betterMountHu
 test	net.forbric.kernel.mixin.MixinRetargetCarrierHelperStagedTest	fabricRenderingsHudMixinPlanIsTheSameWithTheSplitRuleOnOrOff()	[fixture:staged] staged merged base absent
 test	net.forbric.kernel.mixin.MixinRetargetCarrierHelperStagedTest	highlightersSlotMarkFollowsTheDecorationsIntoRenderSlotContents()	[fixture:staged] staged merged base absent
 test	net.forbric.kernel.mixin.MixinRetargetCarrierHelperStagedTest	puzzleslibsFogColourFollowsTheSetIntoClientHooks()	[fixture:staged] staged merged base absent
+test	net.forbric.kernel.mixin.MixinRetargetRenamedBodyCorpusTest	r3MovesExactlyThePinnedInjectorsOverTheAuditCorpus()	[fixture:staged] $ROOT/forbric-loader/run/merged-base/patched-mc-merged-26.2.jar required
+test	net.forbric.kernel.mixin.MixinRetargetRenamedBodyStagedTest	aHandlerThatCancelsWithALeftFollowsTheSleepLambda()	[fixture:staged] staged merged base absent
+test	net.forbric.kernel.mixin.MixinRetargetRenamedBodyStagedTest	fabricApisOwnMixinsMoveOnlyIntoRenamedBodiesTheGameCalls()	[fixture:staged] staged merged base absent
+test	net.forbric.kernel.mixin.MixinRetargetRenamedBodyStagedTest	malilibsLastTooltipHookBindsInTheRenamedBodyAndReadsNeverRunning()	[fixture:staged] staged merged base absent
+test	net.forbric.kernel.mixin.MixinRetargetRenamedBodyStagedTest	theAuditedInjectorsMoveOnlyAlongARow()	[fixture:staged] staged merged base absent
 test	net.forbric.kernel.mixin.MixinRetargetStagedTest	fabricBlockApisTwoAirCheckRedirectsGoPartialToFit()	[fixture:staged] staged merged base absent
 test	net.forbric.kernel.mixin.MixinRetargetStagedTest	fabricTransfersTwoContainerMixinsGoPartialToFit()	[fixture:staged] staged merged base absent
 test	net.forbric.kernel.mixin.MixinRetargetStagedTest	fuelValuesMixinIsLeftAloneBecauseItsLocalsLiveOnlyInTheStub()	[fixture:staged] staged merged base absent

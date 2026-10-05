@@ -77,7 +77,10 @@ class MixinFitLivenessCensusStagedTest {
 	 * .isLivingOnLadder}), and the vanilla-shaped forwarders the merge kept beside NeoForge's overloads, which the merged
 	 * callers skip ({@code ItemModelGenerator.bakeSideFaces}, {@code ServerExplosion.hurtEntities}, {@code EffectsInInventory
 	 * .extractText}, {@code CropBlock.getGrowthSpeed(Block, …)}); plus {@code Block.tryDropExperience} and
-	 * {@code ScreenEffectRenderer.getViewBlockingState}, which the merged callers replaced outright.
+	 * {@code ScreenEffectRenderer.getViewBlockingState}, which the merged callers replaced outright. And NeoForge's
+	 * renamed tooltip body {@code ItemStack.addDetailsToTooltipComponents}, which nothing calls: R3 moves malilib's last
+	 * tooltip hook and trinkets' attribute-line hook there (carrier-renames.txt marks it UNCALLED), where they bind and
+	 * never run.
 	 */
 	private static final Set<String> EXPECTED = Set.of(
 			"apoli.mixins.json:legacy.hud_power.HudMixin FIT -> PARTIAL",
@@ -88,12 +91,14 @@ class MixinFitLivenessCensusStagedTest {
 			"fabric-block-api-v1.mixins.json:LivingEntityMixin FIT -> PARTIAL",
 			"fabric-renderer-api-v1.mixins.json:block.particle.ScreenEffectRendererMixin FIT -> PARTIAL",
 			"fabric-rendering-v1.mixins.json:HudMixin PARTIAL -> PARTIAL",
+			"mixins.malilib.json:item.MixinItemStack FIT -> PARTIAL",
 			"puzzleslib.fabric.mixins.json:BlockFabricMixin FIT -> PARTIAL",
 			"puzzleslib.fabric.mixins.json:ServerExplosionFabricMixin FIT -> PARTIAL",
 			"puzzleslib.fabric.mixins.json:client.EffectsInInventoryFabricMixin PARTIAL -> PARTIAL",
-			"sodium-fabric.mixins.json:features.render.model.ItemModelGeneratorMixin FIT -> PARTIAL");
+			"sodium-fabric.mixins.json:features.render.model.ItemModelGeneratorMixin FIT -> PARTIAL",
+			"trinkets.fabric.mixins.json:ItemStackMixin FIT -> PARTIAL");
 	/** The same, counted per pack: one mixin changes in every pack that carries it. */
-	private static final int EXPECTED_IN_PACKS = 28;
+	private static final int EXPECTED_IN_PACKS = 30;
 
 	@AfterEach
 	void reset() {
@@ -199,7 +204,10 @@ class MixinFitLivenessCensusStagedTest {
 		}
 	}
 
-	/** As KernelGuestMixinAdapter: the verdict, and the retarget's when it leaves fewer misses. */
+	/**
+	 * As KernelGuestMixinAdapter: the verdict, and the retarget's when it leaves fewer misses, or fewer outright where one
+	 * now binds in a method nothing runs.
+	 */
 	private static Judged judge(byte[] bytes, Function<String, byte[]> resolver, String liveness) {
 		System.setProperty(MixinFit.LIVENESS_PROPERTY, liveness);
 		MixinFit.Result fit = MixinFit.evaluate(bytes, resolver, net.forbric.kernel.classloading.DelegationPolicy::alwaysGame);
@@ -208,7 +216,7 @@ class MixinFitLivenessCensusStagedTest {
 			if (!plan.isEmpty()) {
 				byte[] rewritten = MixinRetarget.rewritten(bytes, plan);
 				MixinFit.Result after = MixinFit.evaluate(rewritten, resolver, net.forbric.kernel.classloading.DelegationPolicy::alwaysGame);
-				if (after.unresolved().size() < fit.unresolved().size()) {
+				if (after.unresolved().size() < fit.unresolved().size() || after.hardUnresolved() < fit.hardUnresolved()) {
 					return new Judged(after.verdict(), after.unresolved(), "retargeted: " + plan.describe(), rewritten);
 				}
 			}
@@ -265,7 +273,7 @@ class MixinFitLivenessCensusStagedTest {
 	// Packs
 
 	/** A jar and every jar nested in it (Fabric {@code META-INF/jars}, Forge {@code META-INF/jarjar}), each read whole. */
-	private static Map<String, Map<String, byte[]>> units(Path jar) throws IOException {
+	static Map<String, Map<String, byte[]>> units(Path jar) throws IOException {
 		Map<String, Map<String, byte[]>> units = new LinkedHashMap<>();
 		Map<String, byte[]> top = read(Files.readAllBytes(jar), MixinFitLivenessCensusStagedTest::wanted);
 		units.put(jar.getFileName().toString(), top);
@@ -282,7 +290,7 @@ class MixinFitLivenessCensusStagedTest {
 		return name.endsWith(".class") || name.endsWith(".json") || name.endsWith(".jar") || name.endsWith(".toml") || name.endsWith("MANIFEST.MF");
 	}
 
-	private static Map<String, byte[]> read(byte[] zip, java.util.function.Predicate<String> wanted) throws IOException {
+	static Map<String, byte[]> read(byte[] zip, java.util.function.Predicate<String> wanted) throws IOException {
 		Map<String, byte[]> out = new LinkedHashMap<>();
 		try (ZipInputStream in = new ZipInputStream(new ByteArrayInputStream(zip))) {
 			for (ZipEntry e; (e = in.getNextEntry()) != null; ) if (!e.isDirectory() && wanted.test(e.getName())) out.put(e.getName(), in.readAllBytes());
@@ -297,7 +305,7 @@ class MixinFitLivenessCensusStagedTest {
 	 * goes to the one MultiLoaderArbiter prefers by default (NeoForge, MinecraftForge, Fabric), one no manifest names to
 	 * the unit's only ecosystem.
 	 */
-	private static Map<String, Ecosystem> configOwners(Map<String, byte[]> content) {
+	static Map<String, Ecosystem> configOwners(Map<String, byte[]> content) {
 		Map<String, Set<Ecosystem>> declared = new LinkedHashMap<>();
 		Set<Ecosystem> unit = new LinkedHashSet<>();
 		byte[] fabric = content.get("fabric.mod.json");
@@ -340,7 +348,7 @@ class MixinFitLivenessCensusStagedTest {
 		return out;
 	}
 
-	private static List<String> entries(UnmodifiableConfig config) {
+	static List<String> entries(UnmodifiableConfig config) {
 		List<String> out = new ArrayList<>();
 		for (String key : List.of("mixins", "client", "server")) {
 			if (config.get(List.of(key)) instanceof List<?> list) for (Object o : list) if (o instanceof String s && !s.isBlank()) out.add(s.trim());
@@ -348,7 +356,7 @@ class MixinFitLivenessCensusStagedTest {
 		return out;
 	}
 
-	private static UnmodifiableConfig parse(byte[] json) {
+	static UnmodifiableConfig parse(byte[] json) {
 		try (Reader reader = new InputStreamReader(new ByteArrayInputStream(json), StandardCharsets.UTF_8)) {
 			return JsonFormat.fancyInstance().createParser().parse(reader);
 		} catch (RuntimeException | IOException notJson) {
