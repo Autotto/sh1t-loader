@@ -82,7 +82,7 @@ public final class KernelJarPreload {
 	public static void run(Class<?> anchor) {
 		if (!enabled()) {
 			ForbricLog.info("[Forbric/Boot] kernel jar classes are read on first use (-D%s=off): a jar replaced or "
-					+ "unreadable mid-session fails the first class used after that", SWITCH);
+					+ "unreadable mid-session breaks the first use of a class after that", SWITCH);
 			return;
 		}
 		Path jar = jarOf(anchor);
@@ -93,7 +93,7 @@ public final class KernelJarPreload {
 			outcome = define(classNames(jar), anchor.getClassLoader());
 		} catch (IOException | RuntimeException unreadable) {
 			ForbricLog.warn("[Forbric/Boot] could not list the kernel jar's classes to define them up front — each is "
-					+ "read on first use instead, so a jar replaced mid-session can fail that use: %s", unreadable);
+					+ "read on first use instead, so a jar replaced mid-session can break that use: %s", unreadable);
 			return;
 		}
 		long millis = (System.nanoTime() - start) / 1_000_000L;
