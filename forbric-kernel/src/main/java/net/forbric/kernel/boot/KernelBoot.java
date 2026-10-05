@@ -214,7 +214,7 @@ public final class KernelBoot {
 		// Pre-scan every declared nested candidate before either discovery discards a root. The later
 		// arbitrateNested call verifies physical files against this same decision; it does not choose again.
 		DuplicateModArbiter.Decision topLevelDupes =
-				DuplicateModArbiter.arbitrate(gameDir.resolve("mods"), side.envType);
+				DuplicateModArbiter.arbitrate(gameDir.resolve("mods"), side.envType, gameVersion);
 
 		// Forge/NeoForge mod jars (Mojmap-compiled like the merged base → load directly, no remap), plus the
 		// libraries they nest at META-INF/jarjar/ — see extractForgeFamilyJarJar.
@@ -242,7 +242,8 @@ public final class KernelBoot {
 		// Fabric discovery consumes the same preselected physical files and registers nothing yet. The union
 		// below is checked against the plan before either loader builds containers or adds losing jars to the
 		// classpath. When arbitration is explicitly disabled, both original discovery paths remain available.
-		FabricModDiscovery fabricScan = KernelFabricEcosystem.scan(side.envType, gameDir, topLevelDupes);
+		FabricModDiscovery fabricScan = scanFabricMods(side, gameDir, topLevelDupes, gameVersion, candidatePlan, modJars,
+				nested);
 		List<Path> allNested = new ArrayList<>(nested);
 		for (Path jar : fabricScan.getClasspathJars()) {
 			if (!modJars.contains(jar) && !nested.contains(jar)) allNested.add(jar);
@@ -1400,6 +1401,22 @@ public final class KernelBoot {
 	/** @see #nestedJarJarJars */
 	public static List<Path> nestedJarJarJars() {
 		return nestedJarJarJars;
+	}
+
+	/**
+	 * The Fabric half of discovery: reads, registers nothing. With a plan it consumes the plan's files, and the plan has
+	 * already settled Fabric's nested rule over every ecosystem's mods. Without one
+	 * ({@code -Dforbric.crossJarArbitration=off}) it walks {@code mods/} and Fabric {@code jars} only, so what the
+	 * jars it does not read hard-require is handed over (the Forge-family mods, and the Fabric jars the Forge-family
+	 * walk took out of their parents), and a nested Fabric mod one of them needs is not left out from under it
+	 * ({@link net.forbric.kernel.fabric.NestedFabricRequirements#requiredOutsideFabricDiscovery}).
+	 */
+	static FabricModDiscovery scanFabricMods(Side side, Path gameDir, DuplicateModArbiter.Decision topLevelDupes,
+			String gameVersion, NestedCandidatePlan plan, List<Path> forgeFamilyJars, List<Path> jarJarChildren) {
+		List<net.forbric.kernel.fabric.NestedFabricRequirements.Requirement> requiredElsewhere = plan != null ? List.of()
+				: net.forbric.kernel.fabric.NestedFabricRequirements.requiredOutsideFabricDiscovery(forgeFamilyJars,
+						jarJarChildren, side.api());
+		return KernelFabricEcosystem.scan(side.envType, gameDir, topLevelDupes, gameVersion, requiredElsewhere);
 	}
 
 	// Package-private so the tests can drive the real extraction against real jars rather than a mock of it.

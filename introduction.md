@@ -310,6 +310,32 @@ Fabric and NeoForge need opposite states in the constructor, so the kernel has t
 - `fabric.FabricModMetadataParser` is the full `fabric.mod.json` v1 reader (entrypoints incl. adapter form, `jars`,
   per-side `mixins`, `accessWidener`, `custom`). `fabric.FabricModDiscovery` follows Fabric JiJ (its extraction
   cache is `.forbric-kernel/jij/`); mods whose `environment` excludes the side are skipped, as on Fabric.
+- A nested Fabric mod is resolved as fabric-loader 0.19.5's `ModSolver` resolves it (`fabric.NestedFabricRequirements`,
+  applied by `NestedCandidateInventory` and by `FabricModDiscovery` when there is no plan): a `depends` on `minecraft`
+  or `java` that excludes the running version, or a `breaks` that includes it, leaves it out, and with it any nested
+  mod that hard-depends only on left-out ones or that only they bundle. ViaFabric is the case: it nests
+  `viafabric-mc26-1` (`minecraft >=26.1 <=26.1.2`) beside `viafabric-mc26-2`, and native loads only
+  `viafabric-mc26-2`. Only what a Fabric mod declares in its `jars` is judged. A NeoForge/MinecraftForge mod's nested
+  jar is not, even if all it carries is a `fabric.mod.json`, because Fabric Loader never opens a jar without one. A
+  child the parent's `META-INF/jarjar/metadata.json` declares is FML's, which loads it as the parent's library; a jar
+  that only sits in `META-INF/jars/` or `META-INF/jarjar/` with no entry in that file is loaded by no native loader,
+  and the kernel keeps it because its Forge-family walk has always taken both directories. A jar reached both ways is
+  kept, whichever route the walk took first. One departure from native: when a mod the kernel loads hard-requires an
+  id and nothing that loads meets the requirement, the left-out copies that meet it are kept, with whatever bundles
+  them on the way to a loaded parent, and a WARN `[Forbric/JiJ] nested <id> <version> in <parent> loaded although
+  Fabric Loader would leave it out (<reason>): <dependent> requires <id> <range>, and nothing else installed meets
+  that` says so. When no installed copy meets it and nothing that loads provides the id at all, every left-out copy
+  is kept, as the kernel loaded it before the rule, and the WARN ends `<dependent> requires <id> <range>; no installed
+  build meets that, and no other <id> would load` instead. For a mod in `mods/` native refuses to start there; the
+  kernel loads such a mod even with a dependency missing, so leaving the provider out would only take that dependency
+  away. Every mod that stays left out gets one `[Forbric/JiJ] nested <id> <version> in <parent> left out: <reason>`
+  line, including what it bundles: a left-out jar is still opened, so a loaded mod's need for something inside it is
+  seen. Jars in `mods/` are never judged; `fabricloader`/`mixinextras` ranges, unreadable ranges and dependencies
+  nothing installed meets do not leave anything out. Without a plan (`-Dforbric.crossJarArbitration=off`),
+  `FabricModDiscovery` walks `mods/` and Fabric `jars` only, so `KernelBoot.scanFabricMods` hands it what the jars it
+  does not read hard-require: the Forge-family mods, and the Fabric manifests of the jars their JarJar carries (no
+  Fabric container there, but on the classpath). `-Dforbric.nestedRequirements=off` loads every nested mod again;
+  `off:<id>,<id>` exempts only those ids (the kernel does not read Fabric's `config/fabric_loader_dependencies.json`).
 - `discovery.ModAnnotationScanner` finds `@Mod` classes by bytecode descriptor; `ModFileScanner` builds a full
   `ModFileScanData` (NeoForge and MinecraftForge shapes differ: `EnumHolder` vs `EnumData`) because JEI, Jade,
   Sophisticated Core and Sodium find their plugins through `ModList.getAllScanData()`.
@@ -1033,6 +1059,7 @@ developer reaches for:
 | `forbric.dupeIdPreference`, `forbric.nestedDupePreference` | cross-jar order for top-level / nested duplicates |
 | `forbric.modOwner` | `id=loader,…` pins; also `<rundir>/forbric-mods.txt` |
 | `forbric.crossJarArbitration` | `off`: two jars with one id both load |
+| `forbric.nestedRequirements` | `off`: a nested Fabric mod whose `minecraft`/`java` range excludes this game loads anyway; `off:<id>,…`: only those ids do |
 | `forbric.arbitrationMaxNodes` | selector work bound (default 100 000, capped at 1 000 000) |
 | `forbric.modOrder` | `name`: file-name construction order |
 | `forbric.fabricOrder` | `off`: Fabric mods follow the topological order instead of mod-id order |
