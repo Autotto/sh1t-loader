@@ -51,7 +51,9 @@ class WeaveCoverageCensusTest {
 
 	/** stage (simple class name) -> the switch its weave test flips. The comment names the test. */
 	static final Map<String, Switch> WOVEN = Map.ofEntries(
-			Map.entry("KernelGuestMixinAdapter", Switch.own("forbric.guestMixinAdapter")), // KernelGuestMixinAdapterWeaveTest
+			// KernelGuestMixinAdapterWeaveTest; NativeAbsentTargetsWeaveTest flips NativeAbsentTargets' switch, which the
+			// adapter's verdict reads, and this one as its native control.
+			Map.entry("KernelGuestMixinAdapter", Switch.own("forbric.guestMixinAdapter")),
 			Map.entry("FinalMixinApplications", Switch.own()), // WeaveHarnessSelfTest, MixinOutcomeWeaveTest
 			Map.entry("MixinAtWidenedCall", Switch.own("forbric.mixinAtWiden")), // MixinOutcomeWeaveTest
 			Map.entry("MixinStubRebind", Switch.own("forbric.mixinStubRebind")),

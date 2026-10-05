@@ -68,6 +68,13 @@ import org.objectweb.asm.tree.MethodNode;
  * <p>Anything this cannot parse counts as RESOLVED. A weak parser must never be the reason a working mixin is
  * dropped; the cost of a false negative is a mixin that misbehaves as it does today, while the cost of a false
  * positive is silently deleting behaviour that worked.
+ *
+ * <h2>What native drops as well</h2>
+ *
+ * <p>A miss is the merge's only when the mod's own platform had the member: vanilla 26.2 for a Fabric mod, its own
+ * patched game for a MinecraftForge or NeoForge mod. An injector whose every target that platform lacks too, and which
+ * nothing requires to inject, is one native Mixin drops without a word; it is counted neither way and listed in
+ * {@link Result#nativeAbsent}, so the mixin is judged on the rest. See {@link NativeAbsentTargets}.
  */
 public final class MixinFit {
 	private static final String MIXIN_DESC = "Lorg/spongepowered/asm/mixin/Mixin;";
@@ -111,13 +118,19 @@ public final class MixinFit {
 	}
 
 	/**
-	 * @param verdict    the decision
-	 * @param unresolved human-readable anchors that did not resolve, for the log
-	 * @param resolved   how many anchors resolved
-	 * @param total      how many anchors were checked
+	 * @param verdict       the decision
+	 * @param unresolved    human-readable anchors that did not resolve, for the log
+	 * @param resolved      how many anchors resolved
+	 * @param total         how many anchors were checked
+	 * @param nativeAbsent  injector targets the mod's own platform lacks too, which native Mixin drops without a word
+	 *                      ({@link NativeAbsentTargets}); counted in none of the above, so they decide nothing
 	 */
 	public record Result(Verdict verdict, List<String> unresolved, int resolved, int total,
-			List<String> foreign) {
+			List<String> foreign, List<String> nativeAbsent) {
+		public Result(Verdict verdict, List<String> unresolved, int resolved, int total, List<String> foreign) {
+			this(verdict, unresolved, resolved, total, foreign, List.of());
+		}
+
 		/**
 		 * Whether the caller should drop this mixin.
 		 *
@@ -215,12 +228,24 @@ public final class MixinFit {
 	 */
 	public static Result evaluate(byte[] mixinBytes, Function<String, byte[]> targetResolver,
 			java.util.function.Predicate<String> gameClass, MixinAddedMembers.View added) {
+		return evaluate(mixinBytes, targetResolver, gameClass, added, NativeAbsentTargets.Context.NONE);
+	}
+
+	/**
+	 * @param nativeView what lets an injector target the mod's own platform lacks too be told from one the merge lost;
+	 *                   such an injector is left out of the verdict and named in {@link Result#nativeAbsent}.
+	 *                   {@code Context.NONE} asks nothing and counts it as a miss, as before
+	 */
+	public static Result evaluate(byte[] mixinBytes, Function<String, byte[]> targetResolver,
+			java.util.function.Predicate<String> gameClass, MixinAddedMembers.View added,
+			NativeAbsentTargets.Context nativeView) {
 		ClassNode mixin = read(mixinBytes, false);
 		List<String> targets = mixinTargets(mixin);
 		if (targets.isEmpty()) return new Result(Verdict.FIT, List.of(), 0, 0, List.of());
 
 		List<String> unresolved = new ArrayList<>();
 		List<String> orphaned = new ArrayList<>();
+		List<String> nativeAbsent = new ArrayList<>();
 		int resolved = 0;
 		int total = 0;
 		int softMisses = 0;
@@ -244,8 +269,16 @@ public final class MixinFit {
 			// same 1226 there is not one of the latter.
 			boolean gameOwned = gameClass.test(targetName.replace('/', '.'));
 
+			// The platform is asked about the class it compiled at the name the mixin declares, so only when the mixin
+			// lands there: a target MixinAnonymousRetarget moves, or another mod's class, is not the platform's to answer.
+			// Minecraft's own libraries are (brigadier, DataFixerUpper): the kernel loads them beside the game rather than
+			// as game classes, so they are not game-owned here, and NativeAbsentTargets answers for exactly the library
+			// jars every platform loads, by the jar that serves the class.
+			NativeAbsentTargets.Context asked = moved == null && nativeView != null
+					&& (gameOwned || NativeAbsentTargets.inVanillaPackages(targetName))
+					? nativeView : NativeAbsentTargets.Context.NONE;
 			List<Anchor> anchors = new ArrayList<>(anchorsOf(mixin, target, targetResolver,
-					added == null ? MixinAddedMembers.View.NONE : added, declared));
+					added == null ? MixinAddedMembers.View.NONE : added, declared, asked));
 			// A renumbered anonymous class: every member anchor may resolve and still belong to a different class
 			// than the one vanilla compiled at that name. Soft — it forces PARTIAL, never UNFIT.
 			if (moved == null && gameOwned && MergedBaseAnonymousDrift.drifted(targetName)) {
@@ -254,6 +287,12 @@ public final class MixinFit {
 						+ ")", false, true));
 			}
 			for (Anchor anchor : anchors) {
+				// Native Mixin drops it on the mod's own platform too, so it is neither a hit nor a miss here: the mixin
+				// is judged on the rest, and Mixin drops this one exactly as native does.
+				if (anchor.nativeAbsent) {
+					nativeAbsent.add(anchor.describe(targetName));
+					continue;
+				}
 				total++;
 				if (anchor.resolved) {
 					resolved++;
@@ -269,13 +308,14 @@ public final class MixinFit {
 
 		// An orphaned @Shadow field is the silent case: it resolves (the field is still declared) and then reads
 		// null at runtime. It outranks the count-based verdicts precisely because nothing else detects it.
-		if (!orphaned.isEmpty()) return new Result(Verdict.HAZARD, orphaned, resolved, total, List.of());
-		if (total == 0 || unresolved.isEmpty()) return new Result(Verdict.FIT, List.of(), resolved, total, List.of());
+		List<String> absent = List.copyOf(nativeAbsent);
+		if (!orphaned.isEmpty()) return new Result(Verdict.HAZARD, orphaned, resolved, total, List.of(), absent);
+		if (total == 0 || unresolved.isEmpty()) return new Result(Verdict.FIT, List.of(), resolved, total, List.of(), absent);
 		// UNFIT is "no HARD anchor resolves"; a soft miss alone is PARTIAL, whatever else is there. An injector bound where
 		// nothing runs still bound — it is what resolved before liveness was asked — so it keeps a mixin from UNFIT.
 		boolean anyHardResolved = resolved > 0 || bound > 0 || unresolved.size() == softMisses;
 		return new Result(anyHardResolved ? Verdict.PARTIAL : Verdict.UNFIT, unresolved, resolved, total,
-				List.copyOf(foreign));
+				List.copyOf(foreign), absent);
 	}
 
 	// ---------------------------------------------------------------------------------------------------------------
@@ -295,6 +335,11 @@ public final class MixinFit {
 		 * resolved, and the mixin still applies there, so it must not become the reason a mixin is dropped.
 		 */
 		final boolean bound;
+		/**
+		 * An injector target the mod's own platform lacks too, on an injector nothing makes count: native Mixin drops it
+		 * without a word, so it is reported apart and counted as neither resolved nor missing ({@link NativeAbsentTargets}).
+		 */
+		boolean nativeAbsent;
 		/** The {@code @Group} the injector naming this anchor belongs to, or {@code null}; see {@link #settleGroups}. */
 		String group;
 		/** That injector, so a group can tell its alternatives apart. */
@@ -326,6 +371,13 @@ public final class MixinFit {
 			return new Anchor("@Inject target", detail, false, true, false, true);
 		}
 
+		/** An injector whose every target the mod's own platform lacks too, and which nothing requires to inject. */
+		static Anchor absentNatively(String detail) {
+			Anchor anchor = new Anchor("@Inject target", detail, false);
+			anchor.nativeAbsent = true;
+			return anchor;
+		}
+
 		void alternativeOf(String group, MethodNode handler) {
 			this.group = group;
 			this.handler = handler;
@@ -338,7 +390,7 @@ public final class MixinFit {
 	}
 
 	private static List<Anchor> anchorsOf(ClassNode mixin, ClassNode target, Function<String, byte[]> resolver,
-			MixinAddedMembers.View added, String declared) {
+			MixinAddedMembers.View added, String declared, NativeAbsentTargets.Context nativeView) {
 		// The target again with its local variable tables, read once and only if an injector needs it.
 		Supplier<ClassNode> withLocals = new Supplier<>() {
 			private ClassNode read;
@@ -402,7 +454,7 @@ public final class MixinFit {
 			AnnotationNode injector = injectorOf(m);
 			if (injector == null) continue;
 			int first = out.size();
-			injectorAnchors(mixin, m, injector, target, resolver, withLocals, out);
+			injectorAnchors(mixin, m, injector, target, resolver, withLocals, nativeView, out);
 			String group = groupOf(m);
 			if (group != null) {
 				for (int i = first; i < out.size(); i++) out.get(i).alternativeOf(group, m);
@@ -426,7 +478,8 @@ public final class MixinFit {
 	 * to {@code out}; nothing when the injector names no selector.
 	 */
 	private static void injectorAnchors(ClassNode mixin, MethodNode m, AnnotationNode injector, ClassNode target,
-			Function<String, byte[]> resolver, Supplier<ClassNode> withLocals, List<Anchor> out) {
+			Function<String, byte[]> resolver, Supplier<ClassNode> withLocals, NativeAbsentTargets.Context nativeView,
+			List<Anchor> out) {
 		// An injector's `method` is a list of CANDIDATE selectors, not a conjunction. Mixin's default
 		// require=1 counts matches across the whole list, so mods routinely ship alternative names to span
 		// mappings or MC versions — Iris's LevelRenderer mixin carries both `lambda$addSkyPass$0` AND
@@ -469,7 +522,12 @@ public final class MixinFit {
 				: hits.isEmpty() ? String.join("|", misses)
 				: String.join("|", misses) + " (" + hits.size() + "/" + selectors.size() + " selectors hit)";
 		if (hits.isEmpty()) {
-			out.add(new Anchor("@Inject target", where, false));
+			// Not Enough Crashes' populateCrashReport: a name no vanilla 26.2 BlockEntity has either, in a Fabric mod.
+			// Native Mixin skips an injector that matches nothing and need not inject, and says nothing; a miss here
+			// would have been the whole mixin's, and a required loss native never has. A MinecraftForge or NeoForge
+			// mod is asked about its own patched game, which may have the method the merge lost.
+			out.add(NativeAbsentTargets.dropsNatively(m, injector, selectors, target.name, nativeView)
+					? Anchor.absentNatively(where) : new Anchor("@Inject target", where, false));
 			return;
 		}
 		// The move MixinStubRebind will make for an injector bound to a carrier stub its own platform ran as a body

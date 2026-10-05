@@ -164,6 +164,20 @@ public final class KernelGuestMixinAdapter {
 	 */
 	public static List<String> unfitMixins(String configName, byte[] configJson, Function<String, byte[]> resource,
 			net.fabricmc.api.EnvType side) {
+		return unfitMixins(configName, configJson, resource, side, null, null);
+	}
+
+	/**
+	 * As above, with {@code raw} serving the merged base's bytes BEFORE the transform chain and {@code base} naming
+	 * the members digest of the jar that serves a class, which is what lets an injector target the owning mod's own
+	 * platform lacks too be told from one the merge lost ({@link NativeAbsentTargets}). The platform is the config's
+	 * owner's ecosystem ({@link MixinConfigOwners#ecosystemOf}), and the owner's declared requirements are what discovery
+	 * read from its manifest ({@link net.forbric.api.ModPresence#metadata}), which decide whether it is native to the
+	 * game the table describes at all. A config no single mod claims, a null {@code raw} or a null {@code base} asks
+	 * nothing, and every such target is a miss as before.
+	 */
+	public static List<String> unfitMixins(String configName, byte[] configJson, Function<String, byte[]> resource,
+			net.fabricmc.api.EnvType side, Function<String, byte[]> raw, Function<String, String> base) {
 		if (!enabled()) return List.of();
 
 		UnmodifiableConfig config;
@@ -184,6 +198,13 @@ public final class KernelGuestMixinAdapter {
 		// about an entry this method removes. PluginDeclinedMixins holds the attribution back to ask it later.
 		String pluginClass = asString(config.get(List.of("plugin")));
 		boolean required = Boolean.TRUE.equals(config.get(List.of("required")));
+		// The native game is the owning mod's own: vanilla for a Fabric mod, its patched game for a MinecraftForge or
+		// NeoForge one, which declares methods vanilla does not and the merge may have lost.
+		net.forbric.api.Ecosystem platform = MixinConfigOwners.ecosystemOf(configName);
+		NativeAbsentTargets.Context nativeView = raw == null || base == null || platform == null
+				? NativeAbsentTargets.Context.NONE
+				: new NativeAbsentTargets.Context(raw, declaredDefaultRequire(config), platform, base,
+						declaringMod(configName, platform));
 		Map<String, byte[]> loaded = new LinkedHashMap<>();
 		List<String> suppress = new ArrayList<>();
 
@@ -218,15 +239,24 @@ public final class KernelGuestMixinAdapter {
 				// read, so an anchor they move onto the merged game is not missing (CarpetMixinAdapter.asLoaded).
 				byte[] judged = CarpetMixinAdapter.asLoaded(classBytes, resource);
 				MixinFit.Result fit = MixinFit.evaluate(judged, resource,
-						net.forbric.kernel.classloading.DelegationPolicy::alwaysGame, added);
+						net.forbric.kernel.classloading.DelegationPolicy::alwaysGame, added, nativeView);
 				if (judged != classBytes) {
-					MixinFit.Result raw = MixinFit.evaluate(classBytes, resource,
-							net.forbric.kernel.classloading.DelegationPolicy::alwaysGame, added);
-					if (raw.verdict() != fit.verdict() || raw.unresolved().size() != fit.unresolved().size()) {
+					MixinFit.Result unadapted = MixinFit.evaluate(classBytes, resource,
+							net.forbric.kernel.classloading.DelegationPolicy::alwaysGame, added, nativeView);
+					if (unadapted.verdict() != fit.verdict() || unadapted.unresolved().size() != fit.unresolved().size()) {
 						ForbricLog.info("[Forbric/Mixin] guest mixin %s:%s is judged as its anchor adapter hands it to Mixin — "
-								+ "verdict %s→%s (%s)", MixinConfigOwners.describe(configName), mixin, raw.verdict(),
+								+ "verdict %s→%s (%s)", MixinConfigOwners.describe(configName), mixin, unadapted.verdict(),
 								fit.verdict(), fit.reason());
 					}
+				}
+				if (!fit.nativeAbsent().isEmpty()) {
+					// Informational, and deliberately nothing more: no finding, no mark on the mod's row. Native Mixin
+					// drops this injector on the mod's own platform without a word, so it is no loss of the merge's --
+					// and Mixin will drop it here the same way, the rest of the mixin applying around it.
+					ForbricLog.info("[Forbric/Mixin] guest mixin %s:%s names %s, which %s lacks too; native Mixin drops "
+							+ "that injector without a word (nothing requires it to inject), and so will this boot — not a "
+							+ "merged-base loss", MixinConfigOwners.describe(configName), mixin,
+							String.join(", ", fit.nativeAbsent()), NativeAbsentTargets.describe(platform));
 				}
 				if (!fit.shouldSuppress()) {
 					if (!fit.foreign().isEmpty()) {
@@ -266,7 +296,7 @@ public final class KernelGuestMixinAdapter {
 						MixinRetarget.Plan plan = MixinRetarget.plan(MixinFit.parse(judged), resource);
 						MixinFit.Result after = plan.isEmpty() ? null : MixinFit.evaluate(
 								MixinRetarget.rewritten(judged, plan), resource,
-								net.forbric.kernel.classloading.DelegationPolicy::alwaysGame, added);
+								net.forbric.kernel.classloading.DelegationPolicy::alwaysGame, added, nativeView);
 						if (after != null && after.unresolved().size() < fit.unresolved().size()) {
 							MixinRetarget.remember(plan);
 							ForbricLog.info("[Forbric/Mixin] retargeted guest mixin %s:%s — %s; verdict %s→%s",
@@ -686,5 +716,34 @@ public final class KernelGuestMixinAdapter {
 
 	private static String asString(Object value) {
 		return value == null ? null : value.toString();
+	}
+
+	/**
+	 * What discovery read from the manifest of the one mod that declares {@code configName} — the same mod, of the same
+	 * platform, not another one answering to its id as an alias — or null when that is not known.
+	 */
+	static net.forbric.api.DiscoveredMod declaringMod(String configName, net.forbric.api.Ecosystem platform) {
+		String modId = MixinConfigOwners.modIdOf(configName);
+		net.forbric.api.DiscoveredMod mod = modId == null ? null : net.forbric.api.ModPresence.metadata(modId);
+		return mod != null && modId.equals(mod.getId()) && mod.getEcosystem() == platform ? mod : null;
+	}
+
+	/**
+	 * The config's {@code injectors.defaultRequire} as the mod wrote it — read here, from the bytes the mod shipped,
+	 * because the relaxation rewrites it to 0 before Mixin sees it — or 0, Mixin's default. Negative when a
+	 * {@code parent} config may supply it ({@code MixinConfig.InjectorOptions.mergeFrom} takes the parent's for a 0):
+	 * an unknown requirement never counts as none.
+	 */
+	static int declaredDefaultRequire(UnmodifiableConfig config) {
+		Object declared;
+		try {
+			declared = config.get(List.of("injectors", "defaultRequire"));
+		} catch (RuntimeException notAnObject) {
+			return -1;
+		}
+		if (declared != null && !(declared instanceof Number)) return -1;
+		int value = declared == null ? 0 : ((Number) declared).intValue();
+		if (value == 0 && config.get(List.of("parent")) != null) return -1;
+		return value;
 	}
 }
